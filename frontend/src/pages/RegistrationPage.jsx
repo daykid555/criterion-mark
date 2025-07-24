@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import axios from 'axios';
+import apiClient from '../api';
 import NodeBackground from '../components/NodeBackground';
 
 function RegistrationPage() {
@@ -18,7 +18,7 @@ function RegistrationPage() {
     setMessage(null);
 
     try {
-      const response = await axios.post('http://localhost:5001/api/auth/register', {
+      const response = await apiClient.post('/api/auth/register', {
         companyName,
         companyRegNumber, // <-- Add this
         email: email.toLowerCase(),
