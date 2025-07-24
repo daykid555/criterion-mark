@@ -7,12 +7,12 @@ import Navbar from './components/Navbar.jsx';
 
 import HomePage from './pages/HomePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-import PublicVerifyPage from './pages/PublicVerifyPage.jsx';
 import ManufacturerDashboard from './pages/ManufacturerDashboard.jsx';
 import DvaDashboard from './pages/DvaDashboard.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
 import RegistrationPage from './pages/RegistrationPage.jsx';
+import VerificationPage from './pages/VerificationPage.jsx';
 
 // --- PROTECTED ROUTE LOGIC ---
 // This remains the same, but it will now protect the entire AppLayout
@@ -51,7 +51,7 @@ function App() {
       <Route element={<PublicLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegistrationPage />} />
-        <Route path="/verify" element={<PublicVerifyPage />} />
+        <Route path="/verify" element={<VerificationPage />} />
       </Route>
 
       {/* --- PROTECTED DASHBOARD ROUTES --- */}
