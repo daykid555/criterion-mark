@@ -24,8 +24,23 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // --- MIDDLEWARE ---
+
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://criterion-mark.vercel.app'
+];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+};
 // Enable CORS (Cross-Origin Resource Sharing) for all routes
-app.use(cors());
+app.use(cors(corsOptions));
 // Enable the Express app to parse JSON formatted request bodies
 app.use(express.json());
 
