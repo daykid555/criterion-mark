@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Appending custom CSS for the Glassmorphism UI */
+
+/* ===== Final Corrected Glassmorphism UI System ===== */
+
+/* -- Main Panel Style -- */
+.glass-panel {
+  /* THIS IS THE FIX: Changed from dark to frosted white */
+  background: rgba(255, 255, 255, 0.15); 
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+/* -- Input Field with "Shiny Dust" Animation -- */
+.glass-input {
+  position: relative;
+  /* FIX: Changed from dark to light background */
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  /* FIX: Changed text to white for better visibility */
+  color: white; 
+  transition: background 0.3s ease, border-color 0.3s ease;
+  overflow: hidden;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.7);
+  outline: none;
+}
+
+/* FIX: Changed placeholder to white with opacity */
+.glass-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Calendar icon styling for date inputs */
+.glass-input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.5);
+  cursor: pointer;
+}
+
+.glass-input[type="date"]::-webkit-inner-spin-button,
+.glass-input[type="date"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Shiny Dust Effect (unchanged) */
+.glass-input::after {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%; width: 200%; height: 200%;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.1) 1%, transparent 1.5%);
+  background-size: 0.5rem 0.5rem;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  animation: glitter 10s linear infinite;
+}
+.glass-input:focus::after { opacity: 1; }
+@keyframes glitter {
+  0% { transform: translate(0, 0); } 25% { transform: translate(5px, 5px); } 50% { transform: translate(0, 5px); } 75% { transform: translate(5px, 0); } 100% { transform: translate(0, 0); }
+}
+
+/* -- Button with Brighter Shimmer (Text color fixed) -- */
+.glass-button {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  /* FIX: Changed text to white for better visibility */
+  color: white; 
+  font-weight: 600; /* Bolder */
+  transition: background 0.3s ease;
+  backdrop-filter: blur(5px);
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.glass-button::before {
+  content: '';
+  position: absolute; top: 0; left: -200%; width: 150%; height: 100%;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.8) 50%, transparent 80%);
+  transform: skewX(-30deg);
+  transition: left 1s ease-in-out;
+}
+.glass-button:hover::before { left: 200%; }
+
+.no-wrap {
+  white-space: nowrap;
+}
+
+/* ===== Attention Pulse Animation ===== */
+.pulse-attention {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+  }
+  50% {
+    opacity: 0.9;
+    box-shadow: 0 0 0 0.5rem rgba(255, 255, 255, 0);
+  }
+}

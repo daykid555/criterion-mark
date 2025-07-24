@@ -1,0 +1,106 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Defines the user roles in the system
+enum Role {
+  MANUFACTURER
+  ADMIN
+  DVA
+  LOGISTICS // New Role
+  PHARMACY  // New Role
+  CUSTOMER  // New Role for public scans
+}
+
+// Defines the possible statuses for a batch
+enum BatchStatus {
+  PENDING_DVA_APPROVAL
+  PENDING_ADMIN_APPROVAL
+  ADMIN_REJECTED
+  DVA_REJECTED
+  ON_HOLD
+  CANCELLED
+  PENDING_PRINTING
+  PRINTING_IN_PROGRESS
+  PRINTING_COMPLETE
+  IN_TRANSIT
+  DELIVERED
+}
+
+// User model for authentication and roles
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  password     String
+  companyName  String?
+  companyRegNumber String?  @unique // Must be unique to prevent duplicates
+  role         Role
+  isActive     Boolean  @default(false) // All new users are inactive by default
+  batches      Batch[]
+  scanRecords  ScanRecord[] // A user can have many scan records
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  approvedBy   Int?     // The ID of the admin who approved them
+  approvedAt   DateTime?
+}
+
+// Batch model for tracking drug production requests
+model Batch {
+  id                  Int          @id @default(autoincrement())
+  drugName            String
+  quantity            Int
+  nafdacNumber        String
+  expirationDate      DateTime
+  manufacturerId      Int
+  status              BatchStatus  @default(PENDING_DVA_APPROVAL)
+  manufacturer        User         @relation(fields: [manufacturerId], references: [id])
+  qrCodes             QRCode[]
+  dva_approved_at     DateTime?
+  admin_approved_at   DateTime?
+  print_started_at    DateTime?
+  print_completed_at  DateTime?
+  picked_up_at        DateTime?
+  delivered_at        DateTime?
+  rejection_reason    String?
+  cancellation_reason String?
+  pickup_notes        String?
+  delivery_notes      String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+}
+
+// QRCode model - NOW SIMPLER
+model QRCode {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  batchId     Int
+  batch       Batch    @relation(fields: [batchId], references: [id])
+  scanRecords ScanRecord[] // Each QR Code can have many scan records
+  createdAt   DateTime @default(now())
+}
+
+// *** NEW MODEL FOR THE SCAN AUDIT TRAIL ***
+model ScanRecord {
+  id          Int      @id @default(autoincrement())
+  qrCodeId    Int
+  qrCode      QRCode   @relation(fields: [qrCodeId], references: [id])
+  
+  scannedAt   DateTime @default(now())
+  scannedByRole Role     // Who scanned it (e.g., LOGISTICS, PHARMACY, CUSTOMER)
+  
+  // This will link to a logged-in user if they are the one scanning
+  scannerId   Int?     
+  scanner     User?    @relation(fields: [scannerId], references: [id])
+  
+  // We can add location later:
+  // latitude    Float?
+  // longitude   Float?
+}
