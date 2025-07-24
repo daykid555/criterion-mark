@@ -1,5 +1,6 @@
 import { useState } from 'react'; // Import useState to manage form inputs
 import axios from 'axios'; // Import axios for making API requests
+import apiClient from '../api';
 
 function RequestBatchForm({ onSuccess }) {
   // --- STATE ---
@@ -28,7 +29,7 @@ function RequestBatchForm({ onSuccess }) {
       };
 
       // Use axios to send a POST request to our backend API
-      const response = await axios.post('http://localhost:5001/api/batches', requestData);
+      const response = await apiClient.post('/api/batches', requestData);
       
       // If successful, show a success message and clear the form
       setMessage({ type: 'success', text: `Successfully created batch ID: ${response.data.id}` });

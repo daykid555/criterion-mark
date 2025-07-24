@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../api';
 
 const DvaApprovalQueue = () => {
   const [pendingBatches, setPendingBatches] = useState([]);
@@ -9,7 +9,7 @@ const DvaApprovalQueue = () => {
   const fetchPendingBatches = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:5001/api/dva/pending-batches');
+      const response = await apiClient.get('/api/dva/pending-batches');
       setPendingBatches(response.data);
     } catch (err) {
       setError('Failed to load pending batches.');
@@ -24,7 +24,7 @@ const DvaApprovalQueue = () => {
 
   const handleApprove = async (batchId) => {
     try {
-      await axios.put(`http://localhost:5001/api/dva/batches/${batchId}/approve`);
+      await apiClient.put(`/api/dva/batches/${batchId}/approve`);
       // Refresh the list to remove the approved batch
       fetchPendingBatches();
     } catch (err) {

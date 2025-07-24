@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import apiClient from '../api';
 
 const STATUS_STYLES = {
   PENDING_ADMIN_APPROVAL: 'bg-blue-400/20 text-blue-200 border border-blue-400/30',
@@ -15,7 +16,7 @@ const DvaHistory = () => {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const response = await axios.get('http://localhost:5001/api/dva/history');
+        const response = await apiClient.get('/api/dva/history');
         setHistory(response.data);
       } catch (err) {
         setError('Failed to load action history.');

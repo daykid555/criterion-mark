@@ -3,6 +3,7 @@ import axios from 'axios'; // Import axios
 
 import RequestBatchForm from "../components/RequestBatchForm";
 import BatchHistoryTable from '../components/BatchHistoryTable'; // Import the table
+import apiClient from '../api';
 
 function ManufacturerDashboard() {
   // State to hold the list of batches
@@ -15,7 +16,7 @@ function ManufacturerDashboard() {
   const fetchBatches = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get('http://localhost:5001/api/manufacturer/batches');
+      const response = await apiClient.get('/api/manufacturer/batches');
       setBatches(response.data); // Store the fetched batches in state
     } catch (err) {
       setError('Failed to load batch history.');

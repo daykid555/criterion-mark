@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import StyledQRCode from '../components/StyledQRCode';
+import apiClient from '../api';
 
 function AdminBatchDetailsPage() {
   const { id } = useParams();
@@ -15,7 +16,7 @@ function AdminBatchDetailsPage() {
     // ... (The existing fetchBatchDetails logic is unchanged)
     const fetchBatchDetails = async () => {
       try {
-        const response = await axios.get(`http://localhost:5001/api/admin/batches/${id}`);
+        const response = await apiClient.get(`/api/admin/batches/${id}`);
         setBatch(response.data);
       } catch (err) {
         setError('Failed to load batch details.');
@@ -30,9 +31,9 @@ function AdminBatchDetailsPage() {
   const handleZipDownload = async () => {
     setIsZipping(true);
     try {
-      const response = await axios({
+      const response = await apiClient({
         method: 'post', // Changed to POST to handle potentially long-running tasks
-        url: `http://localhost:5001/api/admin/batches/${id}/codes/zip`,
+        url: `/api/admin/batches/${id}/codes/zip`,
         responseType: 'blob', // Important: we expect binary data (the zip file)
       });
       

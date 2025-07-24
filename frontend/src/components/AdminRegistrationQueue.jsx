@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../api';
 
 const AdminRegistrationQueue = () => {
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -9,7 +9,7 @@ const AdminRegistrationQueue = () => {
   const fetchPendingUsers = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:5001/api/admin/pending-users');
+      const response = await apiClient.get('/api/admin/pending-users');
       setPendingUsers(response.data);
     } catch (err) {
       setError('Failed to load pending user registrations.');
@@ -24,7 +24,7 @@ const AdminRegistrationQueue = () => {
 
   const handleActivate = async (userId) => {
     try {
-      await axios.put(`http://localhost:5001/api/admin/users/${userId}/activate`);
+      await apiClient.put(`/api/admin/users/${userId}/activate`);
       // On success, refresh the list to remove the activated user
       fetchPendingUsers();
     } catch (err) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import apiClient from '../api';
 import { Link } from 'react-router-dom';
 
 const STATUS_STYLES = {
@@ -14,7 +14,7 @@ const AdminApprovalQueue = () => {
   const fetchPendingBatches = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get('http://localhost:5001/api/admin/pending-batches');
+      const response = await apiClient.get('/api/admin/pending-batches');
       setPendingBatches(response.data);
     } catch (err) {
       setError('Failed to load pending batches.');
@@ -29,7 +29,7 @@ const AdminApprovalQueue = () => {
 
   const handleApprove = async (batchId) => {
     try {
-      await axios.put(`http://localhost:5001/api/admin/batches/${batchId}/approve`);
+      await apiClient.put(`/api/admin/batches/${batchId}/approve`);
       // Refresh the list after approval
       fetchPendingBatches();
     } catch (err) {
