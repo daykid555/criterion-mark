@@ -87,20 +87,21 @@ model QRCode {
   createdAt   DateTime @default(now())
 }
 
-// *** NEW MODEL FOR THE SCAN AUDIT TRAIL ***
+// *** MODIFIED MODEL FOR THE SCAN AUDIT TRAIL ***
 model ScanRecord {
-  id          Int      @id @default(autoincrement())
-  qrCodeId    Int
-  qrCode      QRCode   @relation(fields: [qrCodeId], references: [id])
-  
-  scannedAt   DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  qrCodeId      Int
+  qrCode        QRCode   @relation(fields: [qrCodeId], references: [id])
+
+  scannedAt     DateTime @default(now())
   scannedByRole Role     // Who scanned it (e.g., LOGISTICS, PHARMACY, CUSTOMER)
-  
-  // This will link to a logged-in user if they are the one scanning
-  scannerId   Int?     
-  scanner     User?    @relation(fields: [scannerId], references: [id])
-  
-  // We can add location later:
-  // latitude    Float?
-  // longitude   Float?
+
+  scannerId     Int?
+  scanner       User?    @relation(fields: [scannerId], references: [id])
+
+  // --- NEW LOCATION FIELDS ---
+  ipAddress     String?  // The IP address of the scanner
+  city          String?  // e.g., "Lagos"
+  region        String?  // e.g., "LA" (Lagos State)
+  country       String?  // e.g., "NG" (Nigeria)
 }
