@@ -441,6 +441,47 @@ app.get('/api/admin/history', async (req, res) => {
   }
 });
 
+// --- ADD THIS NEW ADMIN ROUTE ---
+
+// GET /api/admin/scans - Get all scan records for the map view
+app.get('/api/admin/scans', async (req, res) => {
+  try {
+    const allScans = await prisma.scanRecord.findMany({
+      // We only want scans that have some location data
+      where: {
+        // This ensures we don't try to map scans from before we added location tracking
+        ipAddress: {
+          not: null, 
+        },
+      },
+      include: {
+        // We need to know which product was scanned
+        qrCode: {
+          include: {
+            batch: {
+              select: {
+                drugName: true,
+                manufacturer: {
+                  select: {
+                    companyName: true,
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: {
+        scannedAt: 'desc', // Show most recent scans first
+      },
+    });
+    res.status(200).json(allScans);
+  } catch (error) {
+    console.error('Error fetching all scan records:', error);
+    res.status(500).json({ error: 'Failed to fetch scan records.' });
+  }
+});
+
 // --- ADMIN USER MANAGEMENT ROUTES ---
 
 // GET /api/admin/pending-users - Get all users awaiting activation
