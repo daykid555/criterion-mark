@@ -83,10 +83,11 @@ function RegistrationPage() {
                   onChange={(e) => setRole(e.target.value)} 
                   className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50"
                 >
-                  <option value="MANUFACTURER">Manufacturer</option>
-                  <option value="CUSTOMER">Customer / User</option>
-                  <option value="DVA">DVA (Drug Verification Agency)</option>
-                  <option value="LOGISTICS">Logistics / Printing</option>
+                  {/* NEW: Added text-black to make options visible in the dropdown */}
+                  <option className="text-black" value="MANUFACTURER">Manufacturer</option>
+                  <option className="text-black" value="CUSTOMER">Customer / User</option>
+                  <option className="text-black" value="DVA">DVA (Drug Verification Agency)</option>
+                  <option className="text-black" value="LOGISTICS">Logistics / Printing</option>
                 </select>
               </div>
 
