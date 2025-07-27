@@ -1,28 +1,28 @@
+// frontend/src/pages/AdminDashboard.jsx
+
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // Link is already here, which is great
 import AdminApprovalQueue from '../components/AdminApprovalQueue';
 import AdminHistory from '../components/AdminHistory';
 import AdminRegistrationQueue from '../components/AdminRegistrationQueue';
 
-// (The STATUS_STYLES const can be moved to a separate file later if needed)
-const STATUS_STYLES = {
-  PENDING_DVA_APPROVAL: 'bg-yellow-100 text-yellow-800',
-  PENDING_ADMIN_APPROVAL: 'bg-blue-100 text-blue-800',
-  PENDING_PRINTING: 'bg-purple-100 text-purple-800',
-  DELIVERED: 'bg-green-100 text-green-800',
-  ADMIN_REJECTED: 'bg-red-100 text-red-800',
-};
-
 function AdminDashboard() {
-  // Add 'registrations' to the possible active tabs
-  const [activeTab, setActiveTab] = useState('queue'); // 'queue', 'history', or 'registrations'
+  const [activeTab, setActiveTab] = useState('queue');
 
   return (
     <>
-      <h1 className="text-4xl font-bold text-white mb-4 drop-shadow-lg">Admin Dashboard</h1>
+      {/* --- MODIFIED: Added a container and a new link to the map --- */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-4xl font-bold text-white drop-shadow-lg">Admin Dashboard</h1>
+        <Link 
+          to="/admin/map"
+          className="glass-button-sm font-bold py-2 px-4 rounded-lg" // Using a button style for prominence
+        >
+          View Scan Map
+        </Link>
+      </div>
+      {/* --- End of modification --- */}
       
-      {/* Tab Navigation */}
       <div className="flex border-b border-white/20 mb-8">
         <button 
           onClick={() => setActiveTab('queue')}
@@ -36,7 +36,6 @@ function AdminDashboard() {
         >
           Action History
         </button>
-        {/* ADD THIS NEW BUTTON */}
         <button 
           onClick={() => setActiveTab('registrations')}
           className={`py-2 px-4 text-lg font-medium ${activeTab === 'registrations' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}
@@ -45,11 +44,9 @@ function AdminDashboard() {
         </button>
       </div>
 
-      {/* Conditional Rendering of Tabs */}
       <div>
         {activeTab === 'queue' && <AdminApprovalQueue />}
         {activeTab === 'history' && <AdminHistory />}
-        {/* ADD THIS NEW CONDITIONAL RENDER */}
         {activeTab === 'registrations' && <AdminRegistrationQueue />}
       </div>
     </>

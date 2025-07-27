@@ -1,3 +1,5 @@
+// frontend/src/App.jsx
+
 import { useContext } from 'react';
 import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom';
 import { AuthContext } from './context/AuthContext';
@@ -13,9 +15,8 @@ import AdminDashboard from './pages/AdminDashboard.jsx';
 import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
 import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
+import AdminMapPage from './pages/AdminMapPage.jsx'; // <-- NEW: Import the map page
 
-// --- PROTECTED ROUTE LOGIC ---
-// This remains the same, but it will now protect the entire AppLayout
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { isAuthenticated, user } = useContext(AuthContext);
   const location = useLocation();
@@ -29,7 +30,6 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   return children;
 };
 
-// This layout is now ONLY for Login and Verify pages
 const PublicLayout = () => (
   <div className="min-h-screen w-full relative">
     <Navbar />
@@ -39,27 +39,23 @@ const PublicLayout = () => (
   </div>
 );
 
-// --- APP COMPONENT ---
 function App() {
   return (
     <Routes>
-      {/* --- HOMEPAGE ROUTE (STANDALONE) --- */}
-      {/* This route has no wrapping layout, so it has full control of the screen */}
       <Route path="/" element={<HomePage />} />
 
-      {/* --- OTHER PUBLIC ROUTES --- */}
       <Route element={<PublicLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegistrationPage />} />
         <Route path="/verify" element={<VerificationPage />} />
       </Route>
 
-      {/* --- PROTECTED DASHBOARD ROUTES --- */}
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
         <Route path="/dva/dashboard" element={<DvaDashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
+        <Route path="/admin/map" element={<AdminMapPage />} /> {/* <-- NEW: Add the route */}
       </Route>
     </Routes>
   );
