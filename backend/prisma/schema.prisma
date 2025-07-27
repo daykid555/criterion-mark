@@ -12,12 +12,12 @@ datasource db {
 
 // Defines the user roles in the system
 enum Role {
-  MANUFACTURER
   ADMIN
+  MANUFACTURER
   DVA
-  LOGISTICS // New Role
-  PHARMACY  // New Role
-  CUSTOMER  // New Role for public scans
+  CUSTOMER
+  PRINTING // <-- ADD THIS
+  LOGISTICS // <-- AND THIS
 }
 
 // Defines the possible statuses for a batch
