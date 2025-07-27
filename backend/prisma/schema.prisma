@@ -107,3 +107,12 @@ model ScanRecord {
   latitude      Float?
   longitude     Float?
 }
+// backend/prisma/schema.prisma
+
+// --- NEW MODEL FOR SYSTEM-WIDE SETTINGS ---
+model SystemSetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique // e.g., "admin_creation_code"
+  value     String   // The actual value of the setting
+  updatedAt DateTime @updatedAt
+}

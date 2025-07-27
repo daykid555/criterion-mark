@@ -482,6 +482,79 @@ app.get('/api/admin/scans', async (req, res) => {
   }
 });
 
+// --- ADD THESE NEW ADMIN MANAGEMENT ROUTES ---
+
+// GET /api/admin/admins - Get a list of all admin users
+app.get('/api/admin/admins', async (req, res) => {
+  try {
+    const admins = await prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: { id: true, email: true, companyName: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.status(200).json(admins);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch admins.' });
+  }
+});
+
+// POST /api/admin/admins - Create a new admin user
+app.post('/api/admin/admins', async (req, res) => {
+  try {
+    const { email, password, adminCode } = req.body;
+
+    // Validation
+    if (!email || !password || !adminCode) {
+      return res.status(400).json({ error: 'Email, password, and admin code are required.' });
+    }
+
+    // 1. Fetch the stored hashed code
+    const codeSetting = await prisma.systemSetting.findUnique({
+      where: { key: 'admin_creation_code' },
+    });
+
+    if (!codeSetting || !(await bcrypt.compare(adminCode, codeSetting.value))) {
+      return res.status(401).json({ error: 'Invalid Admin Code.' });
+    }
+
+    // 2. Check if user already exists
+    const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existingUser) {
+      return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+
+    // 3. Create the new admin
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newAdmin = await prisma.user.create({
+      data: {
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        companyName: 'Administrator', // Default name
+        role: 'ADMIN',
+        isActive: true, // New admins are active immediately
+      },
+    });
+
+    res.status(201).json({ message: 'Admin created successfully.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create admin.' });
+  }
+});
+
+// POST /api/admin/reset-code - Reset the admin creation code
+app.post('/api/admin/reset-code', async (req, res) => {
+    try {
+        const { newCode } = req.body;
+        if (!newCode || newCode.length !== 4 || !/^\d{4}$/.test(newCode)) {
+            return res.status(400).json({ error: 'New code must be exactly 4 digits.' });
+        }
+        const hashedCode = await bcrypt.hash(newCode, 10);
+        await prisma.systemSetting.update({ where: { key: 'admin_creation_code' }, data: { value: hashedCode } });
+        res.status(200).json({ message: 'Admin code has been reset successfully.' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to reset admin code.' });
+    }
+});
 // --- ADMIN USER MANAGEMENT ROUTES ---
 
 // GET /api/admin/pending-users - Get all users awaiting activation
