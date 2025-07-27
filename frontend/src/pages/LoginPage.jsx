@@ -1,6 +1,6 @@
+// frontend/src/pages/LoginPage.jsx
 import React, { useState, useContext } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // Import Link
 import { AuthContext } from '../context/AuthContext';
 import NodeBackground from '../components/NodeBackground';
 import apiClient from '../api';
@@ -26,12 +26,8 @@ function LoginPage() {
       });
       
       const { token, user } = response.data;
-
-      // --- THIS IS THE KEY CHANGE ---
-      // Instead of console.log, we now call our global login function
       login(user, token);
       
-      // The rest of the logic remains the same
       switch (user.role) {
         case 'MANUFACTURER':
           navigate('/manufacturer/dashboard');
@@ -42,6 +38,15 @@ function LoginPage() {
         case 'ADMIN':
           navigate('/admin/dashboard');
           break;
+        // NEW: Add cases for our new roles
+        case 'PRINTING':
+          // We will create this page later
+          navigate('/'); // For now, go to home
+          break;
+        case 'LOGISTICS':
+           // We will create this page later
+          navigate('/'); // For now, go to home
+          break;
         default:
           navigate('/');
       }
@@ -49,16 +54,14 @@ function LoginPage() {
     } catch (err) {
       const errorMessage = err.response?.data?.error || 'Login failed. Please try again.';
       setError(errorMessage);
-      console.error(err);
     } finally {
+      // THIS IS THE FIX: This block runs regardless of success or failure,
+      // ensuring the loading spinner always stops.
       setIsLoading(false);
     }
   };
 
-  // The JSX for the form remains exactly the same, so we'll omit it here for brevity.
-  // The code you had before for the return (...) part is still correct.
   return (
-    // THIS IS THE FIX: The outer container is now a full-height flex container
     <div className="min-h-screen w-full relative flex items-center justify-center">
       <NodeBackground />
       <div className="relative z-10 w-full max-w-md">
@@ -80,9 +83,9 @@ function LoginPage() {
               </button>
             </div>
           </form>
-          {/* ADD THIS DIV AT THE BOTTOM */}
           <div className="text-center text-white/70 text-sm pt-4 border-t border-white/20">
-            <p>Don't have an account? <a href="/register" className="font-medium text-white hover:underline">Register Here</a></p>
+            {/* MODIFIED: Using Link component for better navigation */}
+            <p>Don't have an account? <Link to="/register" className="font-medium text-white hover:underline">Register Here</Link></p>
           </div>
         </div>
       </div>

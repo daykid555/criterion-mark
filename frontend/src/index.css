@@ -147,3 +147,12 @@
 .glass-button-sm:hover::before { 
   left: 200%; 
 }
+/* frontend/src/index.css */
+
+/* ===== ADD THIS NEW RULE FOR THE SCANNER VIDEO ===== */
+
+#qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important; /* This is the key fix */
+}
