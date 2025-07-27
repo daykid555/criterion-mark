@@ -11,17 +11,16 @@ function AdminDashboard() {
 
   return (
     <>
-      {/* --- MODIFIED: Added a container and a new link to the map --- */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-4xl font-bold text-white drop-shadow-lg">Admin Dashboard</h1>
+        {/* MODIFIED: The className now uses the new, correct style */}
         <Link 
           to="/admin/map"
-          className="glass-button-sm font-bold py-2 px-4 rounded-lg" // Using a button style for prominence
+          className="glass-button-sm font-bold py-2 px-4 rounded-lg"
         >
           View Scan Map
         </Link>
       </div>
-      {/* --- End of modification --- */}
       
       <div className="flex border-b border-white/20 mb-8">
         <button 

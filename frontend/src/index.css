@@ -113,3 +113,37 @@
     box-shadow: 0 0 0 0.5rem rgba(255, 255, 255, 0);
   }
 }
+/* frontend/src/index.css */
+
+/* ===== ADD THIS NEW STYLE FOR A SMALLER BUTTON ===== */
+
+/* -- Small Button Variant -- */
+.glass-button-sm {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  transition: background 0.3s ease;
+  backdrop-filter: blur(5px);
+}
+
+/* Make both button types shimmer on hover */
+.glass-button:hover,
+.glass-button-sm:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.glass-button::before,
+.glass-button-sm::before {
+  content: '';
+  position: absolute; top: 0; left: -200%; width: 150%; height: 100%;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.8) 50%, transparent 80%);
+  transform: skewX(-30deg);
+  transition: left 1s ease-in-out;
+}
+
+.glass-button:hover::before,
+.glass-button-sm:hover::before { 
+  left: 200%; 
+}
