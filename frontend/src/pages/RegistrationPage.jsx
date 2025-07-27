@@ -1,12 +1,9 @@
-// frontend/src/pages/RegistrationPage.jsx
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api';
 import NodeBackground from '../components/NodeBackground';
 
 function RegistrationPage() {
-  // --- MODIFIED: Added state for role and fullName ---
   const [role, setRole] = useState('MANUFACTURER');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -21,29 +18,24 @@ function RegistrationPage() {
     setIsLoading(true);
     setMessage(null);
 
-    // --- NEW: Prepare the data payload based on the selected role ---
     let registrationData = {
       email: email.toLowerCase(),
       password,
-      role, // Always send the role
+      role,
     };
 
     if (role === 'MANUFACTURER') {
       registrationData.companyName = companyName;
       registrationData.companyRegNumber = companyRegNumber;
     } else {
-      // For CUSTOMER, DVA, LOGISTICS, we use fullName
       registrationData.fullName = fullName;
     }
-    // --- End of new logic ---
 
     try {
-      // MODIFIED: The endpoint URL is now more generic
       const response = await apiClient.post('/api/auth/register', registrationData);
 
       setMessage({ type: 'success', text: response.data.message });
       
-      // Clear all form fields on success
       setCompanyName('');
       setCompanyRegNumber('');
       setFullName('');
@@ -58,7 +50,6 @@ function RegistrationPage() {
     }
   };
 
-  // --- NEW: Helper to get dynamic title ---
   const getPageTitle = () => {
     switch (role) {
       case 'MANUFACTURER':
@@ -79,20 +70,18 @@ function RegistrationPage() {
       <NodeBackground />
       <div className="relative z-10 w-full max-w-md">
         <div className="glass-panel p-8 space-y-6">
-          {/* MODIFIED: Title is now dynamic */}
           <h2 className="text-3xl font-bold text-center text-white mb-4">{getPageTitle()}</h2>
           
           {message?.type !== 'success' ? (
             <form onSubmit={handleRegister} className="space-y-6">
               
-              {/* --- NEW: Role Selection Dropdown --- */}
               <div>
                 <label htmlFor="role" className="block text-sm font-medium text-white/80">I am a...</label>
                 <select 
                   id="role" 
                   value={role} 
                   onChange={(e) => setRole(e.target.value)} 
-                  className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50" // Added dark bg for better contrast on options
+                  className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50"
                 >
                   <option value="MANUFACTURER">Manufacturer</option>
                   <option value="CUSTOMER">Customer / User</option>
@@ -101,7 +90,6 @@ function RegistrationPage() {
                 </select>
               </div>
 
-              {/* --- NEW: Conditional Rendering Logic --- */}
               {role === 'MANUFACTURER' ? (
                 <>
                   <div>
@@ -119,7 +107,6 @@ function RegistrationPage() {
                   <input type="text" id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
                 </div>
               )}
-              {/* --- End of Conditional Logic --- */}
               
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-white/80">Email Address</label>
@@ -156,18 +143,4 @@ function RegistrationPage() {
   );
 }
 
-export default RegistrationPage;```
-
----
-
-### **Part 2: Update the Backend (`index.js`)**
-
-Now, replace the `/api/auth/register` route in your `backend/index.js` file with this updated version. You only need to replace the single function block.
-
-**Find this part in your `index.js`:**
-
-```javascript
-// POST /api/auth/register - Handle new manufacturer registration
-app.post('/api/auth/register', async (req, res) => {
-  // ... existing code from here...
-});
+export default RegistrationPage;
