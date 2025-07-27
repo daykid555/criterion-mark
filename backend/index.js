@@ -11,6 +11,7 @@ import qrcode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import axios from 'axios';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -43,6 +44,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 // Enable the Express app to parse JSON formatted request bodies
 app.use(express.json());
+app.set('trust proxy', true); // <-- ADD THIS LINE
 
 // --- ROUTES ---
 // A simple test route to make sure the server is working
@@ -489,12 +491,11 @@ app.put('/api/admin/users/:id/activate', async (req, res) => {
   }
 });
 
-// --- PUBLIC VERIFICATION ROUTE (Version 2 with Scan History) ---
+// --- PUBLIC VERIFICATION ROUTE (Version 3 with Geolocation) ---
 app.get('/api/verify/:code', async (req, res) => {
   try {
     const { code } = req.params;
 
-    // Step 1: Find the QR code and its related batch/manufacturer data
     const qrCode = await prisma.qRCode.findUnique({
       where: { code: code },
       include: {
@@ -503,14 +504,9 @@ app.get('/api/verify/:code', async (req, res) => {
             manufacturer: { select: { companyName: true } },
           },
         },
-        // Step 2: ALSO fetch all existing scan records for this code
-        scanRecords: {
-          orderBy: {
-            scannedAt: 'asc', // Order from oldest to newest scan
-          },
-          include: {
-            scanner: { select: { companyName: true, role: true } } // Include who scanned it
-          }
+        scanRecords: { // We still get the old records to show the history
+          orderBy: { scannedAt: 'asc' },
+          include: { scanner: { select: { companyName: true, role: true } } }
         }
       },
     });
@@ -522,15 +518,43 @@ app.get('/api/verify/:code', async (req, res) => {
         message: 'This code is invalid. The product is likely counterfeit.',
       });
     }
+
+    // --- NEW: Geolocation Logic ---
+    const ip = req.ip; // Get the user's IP address from the request
+    let locationData = {
+      ipAddress: ip,
+      city: null,
+      region: null,
+      country: null,
+    };
+
+    try {
+      // We make a call to a free geolocation API. No key needed for this one.
+      const geoResponse = await axios.get(`http://ip-api.com/json/${ip}?fields=status,message,countryCode,region,city`);
+      if (geoResponse.data.status === 'success') {
+        locationData.city = geoResponse.data.city;
+        locationData.region = geoResponse.data.region;
+        locationData.country = geoResponse.data.countryCode;
+      }
+    } catch (geoError) {
+      // If the IP lookup fails, we just log it and continue.
+      // The scan is more important than the location data.
+      console.error('Geolocation lookup failed:', geoError.message);
+    }
+    // --- End of Geolocation Logic ---
+
     
     // CASE 2: The code is VALID. Now we log this new scan.
-    // For now, we will hardcode the role as 'CUSTOMER' for all public scans.
-    // When we have logins, we will get the user ID and role from the auth token.
+    // We will now include the location data we just fetched.
     await prisma.scanRecord.create({
       data: {
         qrCodeId: qrCode.id,
-        scannedByRole: 'CUSTOMER', 
-        // scannerId will be added later once we have user login
+        scannedByRole: 'CUSTOMER',
+        // Add all the location data to the record
+        ipAddress: locationData.ipAddress,
+        city: locationData.city,
+        region: locationData.region,
+        country: locationData.country,
       },
     });
     
@@ -538,18 +562,9 @@ app.get('/api/verify/:code', async (req, res) => {
     const updatedQrCodeDetails = await prisma.qRCode.findUnique({
       where: { id: qrCode.id },
       include: {
-        batch: {
-          include: {
-            manufacturer: { select: { companyName: true } },
-          },
-        },
-        scanRecords: {
-          orderBy: {
-            scannedAt: 'asc',
-          },
-           include: {
-            scanner: { select: { companyName: true, role: true } }
-          }
+        batch: { include: { manufacturer: { select: { companyName: true } } } },
+        scanRecords: { // The history now includes our new scan with location
+          orderBy: { scannedAt: 'asc' },
         }
       },
     });
@@ -558,7 +573,7 @@ app.get('/api/verify/:code', async (req, res) => {
     res.status(200).json({
       status: 'success',
       message: 'Product Verified Successfully!',
-      data: updatedQrCodeDetails, // Send the complete, updated data
+      data: updatedQrCodeDetails,
     });
 
   } catch (error) {
