@@ -620,53 +620,86 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// POST /api/auth/register - Handle new manufacturer registration
+// POST /api/auth/register - Handle new user registration for ALL roles
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { email, password, companyName, companyRegNumber } = req.body;
+    // MODIFIED: Destructure all possible fields from the body
+    const { email, password, role, companyName, companyRegNumber, fullName } = req.body;
 
-    // 1. Validation
-    if (!email || !password || !companyName || !companyRegNumber) {
-      return res.status(400).json({ error: 'All fields are required.' });
+    // 1. Basic validation
+    if (!email || !password || !role) {
+      return res.status(400).json({ error: 'Email, password, and role are required.' });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     }
-
+    
     // 2. Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (existingUser) {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
 
-    // Check if the registration number is already in use
-    if (companyRegNumber) {
-      const existingCompany = await prisma.user.findFirst({ where: { companyRegNumber } });
-      if (existingCompany) {
-        return res.status(409).json({ error: 'A company with this registration number already exists.' });
-      }
+    // 3. Prepare data based on the role
+    const dataToCreate = {
+      email: email.toLowerCase(),
+      password: await bcrypt.hash(password, 10), // Hash the password
+      role: role,
+    };
+    
+    let successMessage = ''; // NEW: Dynamic success message
+
+    // 4. Role-specific validation and data assignment
+    switch (role) {
+      case 'MANUFACTURER':
+        if (!companyName || !companyRegNumber) {
+          return res.status(400).json({ error: 'Company Name and Registration Number are required for manufacturers.' });
+        }
+        // Check if the registration number is already in use
+        const existingCompany = await prisma.user.findFirst({ where: { companyRegNumber } });
+        if (existingCompany) {
+          return res.status(409).json({ error: 'A company with this registration number already exists.' });
+        }
+        dataToCreate.companyName = companyName;
+        dataToCreate.companyRegNumber = companyRegNumber;
+        dataToCreate.isActive = false; // Manufacturers must be approved
+        successMessage = 'Registration successful! Your account is pending approval from an administrator.';
+        break;
+        
+      case 'CUSTOMER':
+        if (!fullName) {
+          return res.status(400).json({ error: 'Full Name is required for customers.' });
+        }
+        dataToCreate.companyName = fullName; // Use companyName field to store the user's name
+        dataToCreate.isActive = true; // Customers are active immediately
+        successMessage = 'Registration successful! You can now log in.';
+        break;
+
+      case 'DVA':
+      case 'LOGISTICS':
+        if (!fullName) {
+          return res.status(400).json({ error: 'Full Name is required.' });
+        }
+        dataToCreate.companyName = fullName;
+        dataToCreate.isActive = false; // DVA and Logistics roles must be approved by an Admin
+        successMessage = 'Registration successful! Your account is pending approval from an administrator.';
+        break;
+        
+      default:
+        return res.status(400).json({ error: 'Invalid user role specified.' });
     }
 
-    // 3. Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 4. Create the new user
-    // Note: isActive defaults to 'false' as defined in our schema
-    const newUser = await prisma.user.create({
-      data: {
-        email: email.toLowerCase(),
-        password: hashedPassword,
-        companyName: companyName,
-        companyRegNumber: companyRegNumber, // <-- ADD THIS LINE
-        role: 'MANUFACTURER', // All public signups are manufacturers
-      },
+    // 5. Create the new user in the database
+    await prisma.user.create({
+      data: dataToCreate,
     });
 
-    // 5. Send success response (but don't log them in)
-    res.status(201).json({ message: 'Registration successful! Your account is pending approval from an administrator.' });
+    // 6. Send the appropriate success response
+    res.status(201).json({ message: successMessage });
 
   } catch (error) {
     console.error('Registration error:', error);
+    // Add more specific error handling if needed, e.g., for unique constraint violations
     res.status(500).json({ error: 'An internal server error occurred.' });
   }
 });
