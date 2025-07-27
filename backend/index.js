@@ -692,6 +692,7 @@ app.post('/api/auth/register', async (req, res) => {
     res.status(201).json({ message: successMessage });
 
   } catch (error) {
+    console.error('CRITICAL REGISTRATION ERROR:', error.message);
     console.error('Registration error:', error);
     res.status(500).json({ error: 'An internal server error occurred.' });
   }
