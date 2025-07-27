@@ -33,7 +33,6 @@ function RegistrationPage() {
 
     try {
       const response = await apiClient.post('/api/auth/register', registrationData);
-
       setMessage({ type: 'success', text: response.data.message });
       
       setCompanyName('');
@@ -50,12 +49,15 @@ function RegistrationPage() {
     }
   };
 
+  // MODIFIED: Added a title for PRINTING
   const getPageTitle = () => {
     switch (role) {
       case 'MANUFACTURER':
         return 'Create Manufacturer Account';
       case 'DVA':
         return 'Create DVA Account';
+      case 'PRINTING': // NEW
+        return 'Create Printing Account';
       case 'LOGISTICS':
         return 'Create Logistics Account';
       case 'CUSTOMER':
@@ -83,11 +85,12 @@ function RegistrationPage() {
                   onChange={(e) => setRole(e.target.value)} 
                   className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50"
                 >
-                  {/* NEW: Added text-black to make options visible in the dropdown */}
+                  {/* MODIFIED: Separated Logistics and Printing into two options */}
                   <option className="text-black" value="MANUFACTURER">Manufacturer</option>
                   <option className="text-black" value="CUSTOMER">Customer / User</option>
-                  <option className="text-black" value="DVA">DVA (Drug Verification Agency)</option>
-                  <option className="text-black" value="LOGISTICS">Logistics / Printing</option>
+                  <option className="text-black" value="DVA">DVA (Regulatory Agency)</option>
+                  <option className="text-black" value="PRINTING">Printing</option>
+                  <option className="text-black" value="LOGISTICS">Logistics</option>
                 </select>
               </div>
 
@@ -104,7 +107,7 @@ function RegistrationPage() {
                 </>
               ) : (
                 <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-white/80">Full Name</label>
+                  <label htmlFor="fullName" className="block text-sm font-medium text-white/80">Full Name / Company Name</label>
                   <input type="text" id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
                 </div>
               )}
