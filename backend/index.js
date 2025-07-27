@@ -532,7 +532,7 @@ app.put('/api/admin/users/:id/activate', async (req, res) => {
   }
 });
 
-// --- PUBLIC VERIFICATION ROUTE (Version 3 with Geolocation) ---
+// --- PUBLIC VERIFICATION ROUTE (Version 4 with Coordinates) ---
 app.get('/api/verify/:code', async (req, res) => {
   try {
     const { code } = req.params;
@@ -560,22 +560,26 @@ app.get('/api/verify/:code', async (req, res) => {
       });
     }
 
-    // --- NEW: Geolocation Logic ---
+    // --- Geolocation Logic with Coordinates ---
     const ip = req.ip; // Get the user's IP address from the request
     let locationData = {
       ipAddress: ip,
       city: null,
       region: null,
       country: null,
+      latitude: null,  // NEW
+      longitude: null, // NEW
     };
 
     try {
-      // We make a call to a free geolocation API. No key needed for this one.
-      const geoResponse = await axios.get(`http://ip-api.com/json/${ip}?fields=status,message,countryCode,region,city`);
+      // MODIFIED: We are now asking the API for lat and lon
+      const geoResponse = await axios.get(`http://ip-api.com/json/${ip}?fields=status,message,countryCode,region,city,lat,lon`);
       if (geoResponse.data.status === 'success') {
         locationData.city = geoResponse.data.city;
         locationData.region = geoResponse.data.region;
         locationData.country = geoResponse.data.countryCode;
+        locationData.latitude = geoResponse.data.lat;   // NEW: Save latitude
+        locationData.longitude = geoResponse.data.lon;  // NEW: Save longitude
       }
     } catch (geoError) {
       // If the IP lookup fails, we just log it and continue.
@@ -596,6 +600,8 @@ app.get('/api/verify/:code', async (req, res) => {
         city: locationData.city,
         region: locationData.region,
         country: locationData.country,
+        latitude: locationData.latitude,   // NEW: Save to database
+        longitude: locationData.longitude, // NEW: Save to database
       },
     });
     

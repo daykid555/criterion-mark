@@ -87,21 +87,23 @@ model QRCode {
   createdAt   DateTime @default(now())
 }
 
-// *** MODIFIED MODEL FOR THE SCAN AUDIT TRAIL ***
 model ScanRecord {
   id            Int      @id @default(autoincrement())
   qrCodeId      Int
   qrCode        QRCode   @relation(fields: [qrCodeId], references: [id])
-
+  
   scannedAt     DateTime @default(now())
-  scannedByRole Role     // Who scanned it (e.g., LOGISTICS, PHARMACY, CUSTOMER)
-
+  scannedByRole Role
+  
   scannerId     Int?
   scanner       User?    @relation(fields: [scannerId], references: [id])
+  
+  ipAddress     String?
+  city          String?
+  region        String?
+  country       String?
 
-  // --- NEW LOCATION FIELDS ---
-  ipAddress     String?  // The IP address of the scanner
-  city          String?  // e.g., "Lagos"
-  region        String?  // e.g., "LA" (Lagos State)
-  country       String?  // e.g., "NG" (Nigeria)
+  // --- NEW COORDINATE FIELDS ---
+  latitude      Float?
+  longitude     Float?
 }
