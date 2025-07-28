@@ -804,6 +804,56 @@ app.get('/api/printing/seal/:code', async (req, res) => {
         res.status(500).json({ error: 'Failed to generate seal image.' });
     }
 });
+
+// In backend/index.js, inside the PRINTING PORTAL ROUTES section
+
+// POST /api/printing/batch/:id/zip - Generate a ZIP of all final seal images for a batch
+app.post('/api/printing/batch/:id/zip', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const batch = await prisma.batch.findUnique({
+      where: { id: parseInt(id, 10) },
+      include: { qrCodes: true },
+    });
+
+    if (!batch || !batch.seal_background_url) {
+      return res.status(404).json({ error: 'Batch or seal background not found.' });
+    }
+    
+    // Set headers for the ZIP file download
+    res.attachment(`batch_${id}_seals.zip`);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    archive.pipe(res);
+
+    // Get the background image once
+    const backgroundPath = path.join(process.cwd(), batch.seal_background_url.substring(1));
+    if (!fs.existsSync(backgroundPath)) throw new Error('Background file not found');
+    const backgroundBuffer = fs.readFileSync(backgroundPath);
+
+    // Process each QR code in parallel for speed
+    await Promise.all(batch.qrCodes.map(async (qr) => {
+      // Generate QR code image
+      const qrCodeBuffer = await qrcode.toBuffer(qr.code, {
+        errorCorrectionLevel: 'H', type: 'png', width: 200, margin: 1
+      });
+
+      // Composite QR code on top of the background
+      const finalImageBuffer = await sharp(backgroundBuffer)
+        .composite([{ input: qrCodeBuffer, top: 50, left: 150 }])
+        .png()
+        .toBuffer();
+      
+      // Add the final image to the zip archive
+      archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
+    }));
+
+    await archive.finalize();
+
+  } catch (error) {
+    console.error('Error creating seal zip file:', error);
+    res.status(500).json({ error: 'Failed to create zip file.' });
+  }
+});
 // --- LOGISTICS PORTAL ROUTES ---
 
 // GET /api/logistics/pending-pickup - Get batches that are complete and ready for pickup
