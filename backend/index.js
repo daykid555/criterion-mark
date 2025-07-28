@@ -610,6 +610,63 @@ app.put('/api/admin/users/:id/activate', async (req, res) => {
   }
 });
 
+// --- PRINTING PORTAL ROUTES ---
+
+// GET /api/printing/pending - Get batches ready for printing
+app.get('/api/printing/pending', async (req, res) => {
+  try {
+    const pendingBatches = await prisma.batch.findMany({
+      where: {
+        status: 'PENDING_PRINTING',
+      },
+      include: {
+        manufacturer: { select: { companyName: true } },
+      },
+      orderBy: { admin_approved_at: 'asc' }, // Oldest approved first
+    });
+    res.status(200).json(pendingBatches);
+  } catch (error) {
+    console.error('Error fetching pending printing batches:', error);
+    res.status(500).json({ error: 'Failed to fetch batches.' });
+  }
+});
+
+// PUT /api/printing/batches/:id/start - Mark a batch as printing in progress
+app.put('/api/printing/batches/:id/start', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updatedBatch = await prisma.batch.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'PRINTING_IN_PROGRESS',
+                print_started_at: new Date(),
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        console.error('Error starting print for batch:', error);
+        res.status(500).json({ error: 'Failed to update batch status.' });
+    }
+});
+
+// PUT /api/printing/batches/:id/complete - Mark a batch as printing complete
+app.put('/api/printing/batches/:id/complete', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updatedBatch = await prisma.batch.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'PRINTING_COMPLETE',
+                print_completed_at: new Date(),
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        console.error('Error completing print for batch:', error);
+        res.status(500).json({ error: 'Failed to update batch status.' });
+    }
+});
+
 // --- PUBLIC VERIFICATION ROUTE (Version 4 with Coordinates) ---
 app.get('/api/verify/:code', async (req, res) => {
   try {
