@@ -1,8 +1,10 @@
+// frontend/src/pages/AdminBatchDetailsPage.jsx
+
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
 import StyledQRCode from '../components/StyledQRCode';
 import apiClient from '../api';
+import SealUploader from '../components/SealUploader'; // <-- NEW: Import the uploader component
 
 function AdminBatchDetailsPage() {
   const { id } = useParams();
@@ -10,34 +12,33 @@ function AdminBatchDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCode, setSelectedCode] = useState(null);
-  const [isZipping, setIsZipping] = useState(false); // New state for zip download
+  const [isZipping, setIsZipping] = useState(false);
+
+  const fetchBatchDetails = async () => {
+    setIsLoading(true); // Ensure loading state is true on refetch
+    try {
+      const response = await apiClient.get(`/api/admin/batches/${id}`);
+      setBatch(response.data);
+    } catch (err) {
+      setError('Failed to load batch details.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // ... (The existing fetchBatchDetails logic is unchanged)
-    const fetchBatchDetails = async () => {
-      try {
-        const response = await apiClient.get(`/api/admin/batches/${id}`);
-        setBatch(response.data);
-      } catch (err) {
-        setError('Failed to load batch details.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchBatchDetails();
   }, [id]);
   
-  // --- NEW: Function to handle the ZIP download ---
   const handleZipDownload = async () => {
+    // ... (This function remains unchanged)
     setIsZipping(true);
     try {
       const response = await apiClient({
-        method: 'post', // Changed to POST to handle potentially long-running tasks
+        method: 'post',
         url: `/api/admin/batches/${id}/codes/zip`,
-        responseType: 'blob', // Important: we expect binary data (the zip file)
+        responseType: 'blob',
       });
-      
-      // Create a temporary link to trigger the browser download
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -45,8 +46,7 @@ function AdminBatchDetailsPage() {
       link.setAttribute('download', fileName);
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link); // Clean up the link
-
+      document.body.removeChild(link);
     } catch (err) {
       console.error('Failed to download zip file:', err);
       alert('Error: Could not generate the ZIP file.');
@@ -54,10 +54,17 @@ function AdminBatchDetailsPage() {
       setIsZipping(false);
     }
   };
-
+  
+  // --- NEW: A function to be called when the upload is successful ---
+  const handleUploadSuccess = () => {
+    // Refetch the batch details to get the new seal_background_url
+    fetchBatchDetails();
+  };
 
   if (isLoading) return <p className="text-center p-8 text-white">Loading batch details...</p>;
   if (error) return <p className="text-center text-red-300 p-8">{error}</p>;
+  if (!batch) return <p className="text-center p-8 text-white">No batch data found.</p>;
+
 
   return (
     <>
@@ -76,6 +83,29 @@ function AdminBatchDetailsPage() {
           {isZipping ? 'Generating ZIP...' : 'Download All as ZIP'}
         </button>
       </div>
+
+      {/* --- NEW: Conditional Section for Seal Management --- */}
+      <div className="mb-8">
+        {batch.seal_background_url ? (
+          // If a seal IS uploaded, show a preview
+          <div className="glass-panel p-4">
+            <h3 className="font-semibold text-white mb-2">Assigned Seal Background</h3>
+            <div className="bg-gray-800 p-2 rounded-lg">
+              <img 
+                // We construct the full URL using the API base and the stored path
+                src={`${import.meta.env.VITE_API_BASE_URL}${batch.seal_background_url}`} 
+                alt="Seal Background Preview"
+                className="max-h-48 mx-auto rounded-md"
+              />
+            </div>
+          </div>
+        ) : (
+          // If a seal is NOT uploaded, show the uploader component
+          <SealUploader batchId={id} onUploadSuccess={handleUploadSuccess} />
+        )}
+      </div>
+      {/* --- End of New Section --- */}
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="glass-panel p-6">
