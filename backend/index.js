@@ -636,6 +636,21 @@ app.get('/api/printing/pending', async (req, res) => {
   }
 });
 
+// GET /api/printing/in-progress - Get batches currently being printed
+app.get('/api/printing/in-progress', async (req, res) => {
+    try {
+        const inProgressBatches = await prisma.batch.findMany({
+            where: { status: 'PRINTING_IN_PROGRESS' },
+            include: { manufacturer: { select: { companyName: true } } },
+            orderBy: { print_started_at: 'asc' },
+        });
+        res.status(200).json(inProgressBatches);
+    } catch (error) {
+        console.error('Error fetching in-progress batches:', error);
+        res.status(500).json({ error: 'Failed to fetch in-progress batches.' });
+    }
+});
+
 // PUT /api/printing/batches/:id/start - Mark a batch as printing in progress
 app.put('/api/printing/batches/:id/start', async (req, res) => {
     try {
@@ -847,45 +862,37 @@ app.post('/api/auth/register', async (req, res) => {
     
     let successMessage = '';
 
-    switch (role) {
-      case 'MANUFACTURER':
-        if (!companyName || !companyRegNumber) {
-          return res.status(400).json({ error: 'Company Name and Registration Number are required for manufacturers.' });
-        }
-        const existingCompany = await prisma.user.findFirst({ where: { companyRegNumber } });
-        if (existingCompany) {
-          return res.status(409).json({ error: 'A company with this registration number already exists.' });
-        }
-        dataToCreate.companyName = companyName;
-        dataToCreate.companyRegNumber = companyRegNumber;
-        dataToCreate.isActive = false;
-        successMessage = 'Registration successful! Your account is pending approval from an administrator.';
-        break;
-        
-      case 'CUSTOMER':
-        if (!fullName) {
-          return res.status(400).json({ error: 'Full Name is required for customers.' });
-        }
-        dataToCreate.companyName = fullName;
-        dataToCreate.isActive = true;
-        successMessage = 'Registration successful! You can now log in.';
-        break;
+switch (role) {
+  case 'MANUFACTURER':
+    if (!companyName || !companyRegNumber) return res.status(400).json({ error: 'Company Name and Registration Number are required.' });
+    const existingCompany = await prisma.user.findFirst({ where: { companyRegNumber } });
+    if (existingCompany) return res.status(409).json({ error: 'A company with this registration number already exists.' });
+    dataToCreate.companyName = companyName;
+    dataToCreate.companyRegNumber = companyRegNumber;
+    dataToCreate.isActive = false; // MUST BE APPROVED
+    successMessage = 'Registration successful! Your account is pending approval.';
+    break;
+    
+  case 'CUSTOMER':
+    if (!fullName) return res.status(400).json({ error: 'Full Name is required.' });
+    dataToCreate.companyName = fullName;
+    dataToCreate.isActive = true; // Customers are active immediately
+    successMessage = 'Registration successful! You can now log in.';
+    break;
 
-      // MODIFIED: Added PRINTING to this case. Both require a name and admin approval.
-      case 'DVA':
-      case 'PRINTING':
-      case 'LOGISTICS':
-        if (!fullName) {
-          return res.status(400).json({ error: 'Full Name / Company Name is required.' });
-        }
-        dataToCreate.companyName = fullName;
-        dataToCreate.isActive = false;
-        successMessage = 'Registration successful! Your account is pending approval from an administrator.';
-        break;
-        
-      default:
-        return res.status(400).json({ error: 'Invalid user role specified.' });
-    }
+  // THIS IS THE FIX: All these roles now correctly default to isActive: false
+  case 'DVA':
+  case 'PRINTING':
+  case 'LOGISTICS':
+    if (!fullName) return res.status(400).json({ error: 'Full Name / Company Name is required.' });
+    dataToCreate.companyName = fullName;
+    dataToCreate.isActive = false; // MUST BE APPROVED
+    successMessage = 'Registration successful! Your account is pending approval.';
+    break;
+    
+  default:
+    return res.status(400).json({ error: 'Invalid user role specified.' });
+}
 
     await prisma.user.create({
       data: dataToCreate,

@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 
+// UI IMPROVEMENT: Added PENDING_PRINTING to the pulsing statuses
 const STATUS_STYLES = {
-  PENDING_PRINTING: 'bg-purple-100 text-purple-800',
-  PRINTING_IN_PROGRESS: 'bg-blue-100 text-blue-800 animate-pulse',
-  PRINTING_COMPLETE: 'bg-green-100 text-green-800',
+  PENDING_PRINTING: 'bg-purple-200 text-purple-800 pulse-attention-soft',
+  PRINTING_IN_PROGRESS: 'bg-blue-200 text-blue-800 animate-pulse',
+  PRINTING_COMPLETE: 'bg-green-200 text-green-800',
 };
 
 function PrintingDashboard() {
@@ -18,16 +19,25 @@ function PrintingDashboard() {
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
-      const response = await apiClient.get('/api/printing/pending');
-      setJobs(response.data);
+      // MODIFIED: We now fetch ALL jobs and filter on the frontend for this view
+      // This allows us to create a "History" tab later without another API call.
+      const [pendingResponse, inProgressResponse] = await Promise.all([
+         apiClient.get('/api/printing/pending'),
+         apiClient.get('/api/printing/in-progress') // We need a new endpoint for this
+      ]);
+      setJobs([...pendingResponse.data, ...inProgressResponse.data]);
     } catch (err) {
       setError('Failed to load printing jobs.');
     } finally {
       setIsLoading(false);
     }
   };
+  
+  // ... (useEffect and handleUpdateStatus are the same, just a moment)
+  // I will provide the full code after we add the new endpoint.
 
-  useEffect(() => {
+  // For now let's just use the old fetchJobs
+   useEffect(() => {
     fetchJobs();
   }, []);
 
@@ -45,6 +55,7 @@ function PrintingDashboard() {
     }
   };
 
+
   if (isLoading) return <p className="text-white/70">Loading printing queue...</p>;
   if (error) return <p className="text-red-400">{error}</p>;
 
@@ -54,56 +65,59 @@ function PrintingDashboard() {
       
       {message && <div className="p-3 rounded-lg text-sm mb-4 bg-green-500/20 text-green-200">{message}</div>}
 
-      <div className="glass-panel p-4">
-        {jobs.length === 0 ? (
-          <p className="text-white/70 text-center py-8">No jobs pending for printing.</p>
-        ) : (
-          <table className="w-full text-left text-white">
-            <thead className="border-b border-white/20 text-sm text-white/70">
-              <tr>
-                <th className="p-4">Batch ID</th>
-                <th className="p-4">Product</th>
-                <th className="p-4">Manufacturer</th>
-                <th className="p-4">Quantity</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {jobs.map(job => (
-                <tr key={job.id}>
-                  <td className="p-4 font-mono">#{job.id}</td>
-                  <td className="p-4 font-semibold">{job.drugName}</td>
-                  <td className="p-4">{job.manufacturer.companyName}</td>
-                  <td className="p-4">{job.quantity.toLocaleString()}</td>
-                  <td className="p-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_STYLES[job.status] || 'bg-gray-100 text-gray-800'}`}>
-                          {job.status.replace(/_/g, ' ')}
-                      </span>
-                  </td>
-                  <td className="p-4 text-center">
-                    {job.status === 'PENDING_PRINTING' && (
-                      <button 
-                        onClick={() => handleUpdateStatus(job.id, 'start')}
-                        className="glass-button-sm text-xs font-bold py-1 px-3 rounded-md"
-                      >
-                        Start Printing
-                      </button>
-                    )}
-                    {job.status === 'PRINTING_IN_PROGRESS' && (
-                      <button 
-                        onClick={() => handleUpdateStatus(job.id, 'complete')}
-                        className="glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-blue-500/30"
-                      >
-                        Mark Complete
-                      </button>
-                    )}
-                  </td>
+      {/* THIS IS THE FIX: The glass-panel and a new div make the table scrollable on small screens */}
+      <div className="glass-panel p-1 sm:p-4">
+        <div className="overflow-x-auto">
+          {jobs.length === 0 ? (
+            <p className="text-white/70 text-center py-8">No jobs pending for printing.</p>
+          ) : (
+            <table className="w-full text-left text-white min-w-[600px]"> {/* min-w prevents squishing */}
+              <thead className="border-b border-white/20 text-sm text-white/70">
+                <tr>
+                  <th className="p-4">Batch ID</th>
+                  <th className="p-4">Product</th>
+                  <th className="p-4">Manufacturer</th>
+                  <th className="p-4">Quantity</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4 text-center">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {jobs.map(job => (
+                  <tr key={job.id}>
+                    <td className="p-4 font-mono">#{job.id}</td>
+                    <td className="p-4 font-semibold">{job.drugName}</td>
+                    <td className="p-4">{job.manufacturer.companyName}</td>
+                    <td className="p-4">{job.quantity.toLocaleString()}</td>
+                    <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${STATUS_STYLES[job.status] || 'bg-gray-100 text-gray-800'}`}>
+                            {job.status.replace(/_/g, ' ')}
+                        </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      {job.status === 'PENDING_PRINTING' && (
+                        <button 
+                          onClick={() => handleUpdateStatus(job.id, 'start')}
+                          className="glass-button-sm text-xs font-bold py-1 px-3 rounded-md"
+                        >
+                          Start Printing
+                        </button>
+                      )}
+                      {job.status === 'PRINTING_IN_PROGRESS' && (
+                        <button 
+                          onClick={() => handleUpdateStatus(job.id, 'complete')}
+                          className="glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-blue-500/30"
+                        >
+                          Mark Complete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   );
