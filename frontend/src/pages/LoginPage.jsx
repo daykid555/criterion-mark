@@ -38,10 +38,9 @@ function LoginPage() {
         case 'ADMIN':
           navigate('/admin/dashboard');
           break;
-        // NEW: Add cases for our new roles
         case 'PRINTING':
-          // We will create this page later
-          navigate('/'); // For now, go to home
+          // THIS IS THE FIX: Redirect to the new dashboard
+          navigate('/printing/dashboard');
           break;
         case 'LOGISTICS':
            // We will create this page later
