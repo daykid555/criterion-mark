@@ -28,27 +28,28 @@ function LoginPage() {
       const { token, user } = response.data;
       login(user, token);
       
-      switch (user.role) {
-        case 'MANUFACTURER':
-          navigate('/manufacturer/dashboard');
-          break;
-        case 'DVA':
-          navigate('/dva/dashboard');
-          break;
-        case 'ADMIN':
-          navigate('/admin/dashboard');
-          break;
-        case 'PRINTING':
-          // THIS IS THE FIX: Redirect to the new dashboard
-          navigate('/printing/dashboard');
-          break;
-        case 'LOGISTICS':
-           // We will create this page later
-          navigate('/'); // For now, go to home
-          break;
-        default:
-          navigate('/');
-      }
+switch (user.role) {
+  case 'MANUFACTURER':
+    navigate('/manufacturer/dashboard');
+    break;
+  case 'DVA':
+    navigate('/dva/dashboard');
+    break;
+  case 'ADMIN':
+    navigate('/admin/dashboard');
+    break;
+  // THIS IS THE FIX:
+  case 'PRINTING':
+    navigate('/printing/dashboard');
+    break;
+  case 'LOGISTICS':
+    // We will build this next
+    navigate('/'); // This one can stay as a placeholder for now
+    break;
+  default:
+    // This will now correctly handle CUSTOMER roles
+    navigate('/');
+}
 
     } catch (err) {
       const errorMessage = err.response?.data?.error || 'Login failed. Please try again.';

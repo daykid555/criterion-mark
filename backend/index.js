@@ -567,8 +567,13 @@ app.get('/api/admin/pending-users', async (req, res) => {
   try {
     const pendingUsers = await prisma.user.findMany({
       where: {
-        role: 'MANUFACTURER',
-        isActive: false, // Only fetch inactive manufacturers
+        // THIS IS THE FIX:
+        // We want any user who is inactive AND is not a 'CUSTOMER'.
+        // Customers are active by default and don't need approval.
+        isActive: false,
+        role: {
+          not: 'CUSTOMER'
+        }
       },
       orderBy: {
         createdAt: 'asc', // Show oldest signups first
