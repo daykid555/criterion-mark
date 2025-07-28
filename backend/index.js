@@ -742,6 +742,68 @@ app.put('/api/printing/batches/:id/complete', async (req, res) => {
     }
 });
 
+// In backend/index.js, inside the PRINTING PORTAL ROUTES section
+
+// GET /api/printing/seal/:code - Generate and download a single, complete seal
+app.get('/api/printing/seal/:code', async (req, res) => {
+    try {
+        const { code } = req.params;
+
+        // 1. Find the QR code and its batch information, including the seal URL
+        const qrCode = await prisma.qRCode.findUnique({
+            where: { code },
+            include: {
+                batch: { select: { seal_background_url: true } },
+            },
+        });
+
+        if (!qrCode) {
+            return res.status(404).json({ error: 'QR Code not found.' });
+        }
+
+        if (!qrCode.batch.seal_background_url) {
+            return res.status(400).json({ error: 'No seal background has been assigned to this batch by an admin.' });
+        }
+
+        // 2. Generate the QR code image as a buffer
+        const qrCodeBuffer = await qrcode.toBuffer(code, {
+            errorCorrectionLevel: 'H',
+            type: 'png',
+            width: 200, // A suitable size for the seal
+            margin: 1,
+        });
+
+        // 3. Get the path to the background image
+        // The URL is like '/uploads/seals/file.png', so we remove the leading '/'
+        const backgroundPath = path.join(process.cwd(), qrCode.batch.seal_background_url.substring(1));
+
+        if (!fs.existsSync(backgroundPath)) {
+            return res.status(404).json({ error: 'Seal background file not found on server.' });
+        }
+        const backgroundBuffer = fs.readFileSync(backgroundPath);
+
+        // 4. Use Sharp to composite the QR code on top of the background
+        // This is a placeholder for actual positioning. We'll assume the QR goes at a specific spot.
+        // For a 500x500 background, this places it near the top-center.
+        const finalImageBuffer = await sharp(backgroundBuffer)
+            .composite([{
+                input: qrCodeBuffer,
+                top: 50,  // Pixels from the top
+                left: 150, // Pixels from the left
+            }])
+            .png()
+            .toBuffer();
+        
+        // 5. Send the final image as a downloadable file
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Content-Disposition', `attachment; filename="seal_${code}.png"`);
+        res.status(200).send(finalImageBuffer);
+
+    } catch (error) {
+        console.error('Error generating final seal:', error);
+        res.status(500).json({ error: 'Failed to generate seal image.' });
+    }
+});
 // --- LOGISTICS PORTAL ROUTES ---
 
 // GET /api/logistics/pending-pickup - Get batches that are complete and ready for pickup
