@@ -687,6 +687,70 @@ app.put('/api/printing/batches/:id/complete', async (req, res) => {
     }
 });
 
+// --- LOGISTICS PORTAL ROUTES ---
+
+// GET /api/logistics/pending-pickup - Get batches that are complete and ready for pickup
+app.get('/api/logistics/pending-pickup', async (req, res) => {
+  try {
+    const readyBatches = await prisma.batch.findMany({
+      where: {
+        status: 'PRINTING_COMPLETE',
+      },
+      include: {
+        manufacturer: { select: { companyName: true } },
+      },
+      orderBy: { print_completed_at: 'asc' },
+    });
+    res.status(200).json(readyBatches);
+  } catch (error) {
+    console.error('Error fetching batches for pickup:', error);
+    res.status(500).json({ error: 'Failed to fetch batches.' });
+  }
+});
+
+// PUT /api/logistics/batches/:id/pickup - Mark a batch as picked up and in transit
+app.put('/api/logistics/batches/:id/pickup', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { pickup_notes } = req.body; // Allow for optional notes
+
+        const updatedBatch = await prisma.batch.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'IN_TRANSIT',
+                picked_up_at: new Date(),
+                pickup_notes: pickup_notes || null,
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        console.error('Error marking batch as picked up:', error);
+        res.status(500).json({ error: 'Failed to update batch.' });
+    }
+});
+
+// PUT /api/logistics/batches/:id/deliver - Mark a batch as delivered
+app.put('/api/logistics/batches/:id/deliver', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { delivery_notes } = req.body; // Allow for optional notes
+
+        const updatedBatch = await prisma.batch.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'DELIVERED',
+                delivered_at: new Date(),
+                delivery_notes: delivery_notes || null,
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        console.error('Error marking batch as delivered:', error);
+        res.status(500).json({ error: 'Failed to update batch.' });
+    }
+});
+
+// --- End of Logistics Portal Routes ---
 // --- PUBLIC VERIFICATION ROUTE (Version 4 with Coordinates) ---
 app.get('/api/verify/:code', async (req, res) => {
   try {
