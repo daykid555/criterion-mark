@@ -790,36 +790,28 @@ app.get('/api/verify/:code', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // 1. Basic validation
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    // 2. Find the user by their email address
     const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() }, // Store and check emails in lowercase
+      where: { email: email.toLowerCase() },
     });
 
-    // 3. If no user is found, or if the password doesn't match, send a generic error
-    // We use bcrypt.compare to securely check the password without ever seeing the plain text version
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
-    // 4. If credentials are correct, create a JWT payload
-    const payload = {
-      userId: user.id,
-      role: user.role,
-    };
+    // --- THIS IS THE CRITICAL SECURITY FIX ---
+    // We must check if the user's account has been activated by an admin.
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Your account has not been approved by an administrator yet.' });
+    }
+    // --- END OF FIX ---
 
-    // 5. Sign the token with a secret key. It will expire in 1 day.
-    //    We need to add JWT_SECRET to our .env file.
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: '1d',
-    });
+    const payload = { userId: user.id, role: user.role };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
     
-    // 6. Send the token and user info (without the password) back to the client
     res.status(200).json({
       message: 'Login successful!',
       token: token,
@@ -830,7 +822,6 @@ app.post('/api/auth/login', async (req, res) => {
         email: user.email,
       },
     });
-
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'An internal server error occurred.' });

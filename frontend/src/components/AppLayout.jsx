@@ -1,28 +1,17 @@
-import { useContext } from 'react';
+// frontend/src/components/AppLayout.jsx
 import { Outlet } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
-import Navbar from './Navbar';
+import Navbar from './Navbar'; // We will use the main public navbar
 
 const AppLayout = () => {
-  const { logout } = useContext(AuthContext);
-
   return (
-    <div className="min-h-screen w-full bg-gradient-animated bg-[length:400%_400%] animate-gradient p-4 sm:p-6 lg:p-8">
-      {/* Centered Navbar with wax seal and logo */}
+    // The background gradient is now applied here
+    <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 via-blue-900/50 to-gray-900 p-4 sm:p-6 lg:p-8">
       <Navbar />
-      {/* Logout button, centered below navbar */}
-      <div className="flex justify-center mt-2 mb-8">
-        <button
-          onClick={logout}
-          className="px-4 py-2 rounded-lg text-sm glass-button"
-        >
-          Logout
-        </button>
-      </div>
-      <main>
+      <main className="pt-24"> {/* Add padding-top to push content below the fixed navbar */}
         <Outlet />
       </main>
     </div>
   );
 };
-export default AppLayout; 
+
+export default AppLayout;
