@@ -73,6 +73,7 @@ model Batch {
   cancellation_reason String?
   pickup_notes        String?
   delivery_notes      String?
+  seal_background_url String? // <-- ADD THIS NEW FIELD. It's optional.
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 }

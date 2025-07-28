@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
 import archiver from 'archiver';
 import qrcode from 'qrcode';
 import fs from 'fs';
@@ -44,6 +45,31 @@ const corsOptions = {
 app.use(cors(corsOptions));
 // Enable the Express app to parse JSON formatted request bodies
 app.use(express.json());
+
+// --- MULTER FILE UPLOAD CONFIGURATION ---
+// This sets up a directory to store uploaded seal designs.
+const uploadDir = 'uploads/seals';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    // Create a unique filename: batchId-timestamp-originalName
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `batch-${req.params.id}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  },
+});
+
+const upload = multer({ storage: storage });
+
+// This makes the 'uploads' folder publicly accessible to serve the images
+app.use('/uploads', express.static('uploads'));
+
+// --- End of Multer Configuration ---
 app.set('trust proxy', true); // <-- ADD THIS LINE
 
 // --- ROUTES ---
@@ -411,6 +437,35 @@ app.post('/api/admin/batches/:id/codes/zip', async (req, res) => {
     console.error('Error creating zip file:', error);
     res.status(500).json({ error: 'Failed to create zip file.' });
   }
+});
+
+// In backend/index.js, inside the ADMIN ROUTES section
+
+// POST /api/admin/batches/:id/upload-seal - Upload a seal background for a batch
+app.post('/api/admin/batches/:id/upload-seal', upload.single('sealBackground'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded.' });
+        }
+
+        // The URL path to access the file later
+        const fileUrl = `/${req.file.path.replace(/\\/g, '/')}`; // Normalize path for URLs
+
+        await prisma.batch.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                seal_background_url: fileUrl,
+            },
+        });
+
+        res.status(200).json({ message: 'Seal background uploaded successfully.', fileUrl: fileUrl });
+
+    } catch (error) {
+        console.error('Error uploading seal background:', error);
+        res.status(500).json({ error: 'Failed to upload file.' });
+    }
 });
 
 // GET /api/admin/history - Get all batches already processed by an admin
