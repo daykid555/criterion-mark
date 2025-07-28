@@ -742,6 +742,27 @@ app.put('/api/printing/batches/:id/complete', async (req, res) => {
     }
 });
 
+// GET /api/printing/history - Get all completed printing jobs
+app.get('/api/printing/history', async (req, res) => {
+  try {
+    const completedBatches = await prisma.batch.findMany({
+      where: {
+        status: {
+          in: ['PRINTING_COMPLETE', 'IN_TRANSIT', 'DELIVERED'] // Show all jobs that are past the printing stage
+        }
+      },
+      include: {
+        manufacturer: { select: { companyName: true } },
+      },
+      orderBy: { print_completed_at: 'desc' },
+    });
+    res.status(200).json(completedBatches);
+  } catch (error) {
+    console.error('Error fetching printing history:', error);
+    res.status(500).json({ error: 'Failed to fetch history.' });
+  }
+});
+
 // In backend/index.js, inside the PRINTING PORTAL ROUTES section
 
 // GET /api/printing/seal/:code - Generate and download a single, complete seal
