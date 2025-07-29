@@ -972,34 +972,35 @@ app.get('/api/verify/:code', async (req, res) => {
       });
     }
 
-    // --- Geolocation Logic with Coordinates ---
-    const ip = req.ip; // Get the user's IP address from the request
+    // --- MODIFIED: Geolocation Logic ---
+    const ip = req.ip;
     let locationData = {
-      ipAddress: ip,
-      city: null,
-      region: null,
-      country: null,
-      latitude: null,  // NEW
-      longitude: null, // NEW
+      ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
     };
 
-    try {
-      // MODIFIED: We are now asking the API for lat and lon
-      const geoResponse = await axios.get(`http://ip-api.com/json/${ip}?fields=status,message,countryCode,region,city,lat,lon`);
-      if (geoResponse.data.status === 'success') {
-        locationData.city = geoResponse.data.city;
-        locationData.region = geoResponse.data.region;
-        locationData.country = geoResponse.data.countryCode;
-        locationData.latitude = geoResponse.data.lat;   // NEW: Save latitude
-        locationData.longitude = geoResponse.data.lon;  // NEW: Save longitude
-      }
-    } catch (geoError) {
-      // If the IP lookup fails, we just log it and continue.
-      // The scan is more important than the location data.
-      console.error('Geolocation lookup failed:', geoError.message);
+    // NEW: Check for a header that tells us if the user consented to location tracking
+    const useLocation = req.headers['x-use-location'] === 'true';
+
+    if (useLocation && process.env.IPINFO_API_KEY) {
+        try {
+            // We now call the IPinfo API with our secure key
+            const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
+            const { city, region, country, loc } = geoResponse.data;
+            
+            locationData.city = city;
+            locationData.region = region;
+            locationData.country = country;
+
+            if (loc) {
+                const [lat, lon] = loc.split(',');
+                locationData.latitude = parseFloat(lat);
+                locationData.longitude = parseFloat(lon);
+            }
+        } catch (geoError) {
+            console.error('IPinfo lookup failed:', geoError.message);
+        }
     }
     // --- End of Geolocation Logic ---
-
     
     // CASE 2: The code is VALID. Now we log this new scan.
     // We will now include the location data we just fetched.
