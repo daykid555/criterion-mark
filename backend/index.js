@@ -206,7 +206,7 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']
 });
 
 // PUT /api/dva/batches/:id/reject - DVA rejects a batch
-app.put('/api/dva/batches/:id/reject', authenticateToken, async (req, res) => {
+app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
     try {
         const { id } = req.params;
         const { reason } = req.body;
