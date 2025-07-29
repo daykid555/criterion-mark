@@ -1,3 +1,5 @@
+// frontend/src/components/AdminApprovalQueue.jsx
+
 import { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { Link } from 'react-router-dom';
@@ -11,29 +13,21 @@ const AdminApprovalQueue = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchPendingBatches = async () => {
-    setIsLoading(true);
-    try {
-      const response = await apiClient.get('/api/admin/pending-batches');
-      setPendingBatches(response.data);
-    } catch (err) {
-      setError('Failed to load pending batches.');
-    } finally {
-      setIsLoading(false);
+  const fetchPendingBatches = async () => { /* ... (unchanged) ... */ };
+  useEffect(() => { fetchPendingBatches(); }, []);
+  const handleApprove = async (batchId) => { /* ... (unchanged) ... */ };
+
+  // --- NEW: Function to handle rejection ---
+  const handleReject = async (batchId) => {
+    const reason = prompt("Please provide a reason for rejecting this batch:");
+    if (reason === null || reason.trim() === "") {
+        return;
     }
-  };
-
-  useEffect(() => {
-    fetchPendingBatches();
-  }, []);
-
-  const handleApprove = async (batchId) => {
     try {
-      await apiClient.put(`/api/admin/batches/${batchId}/approve`);
-      // Refresh the list after approval
-      fetchPendingBatches();
+        await apiClient.put(`/api/admin/batches/${batchId}/reject`, { reason });
+        fetchPendingBatches(); // Refresh the list
     } catch (err) {
-      alert('Failed to approve batch.');
+        alert('Failed to reject batch.');
     }
   };
 
@@ -48,13 +42,13 @@ const AdminApprovalQueue = () => {
             </div>
         ) : (
             <div className="overflow-x-auto">
-                <table className="w-full text-left text-white">
+                <table className="w-full text-left text-white min-w-[700px]">
                 <thead>
                     <tr className="border-b border-white/20">
                     <th className="p-4 text-sm font-semibold opacity-80">Drug Name</th>
                     <th className="p-4 text-sm font-semibold opacity-80">Manufacturer</th>
                     <th className="p-4 text-sm font-semibold opacity-80">Status</th>
-                    <th className="p-4 text-sm font-semibold opacity-80 no-wrap">Action</th>
+                    <th className="p-4 text-sm font-semibold opacity-80 text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -64,15 +58,21 @@ const AdminApprovalQueue = () => {
                             <Link to={`/admin/batches/${batch.id}`} className="hover:underline">{batch.drugName}</Link>
                         </td>
                         <td className="p-4 opacity-70">{batch.manufacturer.companyName}</td>
-                        <td className="p-4 no-wrap">
+                        <td className="p-4 whitespace-nowrap">
                         <span className={`px-3 py-1 text-xs font-medium rounded-full ${STATUS_STYLES[batch.status]}`}>
                             {batch.status.replace(/_/g, ' ')}
                         </span>
                         </td>
-                        <td className="p-4 no-wrap">
-                            <button onClick={() => handleApprove(batch.id)} className="text-xs font-bold py-2 px-3 rounded-lg glass-button pulse-attention">
-                                Approve for Printing
-                            </button>
+                        {/* --- MODIFIED: Added a Reject button --- */}
+                        <td className="p-4 whitespace-nowrap text-center">
+                            <div className="flex gap-2 justify-center">
+                                <button onClick={() => handleReject(batch.id)} className="text-xs font-bold py-2 px-3 rounded-lg glass-button bg-red-800/50 hover:bg-red-700/50">
+                                    Reject
+                                </button>
+                                <button onClick={() => handleApprove(batch.id)} className="text-xs font-bold py-2 px-3 rounded-lg glass-button pulse-attention">
+                                    Approve
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     ))}
@@ -84,4 +84,4 @@ const AdminApprovalQueue = () => {
   );
 };
 
-export default AdminApprovalQueue; 
+export default AdminApprovalQueue;
