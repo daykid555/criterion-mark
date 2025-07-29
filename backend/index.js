@@ -887,7 +887,7 @@ app.post('/api/printing/batch/:id/zip', async (req, res) => {
 // --- LOGISTICS PORTAL ROUTES ---
 
 // GET /api/logistics/pending-pickup - Get batches that are complete and ready for pickup
-app.get('/api/logistics/pending-pickup', async (req, res) => {
+app.get('/api/logistics/pending-pickup', authenticateToken, async (req, res) => {
   try {
     const readyBatches = await prisma.batch.findMany({
       where: {
@@ -906,7 +906,7 @@ app.get('/api/logistics/pending-pickup', async (req, res) => {
 });
 
 // PUT /api/logistics/batches/:id/pickup - Mark a batch as picked up and in transit
-app.put('/api/logistics/batches/:id/pickup', async (req, res) => {
+app.put('/api/logistics/batches/:id/pickup', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const { pickup_notes } = req.body; // Allow for optional notes
@@ -927,7 +927,7 @@ app.put('/api/logistics/batches/:id/pickup', async (req, res) => {
 });
 
 // PUT /api/logistics/batches/:id/deliver - Mark a batch as delivered
-app.put('/api/logistics/batches/:id/deliver', async (req, res) => {
+app.put('/api/logistics/batches/:id/deliver', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const { delivery_notes } = req.body; // Allow for optional notes
@@ -948,7 +948,7 @@ app.put('/api/logistics/batches/:id/deliver', async (req, res) => {
 });
 
 // GET /api/logistics/history - Get all completed logistics jobs
-app.get('/api/logistics/history', async (req, res) => {
+app.get('/api/logistics/history', authenticateToken, async (req, res) => {
   try {
     const deliveredBatches = await prisma.batch.findMany({
       where: { status: 'DELIVERED' },
@@ -970,15 +970,12 @@ app.get('/api/logistics/history', async (req, res) => {
 
 // Middleware to verify user is a skincare brand and get their brand ID
 const getSkincareBrand = async (req, res, next) => {
-    // THIS IS THE FIX: We now get the real userId from the authenticated user
+    // THIS IS THE FIX: We get the real userId from the token via the middleware
     const userId = req.user.userId; 
     
-    // We also need to create the SkincareBrand entry when the user is approved.
-    // Let's find the user first to get their companyName and CAC number.
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: "User not found." });
 
-    // Find or create the associated SkincareBrand profile.
     const skincareBrand = await prisma.skincareBrand.upsert({
         where: { userId: userId },
         update: {},
@@ -986,13 +983,11 @@ const getSkincareBrand = async (req, res, next) => {
             userId: userId,
             brandName: user.companyName,
             cacNumber: user.companyRegNumber,
-            isVerified: true, // If they can access this, they are verified
+            isVerified: true,
         }
     });
 
-    if (!skincareBrand) {
-        return res.status(403).json({ error: 'Forbidden: Could not find or create a skincare brand profile.' });
-    }
+    if (!skincareBrand) return res.status(403).json({ error: 'Could not find or create a skincare brand profile.' });
     req.brand = skincareBrand;
     next();
 };
