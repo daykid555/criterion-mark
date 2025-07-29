@@ -1,6 +1,7 @@
 // frontend/src/pages/LoginPage.jsx
+
 import React, { useState, useContext } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom'; // Removed useNavigate
 import { AuthContext } from '../context/AuthContext';
 import NodeBackground from '../components/NodeBackground';
 import apiClient from '../api';
@@ -11,7 +12,7 @@ function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const navigate = useNavigate();
+  // We ONLY need the login function from the context now
   const { login } = useContext(AuthContext);
 
   const handleLogin = async (e) => {
@@ -25,27 +26,19 @@ function LoginPage() {
         password: password,
       });
       
-      const { token, user } = response.data;
-      login(user, token);
-      
-      switch (user.role) {
-        case 'MANUFACTURER': navigate('/manufacturer/dashboard'); break;
-        case 'DVA': navigate('/dva/dashboard'); break;
-        case 'ADMIN': navigate('/admin/dashboard'); break;
-        case 'PRINTING': navigate('/printing/dashboard'); break;
-        case 'LOGISTICS': navigate('/logistics/dashboard'); break; // <-- THE DIRECTION MUST BE CORRECT HERE
-        case 'SKINCARE_BRAND': navigate('/skincare/dashboard'); break;
-        default: navigate('/');
-      }
+      // THIS IS THE FIX: We just call login and do nothing else.
+      // The AuthContext will handle the redirect automatically.
+      login(response.data.user, response.data.token);
 
     } catch (err) {
       const errorMessage = err.response?.data?.error || 'Login failed. Please try again.';
       setError(errorMessage);
-    } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Make sure loading stops on error
     }
+    // No finally block needed here anymore if we handle it in the catch
   };
 
+  // The rest of the component's JSX is the same
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center">
       <NodeBackground />
