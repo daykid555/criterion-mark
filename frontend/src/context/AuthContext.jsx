@@ -1,7 +1,6 @@
 // frontend/src/context/AuthContext.jsx
-
 import { createContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // <-- NEW: Import useNavigate
+import { useNavigate } from 'react-router-dom';
 
 export const AuthContext = createContext(null);
 
@@ -9,11 +8,12 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate(); // <-- NEW: Get the navigate function
+  const navigate = useNavigate();
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
     const storedUser = localStorage.getItem('user');
+
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
@@ -21,28 +21,11 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(false);
   }, []);
 
-  // --- THIS IS THE NEW, CRITICAL LOGIC ---
-  // This effect runs whenever the 'user' state changes.
-  useEffect(() => {
-    if (user && !isLoading) { // Only run if a user has just logged in
-      switch (user.role) {
-        case 'MANUFACTURER': navigate('/manufacturer/dashboard'); break;
-        case 'DVA': navigate('/dva/dashboard'); break;
-        case 'ADMIN': navigate('/admin/dashboard'); break;
-        case 'PRINTING': navigate('/printing/dashboard'); break;
-        case 'LOGISTICS': navigate('/logistics/dashboard'); break;
-        case 'SKINCARE_BRAND': navigate('/skincare/dashboard'); break;
-        default: navigate('/'); // For CUSTOMER role
-      }
-    }
-  }, [user, isLoading, navigate]); // It depends on user, isLoading, and navigate
-
   const login = (userData, userToken) => {
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('token', userToken);
     setUser(userData);
     setToken(userToken);
-    // The useEffect above will now handle the navigation automatically.
   };
 
   const logout = () => {
@@ -50,7 +33,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     setUser(null);
     setToken(null);
-    navigate('/'); // On logout, always go to the homepage.
+    // Navigate to home on logout to ensure a clean state
+    navigate('/');
   };
 
   const value = {
@@ -58,6 +42,7 @@ export const AuthProvider = ({ children }) => {
     token,
     login,
     logout,
+    isLoading, // Pass isLoading through
     isAuthenticated: !!token,
   };
   

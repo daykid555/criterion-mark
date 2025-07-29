@@ -26,14 +26,17 @@ function LoginPage() {
       });
       
       const { token, user } = response.data;
+      
+      // Step 1: Set the authentication state
       login(user, token);
       
+      // Step 2: Navigate based on the role from the response
       switch (user.role) {
         case 'MANUFACTURER': navigate('/manufacturer/dashboard'); break;
         case 'DVA': navigate('/dva/dashboard'); break;
         case 'ADMIN': navigate('/admin/dashboard'); break;
         case 'PRINTING': navigate('/printing/dashboard'); break;
-        case 'LOGISTICS': navigate('/logistics/dashboard'); break; // <-- THE DIRECTION MUST BE CORRECT HERE
+        case 'LOGISTICS': navigate('/logistics/dashboard'); break;
         case 'SKINCARE_BRAND': navigate('/skincare/dashboard'); break;
         default: navigate('/');
       }
