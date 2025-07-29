@@ -1,3 +1,5 @@
+// backend/index.js
+
 // Import necessary packages
 import express from 'express';
 import cors from 'cors';
@@ -6,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+
 import multer from 'multer';
 import archiver from 'archiver';
 import qrcode from 'qrcode';
