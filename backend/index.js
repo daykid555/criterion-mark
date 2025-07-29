@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { Parser } from 'json2csv';
 import { authenticateToken } from './middleware.js';
 
 import multer from 'multer';
@@ -674,10 +675,108 @@ app.put('/api/admin/users/:id/activate', async (req, res) => {
   }
 });
 
+// In backend/index.js, inside the ADMIN ROUTES section
+
+// PUT /api/admin/users/:id/toggle-activation - Deactivate or Reactivate a user
+app.put('/api/admin/users/:id/toggle-activation', authenticateToken, async (req, res) => {
+    // Simple security check: ensure the user is an admin
+    if (req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    try {
+        const { id } = req.params;
+        const userToToggle = await prisma.user.findUnique({ where: { id: parseInt(id, 10) } });
+
+        if (!userToToggle) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        // You cannot deactivate yourself
+        if (userToToggle.id === req.user.userId) {
+            return res.status(400).json({ error: 'You cannot deactivate your own account.' });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: parseInt(id, 10) },
+            data: { isActive: !userToToggle.isActive }, // Toggles the boolean value
+        });
+        
+        res.status(200).json({ 
+            message: `User ${updatedUser.email} has been ${updatedUser.isActive ? 'activated' : 'deactivated'}.`,
+            user: updatedUser 
+        });
+    } catch (error) {
+        console.error('Error toggling user activation:', error);
+        res.status(500).json({ error: 'Failed to update user status.' });
+    }
+});
+
+
+// POST /api/admin/system-reset - Exports all data and then deletes it
+app.post('/api/admin/system-reset', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'ADMIN') {
+        return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    try {
+        // 1. Fetch all data from all relevant tables
+        const batches = await prisma.batch.findMany({ include: { manufacturer: true } });
+        const users = await prisma.user.findMany();
+        const qrCodes = await prisma.qRCode.findMany();
+        const scanRecords = await prisma.scanRecord.findMany();
+        const skincareBrands = await prisma.skincareBrand.findMany({ include: { user: true } });
+        const skincareProducts = await prisma.skincareProduct.findMany({ include: { brand: true } });
+
+        // 2. Convert each dataset to CSV
+        const json2csvParser = new Parser();
+        const usersCsv = json2csvParser.parse(users);
+        const batchesCsv = json2csvParser.parse(batches);
+        const qrCodesCsv = json2csvParser.parse(qrCodes);
+        const scanRecordsCsv = json2csvParser.parse(scanRecords);
+        const skincareBrandsCsv = json2csvParser.parse(skincareBrands);
+        const skincareProductsCsv = json2csvParser.parse(skincareProducts);
+
+        // 3. Create a ZIP archive
+        res.attachment('criterion_mark_backup.zip');
+        const archive = archiver('zip');
+        archive.pipe(res);
+
+        // 4. Add each CSV file to the archive
+        archive.append(usersCsv, { name: 'users_backup.csv' });
+        archive.append(batchesCsv, { name: 'batches_backup.csv' });
+        archive.append(qrCodesCsv, { name: 'qrcodes_backup.csv' });
+        archive.append(scanRecordsCsv, { name: 'scanrecords_backup.csv' });
+        archive.append(skincareBrandsCsv, { name: 'skincare_brands_backup.csv' });
+        archive.append(skincareProductsCsv, { name: 'skincare_products_backup.csv' });
+
+        // IMPORTANT: Finalize the archive BEFORE deleting data
+        await archive.finalize();
+
+        // 5. After the download is complete, delete the data.
+        // We use a transaction to ensure all deletes happen or none do.
+        // The order is important to avoid foreign key constraint errors.
+        await prisma.$transaction([
+            prisma.scanRecord.deleteMany(),
+            prisma.qRCode.deleteMany(),
+            prisma.batch.deleteMany(),
+            prisma.skincareProduct.deleteMany(),
+            prisma.skincareBrand.deleteMany(),
+            // We don't delete users, we just clear their data relations
+        ]);
+
+    } catch (error) {
+        console.error('CRITICAL ERROR during system reset:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'System reset failed.' });
+        }
+    }
+});
+
 // --- PRINTING PORTAL ROUTES ---
 
 // GET /api/printing/pending - Get batches ready for printing
-app.get('/api/printing/pending', async (req, res) => {
+app.get('/api/printing/pending', authenticateToken, async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
       where: {
@@ -696,7 +795,7 @@ app.get('/api/printing/pending', async (req, res) => {
 });
 
 // GET /api/printing/in-progress - Get batches currently being printed
-app.get('/api/printing/in-progress', async (req, res) => {
+app.get('/api/printing/in-progress', authenticateToken, async (req, res) => {
     try {
         const inProgressBatches = await prisma.batch.findMany({
             where: { status: 'PRINTING_IN_PROGRESS' },
@@ -711,7 +810,7 @@ app.get('/api/printing/in-progress', async (req, res) => {
 });
 
 // PUT /api/printing/batches/:id/start - Mark a batch as printing in progress
-app.put('/api/printing/batches/:id/start', async (req, res) => {
+app.put('/api/printing/batches/:id/start', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const updatedBatch = await prisma.batch.update({
@@ -729,7 +828,7 @@ app.put('/api/printing/batches/:id/start', async (req, res) => {
 });
 
 // PUT /api/printing/batches/:id/complete - Mark a batch as printing complete
-app.put('/api/printing/batches/:id/complete', async (req, res) => {
+app.put('/api/printing/batches/:id/complete', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         const updatedBatch = await prisma.batch.update({
@@ -747,7 +846,7 @@ app.put('/api/printing/batches/:id/complete', async (req, res) => {
 });
 
 // GET /api/printing/history - Get all completed printing jobs
-app.get('/api/printing/history', async (req, res) => {
+app.get('/api/printing/history', authenticateToken, async (req, res) => {
   try {
     const completedBatches = await prisma.batch.findMany({
       where: {
@@ -770,7 +869,7 @@ app.get('/api/printing/history', async (req, res) => {
 // In backend/index.js, inside the PRINTING PORTAL ROUTES section
 
 // GET /api/printing/seal/:code - Generate and download a single, complete seal
-app.get('/api/printing/seal/:code', async (req, res) => {
+app.get('/api/printing/seal/:code', authenticateToken, async (req, res) => {
     try {
         const { code } = req.params;
 
@@ -833,7 +932,7 @@ app.get('/api/printing/seal/:code', async (req, res) => {
 // In backend/index.js, inside the PRINTING PORTAL ROUTES section
 
 // POST /api/printing/batch/:id/zip - Generate a ZIP of all final seal images for a batch
-app.post('/api/printing/batch/:id/zip', async (req, res) => {
+app.post('/api/printing/batch/:id/zip', authenticateToken, async (req, res) => {
     // In backend/index.js, for the /api/printing/batch/:id/zip route
     try {
         const { id } = req.params;
@@ -858,7 +957,9 @@ app.post('/api/printing/batch/:id/zip', async (req, res) => {
 
         // Good practice: handle errors on the archive stream
         archive.on('error', function(err) {
-            throw err;
+            // This was causing an unhandled exception and crashing the server.
+            console.error('Archive stream error:', err);
+            res.end(); // End the response abruptly. The client will see a failed download.
         });
 
         archive.pipe(res);
