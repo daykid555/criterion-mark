@@ -646,6 +646,25 @@ app.get('/api/admin/pending-users', async (req, res) => {
   }
 });
 
+// In backend/index.js (ADMIN ROUTES)
+
+// GET /api/admin/users/all - Get all non-admin users
+app.get('/api/admin/users/all', authenticateToken, async (req, res) => {
+    if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Forbidden' });
+    try {
+        const users = await prisma.user.findMany({
+            where: {
+                role: { not: 'ADMIN' } // Don't fetch other admins
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, email: true, companyName: true, role: true, isActive: true }
+        });
+        res.status(200).json(users);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch users.' });
+    }
+});
+
 // PUT /api/admin/users/:id/activate - Activate a user account
 app.put('/api/admin/users/:id/activate', async (req, res) => {
   try {
