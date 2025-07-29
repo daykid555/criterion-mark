@@ -18,6 +18,7 @@ const JobsTable = ({ jobs, title, onUpdateStatus, isHistory = false }) => {
         return <p className="text-white/70 text-center py-8">{isHistory ? 'No completed jobs found.' : 'No active jobs in the queue.'}</p>;
     }
 
+    // In frontend/src/pages/PrintingDashboard.jsx, inside the JobsTable component
     return (
         <div className="overflow-x-auto">
             <table className="w-full text-left text-white min-w-[800px]">
@@ -44,14 +45,16 @@ const JobsTable = ({ jobs, title, onUpdateStatus, isHistory = false }) => {
                                 </span>
                             </td>
                             <td className="p-4 text-center">
-                                {/* Action buttons only show in the active queue */}
-                                {!isHistory && job.status === 'PENDING_PRINTING' && <button onClick={() => onUpdateStatus(job.id, 'start')} className="glass-button-sm text-xs font-bold py-1 px-3 rounded-md">Start Printing</button>}
-                                {!isHistory && job.status === 'PRINTING_IN_PROGRESS' && <button onClick={() => onUpdateStatus(job.id, 'complete')} className="glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-blue-500/30">Mark Complete</button>}
-                                {/* THIS IS THE FIX: Download link is now the primary action for completed jobs */}
-                                {isHistory && job.status.startsWith('PRINTING_COMPLETE') && 
-                                    <Link to={`/printing/batch/${job.id}`} className="glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-green-500/30">
+                                {/* THIS IS THE FIX: The whitespace-nowrap class prevents the button text from breaking */}
+                                {isHistory && (job.status === 'PRINTING_COMPLETE' || job.status === 'IN_TRANSIT' || job.status === 'DELIVERED') ?
+                                    <Link to={`/printing/batch/${job.id}`} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-green-500/30">
                                         Download Seals
                                     </Link>
+                                    :
+                                    <>
+                                        {job.status === 'PENDING_PRINTING' && <button onClick={() => onUpdateStatus(job.id, 'start')} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md">Start Printing</button>}
+                                        {job.status === 'PRINTING_IN_PROGRESS' && <button onClick={() => onUpdateStatus(job.id, 'complete')} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-blue-500/30">Mark Complete</button>}
+                                    </>
                                 }
                             </td>
                         </tr>
@@ -72,19 +75,23 @@ function PrintingDashboard() {
 
   const fetchData = async () => {
     setIsLoading(true);
+    setError('');
     try {
-      // Fetch data for both tabs at the same time
-      const [pendingRes, inProgressRes, historyRes] = await Promise.all([
-        apiClient.get('/api/printing/pending'),
-        apiClient.get('/api/printing/in-progress'),
-        apiClient.get('/api/printing/history')
-      ]);
-      setQueueJobs([...pendingRes.data, ...inProgressRes.data]);
-      setHistoryJobs(historyRes.data);
+        // Fetch data for both tabs at the same time
+        const [queueRes, historyRes] = await Promise.all([
+            // This fetches both PENDING and IN_PROGRESS
+            apiClient.get('/api/printing/pending').then(res => 
+                apiClient.get('/api/printing/in-progress').then(inProgRes => [...res.data, ...inProgRes.data])
+            ),
+            apiClient.get('/api/printing/history')
+        ]);
+        setQueueJobs(queueRes);
+        setHistoryJobs(historyRes.data);
     } catch (err) {
-      setError('Failed to load data.');
+        setError('Failed to load data.');
+        console.error(err);
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   };
 
