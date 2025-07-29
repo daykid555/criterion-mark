@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { authenticateToken } from './middleware.js';
 
 import multer from 'multer';
 import archiver from 'archiver';
@@ -969,24 +970,36 @@ app.get('/api/logistics/history', async (req, res) => {
 
 // Middleware to verify user is a skincare brand and get their brand ID
 const getSkincareBrand = async (req, res, next) => {
-    // This assumes you would have JWT middleware that adds `req.user`
-    // For now, we'll simulate it. In a real app, replace userId with req.user.userId
-    const userId = 1; // <<<<<<<<<<<--------- Replace with JWT user ID later
+    // THIS IS THE FIX: We now get the real userId from the authenticated user
+    const userId = req.user.userId; 
     
-    const skincareBrand = await prisma.skincareBrand.findUnique({
+    // We also need to create the SkincareBrand entry when the user is approved.
+    // Let's find the user first to get their companyName and CAC number.
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    // Find or create the associated SkincareBrand profile.
+    const skincareBrand = await prisma.skincareBrand.upsert({
         where: { userId: userId },
+        update: {},
+        create: {
+            userId: userId,
+            brandName: user.companyName,
+            cacNumber: user.companyRegNumber,
+            isVerified: true, // If they can access this, they are verified
+        }
     });
 
     if (!skincareBrand) {
-        return res.status(403).json({ error: 'Forbidden: User is not a registered skincare brand.' });
+        return res.status(403).json({ error: 'Forbidden: Could not find or create a skincare brand profile.' });
     }
-    req.brand = skincareBrand; // Attach brand info to the request
+    req.brand = skincareBrand;
     next();
 };
 
 
 // GET /api/skincare/products - Get all products for the logged-in brand
-app.get('/api/skincare/products', getSkincareBrand, async (req, res) => {
+app.get('/api/skincare/products', authenticateToken, getSkincareBrand, async (req, res) => {
     try {
         const products = await prisma.skincareProduct.findMany({
             where: { brandId: req.brand.id },
@@ -999,7 +1012,7 @@ app.get('/api/skincare/products', getSkincareBrand, async (req, res) => {
 });
 
 // POST /api/skincare/products - Add a new product
-app.post('/api/skincare/products', getSkincareBrand, async (req, res) => {
+app.post('/api/skincare/products', authenticateToken, getSkincareBrand, async (req, res) => {
     try {
         const { productName, ingredients, skinReactions, nafdacNumber } = req.body;
 
