@@ -28,28 +28,14 @@ function LoginPage() {
       const { token, user } = response.data;
       login(user, token);
       
-      // --- THIS IS THE FINAL, PERFECT SWITCH STATEMENT ---
       switch (user.role) {
-        case 'MANUFACTURER':
-          navigate('/manufacturer/dashboard');
-          break;
-        case 'DVA':
-          navigate('/dva/dashboard');
-          break;
-        case 'ADMIN':
-          navigate('/admin/dashboard');
-          break;
-        case 'PRINTING':
-          navigate('/printing/dashboard');
-          break;
-        case 'LOGISTICS':
-          navigate('/logistics/dashboard');
-          break;
-        case 'SKINCARE_BRAND':
-          navigate('/skincare/dashboard'); // Correctly routes to the new dashboard
-          break;
-        default: // Handles CUSTOMER role
-          navigate('/');
+        case 'MANUFACTURER': navigate('/manufacturer/dashboard'); break;
+        case 'DVA': navigate('/dva/dashboard'); break;
+        case 'ADMIN': navigate('/admin/dashboard'); break;
+        case 'PRINTING': navigate('/printing/dashboard'); break;
+        case 'LOGISTICS': navigate('/logistics/dashboard'); break; // <-- THE DIRECTION MUST BE CORRECT HERE
+        case 'SKINCARE_BRAND': navigate('/skincare/dashboard'); break;
+        default: navigate('/');
       }
 
     } catch (err) {

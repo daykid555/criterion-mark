@@ -19,8 +19,8 @@ import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
 import AdminMapPage from './pages/AdminMapPage.jsx';
 import PrintingDashboard from './pages/PrintingDashboard.jsx';
 import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
-import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
-import SkincareDashboard from './pages/SkincareDashboard.jsx'; // <-- New import
+import LogisticsDashboard from './pages/LogisticsDashboard.jsx'; // <-- Route must have this import
+import SkincareDashboard from './pages/SkincareDashboard.jsx';
 
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useContext(AuthContext);
@@ -48,8 +48,8 @@ function App() {
         <Route path="/admin/map" element={<AdminMapPage />} />
         <Route path="/printing/dashboard" element={<PrintingDashboard />} />
         <Route path="/printing/batch/:id" element={<PrintingBatchPage />} />
-        <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
-        <Route path="/skincare/dashboard" element={<SkincareDashboard />} /> {/* <-- New Route */}
+        <Route path="/logistics/dashboard" element={<LogisticsDashboard />} /> {/* <-- THE LOGISTICS ROUTE MUST EXIST HERE */}
+        <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
       </Route>
     </Routes>
   );
