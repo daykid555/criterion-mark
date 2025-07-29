@@ -1,5 +1,4 @@
 // Import necessary packages
-import { nanoid } from 'nanoid';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -943,6 +942,25 @@ app.put('/api/logistics/batches/:id/deliver', async (req, res) => {
         res.status(500).json({ error: 'Failed to update batch.' });
     }
 });
+
+// GET /api/logistics/history - Get all completed logistics jobs
+app.get('/api/logistics/history', async (req, res) => {
+  try {
+    const deliveredBatches = await prisma.batch.findMany({
+      where: { status: 'DELIVERED' },
+      include: { manufacturer: { select: { companyName: true } } },
+      orderBy: { delivered_at: 'desc' },
+    });
+    res.status(200).json(deliveredBatches);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch logistics history.' });
+  }
+});
+
+// In backend/index.js, inside the LOGISTICS PORTAL ROUTES section
+
+
+
 
 // --- SKINCARE BRAND PORTAL ROUTES ---
 

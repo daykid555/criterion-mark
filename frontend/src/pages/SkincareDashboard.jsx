@@ -1,9 +1,7 @@
 // frontend/src/pages/SkincareDashboard.jsx
-
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 
-// --- Reusable Form for adding new skincare products ---
 const AddProductForm = ({ onSuccess }) => {
   const [productName, setProductName] = useState('');
   const [ingredients, setIngredients] = useState('');
@@ -17,18 +15,9 @@ const AddProductForm = ({ onSuccess }) => {
     setIsLoading(true);
     setError('');
     try {
-      await apiClient.post('/api/skincare/products', {
-        productName,
-        ingredients,
-        skinReactions,
-        nafdacNumber,
-      });
-      // Clear form and notify parent on success
-      setProductName('');
-      setIngredients('');
-      setSkinReactions('');
-      setNafdacNumber('');
-      onSuccess();
+      await apiClient.post('/api/skincare/products', { productName, ingredients, skinReactions, nafdacNumber });
+      setProductName(''); setIngredients(''); setSkinReactions(''); setNafdacNumber('');
+      onSuccess(); // Refresh the product list
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to add product.');
     } finally {
@@ -45,9 +34,7 @@ const AddProductForm = ({ onSuccess }) => {
       </div>
       <textarea placeholder="Ingredients (comma separated)*" value={ingredients} onChange={(e) => setIngredients(e.target.value)} className="w-full glass-input px-3 py-2 min-h-[80px]" required />
       <textarea placeholder="Potential Skin Reactions (Optional)" value={skinReactions} onChange={(e) => setSkinReactions(e.target.value)} className="w-full glass-input px-3 py-2 min-h-[80px]" />
-      
       {error && <p className="text-red-400 text-xs text-center">{error}</p>}
-      
       <button type="submit" disabled={isLoading} className="w-full md:w-auto glass-button py-2 px-6 rounded-lg font-bold">
         {isLoading ? 'Adding...' : 'Add Product'}
       </button>
@@ -55,70 +42,69 @@ const AddProductForm = ({ onSuccess }) => {
   );
 };
 
+const ProductHistoryTable = ({ products }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-left text-white min-w-[600px]">
+      <thead className="border-b border-white/20 text-sm text-white/70">
+        <tr>
+          <th className="p-4">Product Name</th>
+          <th className="p-4">Unique Code</th>
+          <th className="p-4">NAFDAC No.</th>
+          <th className="p-4">Date Added</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-white/10">
+        {products.map(product => (
+          <tr key={product.id}>
+            <td className="p-4 font-semibold">{product.productName}</td>
+            <td className="p-4 font-mono text-cyan-300">{product.uniqueCode}</td>
+            <td className="p-4">{product.nafdacNumber || 'N/A'}</td>
+            <td className="p-4 text-white/70">{new Date(product.createdAt).toLocaleDateString()}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
-// --- Main Dashboard Component ---
 function SkincareDashboard() {
+  const [activeTab, setActiveTab] = useState('add');
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-
+  
   const fetchProducts = async () => {
     setIsLoading(true);
     try {
       const response = await apiClient.get('/api/skincare/products');
       setProducts(response.data);
     } catch (err) {
-      setError('Failed to load your products. Please try again later.');
+      setError('Failed to load your products.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  useEffect(() => { fetchProducts(); }, []);
 
   return (
     <div>
-      <h1 className="text-4xl font-bold text-white mb-8 drop-shadow-lg">
-        Skincare Brand Dashboard
-      </h1>
+      <h1 className="text-4xl font-bold text-white mb-4">Skincare Brand Dashboard</h1>
+      <div className="flex border-b border-white/20 mb-8">
+        <button onClick={() => setActiveTab('add')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'add' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Add Product</button>
+        <button onClick={() => setActiveTab('history')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Product History</button>
+      </div>
       
-      <div className="glass-panel p-6 sm:p-8 mb-8">
-        <AddProductForm onSuccess={fetchProducts} />
-      </div>
-
-      <div className="glass-panel p-1 sm:p-2">
-        <h2 className="text-2xl font-bold text-white p-4">Your Products</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-white min-w-[600px]">
-            <thead className="border-b border-white/20 text-sm text-white/70">
-              <tr>
-                <th className="p-4">Product Name</th>
-                <th className="p-4">Unique Code</th>
-                <th className="p-4">NAFDAC No.</th>
-                <th className="p-4">Date Added</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/10">
-              {isLoading ? (
-                <tr><td colSpan="4" className="text-center py-10 text-white/70">Loading products...</td></tr>
-              ) : error ? (
-                <tr><td colSpan="4" className="text-center py-10 text-red-400">{error}</td></tr>
-              ) : products.length === 0 ? (
-                <tr><td colSpan="4" className="text-center py-10 text-white/70">You have not added any products yet.</td></tr>
-              ) : products.map(product => (
-                <tr key={product.id}>
-                  <td className="p-4 font-semibold">{product.productName}</td>
-                  <td className="p-4 font-mono text-cyan-300">{product.uniqueCode}</td>
-                  <td className="p-4">{product.nafdacNumber || 'N/A'}</td>
-                  <td className="p-4 text-white/70">{new Date(product.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {activeTab === 'add' && <div className="glass-panel p-6 sm:p-8 mb-8"><AddProductForm onSuccess={fetchProducts} /></div>}
+      
+      {activeTab === 'history' && (
+        <div className="glass-panel p-1 sm:p-2">
+          <h2 className="text-2xl font-bold text-white p-4">Your Products</h2>
+          {isLoading && <p className="text-center py-10 text-white/70">Loading...</p>}
+          {error && <p className="text-center py-10 text-red-400">{error}</p>}
+          {!isLoading && !error && (products.length === 0 ? <p className="text-center py-10 text-white/70">No products added yet.</p> : <ProductHistoryTable products={products} />)}
         </div>
-      </div>
+      )}
     </div>
   );
 }
