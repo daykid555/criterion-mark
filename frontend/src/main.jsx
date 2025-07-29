@@ -1,18 +1,19 @@
+// frontend/src/main.jsx
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter } from 'react-router-dom'; // <-- Import the Router
 import App from './App.jsx';
+import { AuthProvider } from './context/AuthContext.jsx';
 import './index.css';
-import 'leaflet/dist/leaflet.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {/* V WRAP EVERYTHING WITH THE PROVIDER V */}
-    <AuthProvider>
-      <BrowserRouter>
+    {/* THIS IS THE FIX: The BrowserRouter must wrap everything */}
+    <BrowserRouter>
+      <AuthProvider>
         <App />
-      </BrowserRouter>
-    </AuthProvider>
-  </React.StrictMode>
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
 );

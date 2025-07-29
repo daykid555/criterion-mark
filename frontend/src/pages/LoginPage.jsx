@@ -1,4 +1,5 @@
 // frontend/src/pages/LoginPage.jsx
+
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -27,10 +28,9 @@ function LoginPage() {
       
       const { token, user } = response.data;
       
-      // Step 1: Set the authentication state
       login(user, token);
       
-      // Step 2: Navigate based on the role from the response
+      // The redirect logic now safely lives here again
       switch (user.role) {
         case 'MANUFACTURER': navigate('/manufacturer/dashboard'); break;
         case 'DVA': navigate('/dva/dashboard'); break;
