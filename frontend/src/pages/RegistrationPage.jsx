@@ -1,3 +1,4 @@
+// frontend/src/pages/RegistrationPage.jsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api';
@@ -18,13 +19,10 @@ function RegistrationPage() {
     setIsLoading(true);
     setMessage(null);
 
-    let registrationData = {
-      email: email.toLowerCase(),
-      password,
-      role,
-    };
+    let registrationData = { email: email.toLowerCase(), password, role };
 
-    if (role === 'MANUFACTURER') {
+    // Logic to handle different form fields based on role
+    if (role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') {
       registrationData.companyName = companyName;
       registrationData.companyRegNumber = companyRegNumber;
     } else {
@@ -34,36 +32,24 @@ function RegistrationPage() {
     try {
       const response = await apiClient.post('/api/auth/register', registrationData);
       setMessage({ type: 'success', text: response.data.message });
-      
-      setCompanyName('');
-      setCompanyRegNumber('');
-      setFullName('');
-      setEmail('');
-      setPassword('');
-
+      setCompanyName(''); setCompanyRegNumber(''); setFullName(''); setEmail(''); setPassword('');
     } catch (err) {
-      const errorText = err.response?.data?.error || 'Registration failed. Please try again.';
-      setMessage({ type: 'error', text: errorText });
+      setMessage({ type: 'error', text: err.response?.data?.error || 'Registration failed.' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  // MODIFIED: Added a title for PRINTING
+  // This function now includes the title for Skincare Brands
   const getPageTitle = () => {
     switch (role) {
-      case 'MANUFACTURER':
-        return 'Create Manufacturer Account';
-      case 'DVA':
-        return 'Create DVA Account';
-      case 'PRINTING': // NEW
-        return 'Create Printing Account';
-      case 'LOGISTICS':
-        return 'Create Logistics Account';
-      case 'CUSTOMER':
-        return 'Create Customer Account';
-      default:
-        return 'Create an Account';
+      case 'MANUFACTURER': return 'Create Manufacturer Account';
+      case 'SKINCARE_BRAND': return 'Create Skincare Brand Account';
+      case 'DVA': return 'Create DVA Account';
+      case 'PRINTING': return 'Create Printing Account';
+      case 'LOGISTICS': return 'Create Logistics Account';
+      case 'CUSTOMER': return 'Create Customer Account';
+      default: return 'Create an Account';
     }
   };
 
@@ -76,17 +62,12 @@ function RegistrationPage() {
           
           {message?.type !== 'success' ? (
             <form onSubmit={handleRegister} className="space-y-6">
-              
               <div>
                 <label htmlFor="role" className="block text-sm font-medium text-white/80">I am a...</label>
-                <select 
-                  id="role" 
-                  value={role} 
-                  onChange={(e) => setRole(e.target.value)} 
-                  className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50"
-                >
-                  {/* MODIFIED: Separated Logistics and Printing into two options */}
-                  <option className="text-black" value="MANUFACTURER">Manufacturer</option>
+                <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50">
+                  {/* THIS IS THE FIX: Added Skincare Brand option */}
+                  <option className="text-black" value="MANUFACTURER">Pharmaceutical Manufacturer</option>
+                  <option className="text-black" value="SKINCARE_BRAND">Skincare Brand</option>
                   <option className="text-black" value="CUSTOMER">Customer / User</option>
                   <option className="text-black" value="DVA">DVA (Regulatory Agency)</option>
                   <option className="text-black" value="PRINTING">Printing</option>
@@ -94,14 +75,15 @@ function RegistrationPage() {
                 </select>
               </div>
 
-              {role === 'MANUFACTURER' ? (
+              {/* This logic now correctly handles both Manufacturer and Skincare Brand */}
+              {(role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') ? (
                 <>
                   <div>
-                    <label htmlFor="companyName" className="block text-sm font-medium text-white/80">Company Name</label>
+                    <label htmlFor="companyName" className="block text-sm font-medium text-white/80">{role === 'MANUFACTURER' ? 'Company Name' : 'Brand Name'}</label>
                     <input type="text" id="companyName" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
                   </div>
                   <div>
-                    <label htmlFor="companyRegNumber" className="block text-sm font-medium text-white/80">Company Registration Number (CAC)</label>
+                    <label htmlFor="companyRegNumber" className="block text-sm font-medium text-white/80">CAC Registration Number</label>
                     <input type="text" id="companyRegNumber" required value={companyRegNumber} onChange={(e) => setCompanyRegNumber(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
                   </div>
                 </>
@@ -121,26 +103,14 @@ function RegistrationPage() {
                 <input type="password" id="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
               </div>
               
-              {message && message.type === 'error' && (
-                <div className="p-3 bg-red-500/20 text-red-200 rounded-lg text-sm border border-red-500/30">{message.text}</div>
-              )}
-
-              <div>
-                <button type="submit" disabled={isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button flex items-center justify-center">
-                  {isLoading ? 'Registering...' : 'Register'}
-                </button>
-              </div>
+              {message && message.type === 'error' && (<div className="p-3 bg-red-500/20 text-red-200 rounded-lg text-sm">{message.text}</div>)}
+              <div><button type="submit" disabled={isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button flex items-center justify-center">{isLoading ? 'Registering...' : 'Register'}</button></div>
             </form>
           ) : (
-            <div className="text-center p-4 bg-green-500/20 text-green-200 rounded-lg border border-green-500/30">
-              <h3 className="font-bold text-lg">Thank You!</h3>
-              <p>{message && message.text}</p>
-            </div>
+            <div className="text-center p-4 bg-green-500/20 text-green-200 rounded-lg"><h3 className="font-bold text-lg">Thank You!</h3><p>{message && message.text}</p></div>
           )}
 
-          <div className="text-center text-white/70 text-sm">
-            <p>Already have an account? <Link to="/login" className="font-medium text-white hover:underline">Sign In</Link></p>
-          </div>
+          <div className="text-center text-white/70 text-sm"><p>Already have an account? <Link to="/login" className="font-medium text-white hover:underline">Sign In</Link></p></div>
         </div>
       </div>
     </div>
