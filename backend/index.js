@@ -1153,6 +1153,58 @@ app.post('/api/skincare/products', authenticateToken, getSkincareBrand, async (r
     }
 });
 
+// backend/index.js
+
+// --- PUBLIC SKINCARE VERIFICATION ROUTE ---
+
+app.get('/api/skincare/verify/:code', async (req, res) => {
+    try {
+        const { code } = req.params;
+
+        if (!code) {
+            return res.status(400).json({ status: 'error', message: 'A verification code is required.' });
+        }
+
+        const product = await prisma.skincareProduct.findUnique({
+            where: { uniqueCode: code.toUpperCase() }, // Ensure we check against the uppercase code
+            include: {
+                brand: { // Include the parent brand's information
+                    select: {
+                        brandName: true,
+                        isVerified: true,
+                    }
+                }
+            }
+        });
+
+        // CASE 1: Code does not exist = FAKE
+        if (!product) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'This code is invalid. The product is not registered in our system.',
+            });
+        }
+        
+        // CASE 2: The brand itself is not yet verified by an Admin
+        if (!product.brand.isVerified) {
+             return res.status(403).json({
+                status: 'error',
+                message: `This product is from '${product.brand.brandName}', which is not yet a verified brand in our system.`,
+            });
+        }
+
+        // CASE 3: Success
+        res.status(200).json({
+            status: 'success',
+            message: 'Product Verified Successfully!',
+            data: product,
+        });
+
+    } catch (error) {
+        console.error('Skincare verification error:', error);
+        res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
+    }
+});
 // --- PUBLIC VERIFICATION ROUTE ---
 app.get('/api/verify/:code', async (req, res) => { // This line was being incorrectly parsed as part of the broken function above.
   try {
