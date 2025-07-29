@@ -6,9 +6,9 @@ import NodeBackground from '../components/NodeBackground';
 
 const qrcodeRegionId = "qr-reader";
 
-// --- Component with the CORRECTED consent text ---
+// --- Component with CORRECTED consent text ---
 const ScanConsent = ({ onScan }) => (
-    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 p-4 text-center">
+    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 p-4 text-center">
         <svg className="w-12 h-12 text-white/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
         <h3 className="font-bold text-white mb-2">Help Secure Your Medication</h3>
         <p className="text-white/80 text-sm mb-6">
@@ -18,12 +18,13 @@ const ScanConsent = ({ onScan }) => (
             <button onClick={() => onScan(true)} className="w-full glass-button font-bold py-3 px-6 rounded-lg">
                 Scan with Location
             </button>
+            {/* THIS IS THE FIX: "(Less Secure)" text is removed */}
             <button onClick={() => onScan(false)} className="w-full text-white/60 hover:text-white text-xs font-semibold">
-                Scan without Location (Less Secure)
+                Scan without Location
             </button>
         </div>
         <p className="text-yellow-300 text-xs font-semibold p-2 bg-yellow-500/20 rounded-md mt-4">
-            For your privacy, please turn off location or use the "without location" option when scanning at home.
+            For your privacy, please use the "without location" option when scanning at home.
         </p>
     </div>
 );
@@ -34,46 +35,43 @@ function VerificationPage() {
   const [error, setError] = useState('');
   const scannerRef = useRef(null);
 
-  // This useEffect is for cleanup when the component is unmounted
+  // This effect handles the cleanup ONCE when the component is removed from the page.
   useEffect(() => {
     return () => {
       if (scannerRef.current && scannerRef.current.isScanning) {
-        scannerRef.current.stop().catch(err => console.error("Cleanup failed to stop scanner:", err));
+        scannerRef.current.stop().catch(err => console.error("Cleanup failed:", err));
       }
     };
   }, []);
-  
-  const startScanner = async (withLocation) => {
+
+  const startScanner = (withLocation) => {
     setScanState('scanning');
     setError('');
+    
     if (!scannerRef.current) {
       scannerRef.current = new Html5Qrcode(qrcodeRegionId);
     }
-
+    
     const onScanSuccess = (decodedText) => {
       if (scannerRef.current.isScanning) {
-        scannerRef.current.stop().then(() => {
-          setScanState('loading');
-          verifyCode(decodedText, withLocation);
-        });
+        scannerRef.current.stop()
+          .then(() => {
+            setScanState('loading');
+            verifyCode(decodedText, withLocation);
+          })
+          .catch(err => console.error("Error stopping scanner after success:", err));
       }
     };
     
-    try {
-      await scannerRef.current.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
-    } catch (err) {
-      setError("Could not access camera. Please check browser permissions.");
+    scannerRef.current.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      onScanSuccess,
+      (errorMessage) => { /* Optional failure callback */ }
+    ).catch(err => {
+      setError("CAMERA ERROR: Please grant camera permissions and refresh the page.");
       setScanState('idle');
-    }
-  };
-
-  const stopScanner = () => {
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      scannerRef.current.stop().then(() => setScanState('idle')).catch(err => {
-        console.error("Error stopping scanner manually:", err);
-        setScanState('idle'); // Force state change even if stop fails
-      });
-    }
+    });
   };
 
   const verifyCode = async (code, withLocation) => {
@@ -103,26 +101,16 @@ function VerificationPage() {
           <h1 className="text-3xl font-bold text-center text-white">Verify Product</h1>
           
           <div className="flex flex-col items-center">
-            {/* THIS IS THE FIX: This container is now PERMANENT. It is never removed from the DOM. */}
-            <div id={qrcodeRegionId} className="w-full rounded-2xl overflow-hidden bg-black shadow-lg aspect-square relative">
-              {/* We now show the consent form ON TOP of the scanner div when idle */}
+            {/* THIS IS THE FIX: This container is PERMANENT. It never gets removed. */}
+            <div className="w-full rounded-2xl overflow-hidden bg-black shadow-lg aspect-square relative">
+              {/* The div for the library is always here */}
+              <div id={qrcodeRegionId}></div>
+              
+              {/* The consent form is an OVERLAY that appears when idle */}
               {scanState === 'idle' && <ScanConsent onScan={startScanner} />}
             </div>
 
             {error && <p className="text-red-400 text-sm mt-4 text-center">{error}</p>}
-
-            {scanState === 'scanning' && (
-              <button onClick={stopScanner} className="w-full glass-button mt-6 py-3 rounded-lg font-bold">
-                Stop Scanner
-              </button>
-            )}
-
-            {scanState === 'loading' && (
-              <div className="mt-6 flex flex-col items-center">
-                <div className="w-8 h-8 border-4 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-center text-blue-200 font-semibold mt-2">Verifying...</p>
-              </div>
-            )}
             
             {scanState === 'result' && verificationResult && (
               <div className="mt-6 w-full text-center">
