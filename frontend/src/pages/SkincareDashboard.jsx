@@ -1,118 +1,126 @@
-// frontend/src/pages/RegistrationPage.jsx
+// frontend/src/pages/SkincareDashboard.jsx
 
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
-import NodeBackground from '../components/NodeBackground';
 
-function RegistrationPage() {
-  const [role, setRole] = useState('MANUFACTURER');
-  const [fullName, setFullName] = useState('');
-  const [companyName, setCompanyName] = useState('');
-  const [companyRegNumber, setCompanyRegNumber] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+// --- Reusable Form for adding new skincare products ---
+const AddProductForm = ({ onSuccess }) => {
+  const [productName, setProductName] = useState('');
+  const [ingredients, setIngredients] = useState('');
+  const [skinReactions, setSkinReactions] = useState('');
+  const [nafdacNumber, setNafdacNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState(null);
+  const [error, setError] = useState('');
 
-  const handleRegister = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setMessage(null);
-
-    let registrationData = { email: email.toLowerCase(), password, role };
-
-    if (role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') {
-      registrationData.companyName = companyName;
-      registrationData.companyRegNumber = companyRegNumber;
-    } else {
-      registrationData.fullName = fullName;
-    }
-
+    setError('');
     try {
-      const response = await apiClient.post('/api/auth/register', registrationData);
-      setMessage({ type: 'success', text: response.data.message });
-      // Clear form on success
-      setCompanyName(''); setCompanyRegNumber(''); setFullName(''); setEmail(''); setPassword('');
+      await apiClient.post('/api/skincare/products', {
+        productName,
+        ingredients,
+        skinReactions,
+        nafdacNumber,
+      });
+      // Clear form and notify parent on success
+      setProductName('');
+      setIngredients('');
+      setSkinReactions('');
+      setNafdacNumber('');
+      onSuccess();
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.error || 'Registration failed.' });
+      setError(err.response?.data?.error || 'Failed to add product.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getPageTitle = () => {
-    switch (role) {
-      case 'MANUFACTURER': return 'Create Manufacturer Account';
-      case 'SKINCARE_BRAND': return 'Create Skincare Brand Account';
-      case 'DVA': return 'Create DVA Account';
-      case 'PRINTING': return 'Create Printing Account';
-      case 'LOGISTICS': return 'Create Logistics Account';
-      case 'CUSTOMER': return 'Create Customer Account';
-      default: return 'Create an Account';
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <h2 className="text-2xl font-bold text-white">Add New Product</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <input type="text" placeholder="Product Name*" value={productName} onChange={(e) => setProductName(e.target.value)} className="w-full glass-input px-3 py-2" required />
+        <input type="text" placeholder="NAFDAC Number (Optional)" value={nafdacNumber} onChange={(e) => setNafdacNumber(e.target.value)} className="w-full glass-input px-3 py-2" />
+      </div>
+      <textarea placeholder="Ingredients (comma separated)*" value={ingredients} onChange={(e) => setIngredients(e.target.value)} className="w-full glass-input px-3 py-2 min-h-[80px]" required />
+      <textarea placeholder="Potential Skin Reactions (Optional)" value={skinReactions} onChange={(e) => setSkinReactions(e.target.value)} className="w-full glass-input px-3 py-2 min-h-[80px]" />
+      
+      {error && <p className="text-red-400 text-xs text-center">{error}</p>}
+      
+      <button type="submit" disabled={isLoading} className="w-full md:w-auto glass-button py-2 px-6 rounded-lg font-bold">
+        {isLoading ? 'Adding...' : 'Add Product'}
+      </button>
+    </form>
+  );
+};
+
+
+// --- Main Dashboard Component ---
+function SkincareDashboard() {
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    try {
+      const response = await apiClient.get('/api/skincare/products');
+      setProducts(response.data);
+    } catch (err) {
+      setError('Failed to load your products. Please try again later.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
   return (
-    <div className="min-h-screen w-full relative flex items-center justify-center">
-      <NodeBackground />
-      <div className="relative z-10 w-full max-w-md">
-        <div className="glass-panel p-8 space-y-6">
-          <h2 className="text-3xl font-bold text-center text-white mb-4">{getPageTitle()}</h2>
-          
-          {message?.type !== 'success' ? (
-            <form onSubmit={handleRegister} className="space-y-6">
-              <div>
-                <label htmlFor="role" className="block text-sm font-medium text-white/80">I am a...</label>
-                <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50">
-                  <option className="text-black" value="MANUFACTURER">Pharmaceutical Manufacturer</option>
-                  <option className="text-black" value="SKINCARE_BRAND">Skincare Brand</option>
-                  <option className="text-black" value="CUSTOMER">Customer / User</option>
-                  <option className="text-black" value="DVA">DVA (Regulatory Agency)</option>
-                  <option className="text-black" value="PRINTING">Printing</option>
-                  <option className="text-black" value="LOGISTICS">Logistics</option>
-                </select>
-              </div>
+    <div>
+      <h1 className="text-4xl font-bold text-white mb-8 drop-shadow-lg">
+        Skincare Brand Dashboard
+      </h1>
+      
+      <div className="glass-panel p-6 sm:p-8 mb-8">
+        <AddProductForm onSuccess={fetchProducts} />
+      </div>
 
-              {(role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') ? (
-                <>
-                  <div>
-                    <label htmlFor="companyName" className="block text-sm font-medium text-white/80">{role === 'SKINCARE_BRAND' ? 'Brand Name' : 'Company Name'}</label>
-                    <input type="text" id="companyName" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
-                  </div>
-                  <div>
-                    <label htmlFor="companyRegNumber" className="block text-sm font-medium text-white/80">CAC Registration Number</label>
-                    <input type="text" id="companyRegNumber" required value={companyRegNumber} onChange={(e) => setCompanyRegNumber(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-white/80">Full Name / Company Name</label>
-                  <input type="text" id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
-                </div>
-              )}
-              
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-white/80">Email Address</label>
-                <input type="email" id="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
-              </div>
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-white/80">Password (min. 8 characters)</label>
-                <input type="password" id="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
-              </div>
-              
-              {message && message.type === 'error' && (<div className="p-3 bg-red-500/20 text-red-200 rounded-lg text-sm">{message.text}</div>)}
-              <div><button type="submit" disabled={isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button flex items-center justify-center">{isLoading ? 'Registering...' : 'Register'}</button></div>
-            </form>
-          ) : (
-            <div className="text-center p-4 bg-green-500/20 text-green-200 rounded-lg"><h3 className="font-bold text-lg">Thank You!</h3><p>{message && message.text}</p></div>
-          )}
-
-          <div className="text-center text-white/70 text-sm"><p>Already have an account? <Link to="/login" className="font-medium text-white hover:underline">Sign In</Link></p></div>
+      <div className="glass-panel p-1 sm:p-2">
+        <h2 className="text-2xl font-bold text-white p-4">Your Products</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-white min-w-[600px]">
+            <thead className="border-b border-white/20 text-sm text-white/70">
+              <tr>
+                <th className="p-4">Product Name</th>
+                <th className="p-4">Unique Code</th>
+                <th className="p-4">NAFDAC No.</th>
+                <th className="p-4">Date Added</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {isLoading ? (
+                <tr><td colSpan="4" className="text-center py-10 text-white/70">Loading products...</td></tr>
+              ) : error ? (
+                <tr><td colSpan="4" className="text-center py-10 text-red-400">{error}</td></tr>
+              ) : products.length === 0 ? (
+                <tr><td colSpan="4" className="text-center py-10 text-white/70">You have not added any products yet.</td></tr>
+              ) : products.map(product => (
+                <tr key={product.id}>
+                  <td className="p-4 font-semibold">{product.productName}</td>
+                  <td className="p-4 font-mono text-cyan-300">{product.uniqueCode}</td>
+                  <td className="p-4">{product.nafdacNumber || 'N/A'}</td>
+                  <td className="p-4 text-white/70">{new Date(product.createdAt).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 }
 
-export default RegistrationPage;
+export default SkincareDashboard;
