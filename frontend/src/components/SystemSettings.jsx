@@ -6,39 +6,46 @@ import apiClient from '../api';
 function SystemSettings() {
   const [isResetting, setIsResetting] = useState(false);
 
+  // In frontend/src/components/SystemSettings.jsx
+  
   const handleSystemReset = async () => {
-    const confirmation = prompt("This is a destructive action. You will download a backup of all data, and then all transactional data (batches, scans, etc.) will be permanently deleted. Type 'RESET' to confirm.");
-    
-    if (confirmation !== 'RESET') {
-      alert('System reset cancelled.');
-      return;
-    }
-
-    setIsResetting(true);
-    try {
-      const response = await apiClient({
-        method: 'post',
-        url: '/api/admin/system-reset',
-        responseType: 'blob', // Expect a zip file
-      });
-
-      // Trigger download
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'criterion_mark_backup.zip');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
-      alert('System data has been backed up and reset successfully.');
-
-    } catch (err) {
-      alert('System reset failed. Please check the server logs.');
-    } finally {
-      setIsResetting(false);
-    }
-  };
+      const confirmation = prompt("This is a destructive action. Type 'RESET' to confirm.");
+      if (confirmation !== 'RESET') {
+          alert('System reset cancelled.');
+          return;
+      }
+  
+      const adminCode = prompt("Please enter your 4-digit admin code to authorize this action:");
+      if (!adminCode) {
+          alert('Admin code is required. Action cancelled.');
+          return;
+      }
+  
+      setIsResetting(true);
+      try {
+          const response = await apiClient({
+              method: 'post',
+              url: '/api/admin/system-reset',
+              responseType: 'blob',
+              data: { adminCode } // <-- NEW: Send the admin code in the request body
+          });
+  
+          // ... (The rest of the download logic remains the same)
+          const url = window.URL.createObjectURL(new Blob([response.data]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', 'criterion_mark_backup.zip');
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          alert('System data has been backed up and reset successfully.');
+  
+      } catch (err) {
+          alert(err.response?.data?.error || 'System reset failed.');
+      } finally {
+          setIsResetting(false);
+      }
+    };
 
   return (
     <div>

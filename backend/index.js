@@ -205,6 +205,28 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']
   }
 });
 
+// PUT /api/dva/batches/:id/reject - DVA rejects a batch
+app.put('/api/dva/batches/:id/reject', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+        if (!reason) {
+            return res.status(400).json({ error: 'A reason for rejection is required.' });
+        }
+
+        const updatedBatch = await prisma.batch.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'DVA_REJECTED',
+                rejection_reason: `DVA: ${reason}`,
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to reject batch.' });
+    }
+});
+
 // GET /api/dva/history - Get all batches already processed by the DVA
 app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
   try {
@@ -307,6 +329,28 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole(['ADM
     console.error('Error in admin approval and code generation:', error);
     res.status(500).json({ error: 'Failed to approve batch and generate codes.' });
   }
+});
+
+// PUT /api/admin/batches/:id/reject - Admin rejects a batch
+app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+        if (!reason) {
+            return res.status(400).json({ error: 'A reason for rejection is required.' });
+        }
+
+        const updatedBatch = await prisma.batch.update({
+            where: { id: parseInt(id, 10) },
+            data: {
+                status: 'ADMIN_REJECTED',
+                rejection_reason: `Admin: ${reason}`,
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to reject batch.' });
+    }
 });
 
 // GET /api/admin/batches/:id/codes/download - Download all QR codes for a batch as a CSV
@@ -739,11 +783,23 @@ app.put('/api/admin/users/:id/toggle-activation', authenticateToken, async (req,
 });
 
 
-// POST /api/admin/system-reset - Exports all data and then deletes it
+// POST /api/admin/system-reset - Exports all data to Cloudinary and then deletes it
 app.post('/api/admin/system-reset', authenticateToken, async (req, res) => {
     if (req.user.role !== 'ADMIN') {
         return res.status(403).json({ error: 'Forbidden' });
     }
+
+    // --- Admin Code Verification ---
+    const { adminCode } = req.body;
+    if (!adminCode) {
+        return res.status(400).json({ error: 'Admin code is required for this action.' });
+    }
+
+    const codeSetting = await prisma.systemSetting.findUnique({ where: { key: 'admin_creation_code' } });
+    if (!codeSetting || !(await bcrypt.compare(adminCode, codeSetting.value))) {
+        return res.status(401).json({ error: 'Invalid Admin Code.' });
+    }
+    // --- End of Verification ---
 
     try {
         // 1. Fetch all data from all relevant tables
@@ -753,35 +809,44 @@ app.post('/api/admin/system-reset', authenticateToken, async (req, res) => {
         const scanRecords = await prisma.scanRecord.findMany();
         const skincareBrands = await prisma.skincareBrand.findMany({ include: { user: true } });
         const skincareProducts = await prisma.skincareProduct.findMany({ include: { brand: true } });
-
+        
         // 2. Convert each dataset to CSV
         const json2csvParser = new Parser();
-        const usersCsv = json2csvParser.parse(users);
-        const batchesCsv = json2csvParser.parse(batches);
-        const qrCodesCsv = json2csvParser.parse(qrCodes);
-        const scanRecordsCsv = json2csvParser.parse(scanRecords);
-        const skincareBrandsCsv = json2csvParser.parse(skincareBrands);
-        const skincareProductsCsv = json2csvParser.parse(skincareProducts);
-
-        // 3. Create a ZIP archive
-        res.attachment('criterion_mark_backup.zip');
+        
+        // 3. Create a ZIP archive and upload it to Cloudinary
         const archive = archiver('zip');
-        archive.pipe(res);
 
+        const cloudinaryUpload = new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: "system-backups",
+                    resource_type: "raw", // Use 'raw' for zip files
+                    public_id: `criterion_mark_backup_${new Date().toISOString()}`
+                },
+                (error, result) => {
+                    if (error) return reject(error);
+                    resolve(result);
+                }
+            );
+            archive.pipe(uploadStream);
+        });
+        
         // 4. Add each CSV file to the archive
-        archive.append(usersCsv, { name: 'users_backup.csv' });
-        archive.append(batchesCsv, { name: 'batches_backup.csv' });
-        archive.append(qrCodesCsv, { name: 'qrcodes_backup.csv' });
-        archive.append(scanRecordsCsv, { name: 'scanrecords_backup.csv' });
-        archive.append(skincareBrandsCsv, { name: 'skincare_brands_backup.csv' });
-        archive.append(skincareProductsCsv, { name: 'skincare_products_backup.csv' });
+        archive.append(json2csvParser.parse(users), { name: 'users_backup.csv' });
+        archive.append(json2csvParser.parse(batches), { name: 'batches_backup.csv' });
+        archive.append(json2csvParser.parse(qrCodes), { name: 'qrcodes_backup.csv' });
+        archive.append(json2csvParser.parse(scanRecords), { name: 'scanrecords_backup.csv' });
+        archive.append(json2csvParser.parse(skincareBrands), { name: 'skincare_brands_backup.csv' });
+        archive.append(json2csvParser.parse(skincareProducts), { name: 'skincare_products_backup.csv' });
 
-        // IMPORTANT: Finalize the archive BEFORE deleting data
+        // Finalize the archive to trigger the upload stream
         await archive.finalize();
 
-        // 5. After the download is complete, delete the data.
-        // We use a transaction to ensure all deletes happen or none do.
-        // The order is important to avoid foreign key constraint errors.
+        // Wait for the upload to complete
+        const uploadResult = await cloudinaryUpload;
+        console.log('System backup uploaded to Cloudinary:', uploadResult.secure_url);
+
+        // 5. After the backup is complete, delete the data.
         await prisma.$transaction([
             prisma.scanRecord.deleteMany(),
             prisma.qRCode.deleteMany(),
@@ -790,6 +855,9 @@ app.post('/api/admin/system-reset', authenticateToken, async (req, res) => {
             prisma.skincareBrand.deleteMany(),
             // We don't delete users, we just clear their data relations
         ]);
+
+        // 6. Send success response to the client
+        res.status(200).json({ message: `System data has been backed up and reset successfully.` });
 
     } catch (error) {
         console.error('CRITICAL ERROR during system reset:', error);
@@ -806,7 +874,7 @@ app.get('/api/printing/pending', authenticateToken, async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
       where: {
-        status: 'PENDING_PRINTING',
+        status: 'PRINTING_COMPLETE',
       },
       include: {
         manufacturer: { select: { companyName: true } },
