@@ -172,16 +172,22 @@
 }
 /* frontend/src/index.css */
 
-/* ===== DEFINITIVE SCANNER UI FIX ===== */
+/* ===== FINAL, AGGRESSIVE SCANNER UI FIX ===== */
 
-/* 1. Force the video to fill its container, removing the black bars */
+/* Force the main container to be full height */
+#qr-reader {
+  height: 100% !important;
+}
+
+/* Force the video to fill its container, removing black bars */
 #qr-reader video {
   width: 100% !important;
   height: 100% !important;
-  object-fit: cover !important; /* This is the key */
+  object-fit: cover !important;
 }
 
-/* 2. Hide the ugly white L-shaped focus box border */
-#qr-reader__scan_region_border {
+/* Hide any borders or shaded regions the library tries to add */
+#qr-reader__scan_region_border,
+#qr-reader__scan_region_box {
   display: none !important;
 }
