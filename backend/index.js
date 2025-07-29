@@ -1,4 +1,5 @@
 // Import necessary packages
+import { nanoid } from 'nanoid';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -942,6 +943,48 @@ app.put('/api/logistics/batches/:id/deliver', async (req, res) => {
         res.status(500).json({ error: 'Failed to update batch.' });
     }
 });
+
+// --- SKINCARE BRAND PORTAL ROUTES ---
+
+// Middleware to verify user is a skincare brand and get their brand ID
+const getSkincareBrand = async (req, res, next) => {
+    // This assumes you would have JWT middleware that adds `req.user`
+    // For now, we'll simulate it. In a real app, replace userId with req.user.userId
+    const userId = 1; // <<<<<<<<<<<--------- Replace with JWT user ID later
+    
+    const skincareBrand = await prisma.skincareBrand.findUnique({
+        where: { userId: userId },
+    });
+
+    if (!skincareBrand) {
+        return res.status(403).json({ error: 'Forbidden: User is not a registered skincare brand.' });
+    }
+    req.brand = skincareBrand; // Attach brand info to the request
+    next();
+};
+
+
+// GET /api/skincare/products - Get all products for the logged-in brand
+app.get('/api/skincare/products', getSkincareBrand, async (req, res) => {
+    try {
+        const products = await prisma.skincareProduct.findMany({
+            where: { brandId: req.brand.id },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.status(200).json(products);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch skincare products.' });
+    }
+});
+
+// POST /api/skincare/products - Add a new product
+app.post('/api/skincare/products', getSkincareBrand, async (req, res) => {
+    try {
+        const { productName, ingredients, skinReactions, nafdacNumber } = req.body;
+
+        if (!productName || !ingredients) {
+            return res.status(400).json({ error: 'Product Name and Ingredients are required.' });
+        }
 
 // --- End of Logistics Portal Routes ---
 // --- PUBLIC VERIFICATION ROUTE (Version 4 with Coordinates) ---
