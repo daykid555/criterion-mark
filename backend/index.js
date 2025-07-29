@@ -1006,10 +1006,27 @@ app.post('/api/skincare/products', getSkincareBrand, async (req, res) => {
         if (!productName || !ingredients) {
             return res.status(400).json({ error: 'Product Name and Ingredients are required.' });
         }
+        
+        // This is the missing logic to create the product in the database.
+        const newProduct = await prisma.skincareProduct.create({
+            data: {
+                brandId: req.brand.id,
+                productName,
+                ingredients,
+                skinReactions,
+                nafdacNumber,
+                uniqueCode: nanoid(10).toUpperCase(),
+            },
+        });
+        res.status(201).json(newProduct);
+    } catch (error) {
+        console.error("Error creating skincare product:", error);
+        res.status(500).json({ error: 'Failed to create skincare product.' });
+    }
+});
 
-// --- End of Logistics Portal Routes ---
-// --- PUBLIC VERIFICATION ROUTE (Version 4 with Coordinates) ---
-app.get('/api/verify/:code', async (req, res) => {
+// --- PUBLIC VERIFICATION ROUTE ---
+app.get('/api/verify/:code', async (req, res) => { // This line was being incorrectly parsed as part of the broken function above.
   try {
     const { code } = req.params;
 
