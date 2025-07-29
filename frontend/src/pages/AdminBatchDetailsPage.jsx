@@ -110,7 +110,7 @@ function AdminBatchDetailsPage() {
                 <h3 className="font-semibold text-white mb-2">Assigned Seal Background</h3>
                 <div className="bg-gray-800 p-2 rounded-lg">
                   <img 
-                    src={`${import.meta.env.VITE_API_BASE_URL}${batch.seal_background_url}`} 
+                    src={batch.seal_background_url} 
                     alt="Seal Background Preview"
                     className="max-h-48 mx-auto rounded-md"
                   />

@@ -10,7 +10,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Parser } from 'json2csv';
 import { authenticateToken } from './middleware.js';
-
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import multer from 'multer';
 import archiver from 'archiver';
 import qrcode from 'qrcode';
@@ -32,6 +33,16 @@ const PORT = process.env.PORT || 5001;
 
 // --- MIDDLEWARE ---
 
+// NEW: Role-based authorization middleware
+const authorizeRole = (roles) => {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    }
+    next();
+  };
+};
+
 const allowedOrigins = [
   'http://localhost:5173',
   'https://criterion-mark.vercel.app'
@@ -46,36 +57,34 @@ const corsOptions = {
     }
   },
 };
+
+app.set('trust proxy', true); // For accurate IP address logging behind proxies
+
 // Enable CORS (Cross-Origin Resource Sharing) for all routes
 app.use(cors(corsOptions));
 // Enable the Express app to parse JSON formatted request bodies
 app.use(express.json());
 
-// --- MULTER FILE UPLOAD CONFIGURATION ---
-// This sets up a directory to store uploaded seal designs.
-const uploadDir = 'uploads/seals';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// --- CLOUDINARY & MULTER CONFIGURATION ---
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Create a unique filename: batchId-timestamp-originalName
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `batch-${req.params.id}-${uniqueSuffix}${path.extname(file.originalname)}`);
-  },
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'criterion-mark-seals', // A folder name in your Cloudinary account
+        allowed_formats: ['jpeg', 'png', 'jpg'],
+        // public_id is how the file will be named in Cloudinary
+        public_id: (req, file) => `batch-${req.params.id}-${Date.now()}`,
+    },
 });
 
 const upload = multer({ storage: storage });
 
-// This makes the 'uploads' folder publicly accessible to serve the images
-app.use('/uploads', express.static('uploads'));
-
-// --- End of Multer Configuration ---
-app.set('trust proxy', true); // <-- ADD THIS LINE
+// We no longer need app.use('/uploads', ...) because files are served from Cloudinary's URL.
 
 // --- ROUTES ---
 // A simple test route to make sure the server is working
@@ -85,7 +94,7 @@ app.get('/', (req, res) => {
 
 // --- BATCH ROUTES ---
 // POST /api/batches - Create a new batch request
-app.post('/api/batches', async (req, res) => {
+app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
   try {
     // 1. Get the drug name, quantity, and expiration date from the request body
     const { drugName, quantity, expirationDate, nafdacNumber } = req.body;
@@ -95,10 +104,8 @@ app.post('/api/batches', async (req, res) => {
       return res.status(400).json({ error: 'All fields are required.' });
     }
 
-    // 3. For now, we will HARDCODE the manufacturer's ID.
-    //    In a real app, this would come from the logged-in user's token.
-    //    Our seed script created the manufacturer with ID = 1.
-    const manufacturerId = 1;
+    // 3. Get the manufacturer's ID from their authentication token
+    const manufacturerId = req.user.userId;
 
     // 4. Use Prisma to create the new batch in the database
     const newBatch = await prisma.batch.create({
@@ -124,11 +131,9 @@ app.post('/api/batches', async (req, res) => {
 });
 
 // GET /api/manufacturer/batches - Get all batches for the logged-in manufacturer
-app.get('/api/manufacturer/batches', async (req, res) => {
+app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
   try {
-    // For now, we will again HARDCODE the manufacturer's ID = 1.
-    // Later, this will come from the user's auth token.
-    const manufacturerId = 1;
+    const manufacturerId = req.user.userId;
 
     // Use Prisma to find all batches created by this manufacturer
     const batches = await prisma.batch.findMany({
@@ -153,7 +158,7 @@ app.get('/api/manufacturer/batches', async (req, res) => {
 // --- DVA ROUTES ---
 
 // GET /api/dva/pending-batches - Get all batches with status PENDING_DVA_APPROVAL
-app.get('/api/dva/pending-batches', async (req, res) => {
+app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
       where: {
@@ -179,7 +184,7 @@ app.get('/api/dva/pending-batches', async (req, res) => {
 });
 
 // PUT /api/dva/batches/:id/approve - DVA approves a batch
-app.put('/api/dva/batches/:id/approve', async (req, res) => {
+app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
   try {
     const { id } = req.params; // Get batch ID from URL
 
@@ -201,7 +206,7 @@ app.put('/api/dva/batches/:id/approve', async (req, res) => {
 });
 
 // GET /api/dva/history - Get all batches already processed by the DVA
-app.get('/api/dva/history', async (req, res) => {
+app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
   try {
     const processedBatches = await prisma.batch.findMany({
       where: {
@@ -229,7 +234,7 @@ app.get('/api/dva/history', async (req, res) => {
 // --- ADMIN ROUTES ---
 
 // GET /api/admin/pending-batches - Get all batches with status PENDING_ADMIN_APPROVAL
-app.get('/api/admin/pending-batches', async (req, res) => {
+app.get('/api/admin/pending-batches', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
       where: {
@@ -254,7 +259,7 @@ app.get('/api/admin/pending-batches', async (req, res) => {
 });
 
 // PUT /api/admin/batches/:id/approve - Admin gives final approval for a batch
-app.put('/api/admin/batches/:id/approve', async (req, res) => {
+app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   // This is the replacement for the try...catch block in the Admin approve route
   try {
     const { id } = req.params;
@@ -305,7 +310,7 @@ app.put('/api/admin/batches/:id/approve', async (req, res) => {
 });
 
 // GET /api/admin/batches/:id/codes/download - Download all QR codes for a batch as a CSV
-app.get('/api/admin/batches/:id/codes/download', async (req, res) => {
+app.get('/api/admin/batches/:id/codes/download', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -339,7 +344,7 @@ app.get('/api/admin/batches/:id/codes/download', async (req, res) => {
 });
 
 // GET /api/admin/batches/all - Get all batches for admin dashboard
-app.get('/api/admin/batches/all', async (req, res) => {
+app.get('/api/admin/batches/all', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const allBatches = await prisma.batch.findMany({
       include: {
@@ -361,7 +366,7 @@ app.get('/api/admin/batches/all', async (req, res) => {
 });
 
 // GET /api/admin/batches/:id - Get details for a single batch, including its QR codes
-app.get('/api/admin/batches/:id', async (req, res) => {
+app.get('/api/admin/batches/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -394,7 +399,7 @@ app.get('/api/admin/batches/:id', async (req, res) => {
 });
 
 // POST /api/admin/batches/:id/codes/zip - Generate and download a ZIP of all QR codes
-app.post('/api/admin/batches/:id/codes/zip', async (req, res) => {
+app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -447,26 +452,27 @@ app.post('/api/admin/batches/:id/codes/zip', async (req, res) => {
 // In backend/index.js, inside the ADMIN ROUTES section
 
 // POST /api/admin/batches/:id/upload-seal - Upload a seal background for a batch
-app.post('/api/admin/batches/:id/upload-seal', upload.single('sealBackground'), async (req, res) => {
+app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole(['ADMIN']), upload.single('sealBackground'), async (req, res) => {
+    // In backend/index.js, for the /api/admin/batches/:id/upload-seal route
     try {
         const { id } = req.params;
         
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded.' });
         }
-
-        // The URL path to access the file later
-        const fileUrl = `/${req.file.path.replace(/\\/g, '/')}`; // Normalize path for URLs
-
+    
+        // THIS IS THE FIX: Cloudinary provides the permanent URL in req.file.path
+        const fileUrl = req.file.path; 
+    
         await prisma.batch.update({
             where: { id: parseInt(id, 10) },
             data: {
-                seal_background_url: fileUrl,
+                seal_background_url: fileUrl, // Save the permanent Cloudinary URL
             },
         });
-
+    
         res.status(200).json({ message: 'Seal background uploaded successfully.', fileUrl: fileUrl });
-
+    
     } catch (error) {
         console.error('Error uploading seal background:', error);
         res.status(500).json({ error: 'Failed to upload file.' });
@@ -474,7 +480,7 @@ app.post('/api/admin/batches/:id/upload-seal', upload.single('sealBackground'), 
 });
 
 // GET /api/admin/history - Get all batches already processed by an admin
-app.get('/api/admin/history', async (req, res) => {
+app.get('/api/admin/history', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const processedBatches = await prisma.batch.findMany({
       where: {
@@ -504,7 +510,7 @@ app.get('/api/admin/history', async (req, res) => {
 // --- ADD THIS NEW ADMIN ROUTE ---
 
 // GET /api/admin/scans - Get all scan records for the map view
-app.get('/api/admin/scans', async (req, res) => {
+app.get('/api/admin/scans', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const allScans = await prisma.scanRecord.findMany({
       // We only want scans that have some location data
@@ -545,7 +551,7 @@ app.get('/api/admin/scans', async (req, res) => {
 // --- ADD THESE NEW ADMIN MANAGEMENT ROUTES ---
 
 // GET /api/admin/admins - Get a list of all admin users
-app.get('/api/admin/admins', async (req, res) => {
+app.get('/api/admin/admins', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const admins = await prisma.user.findMany({
       where: { role: 'ADMIN' },
@@ -559,7 +565,7 @@ app.get('/api/admin/admins', async (req, res) => {
 });
 
 // POST /api/admin/admins - Create a new admin user
-app.post('/api/admin/admins', async (req, res) => {
+app.post('/api/admin/admins', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   // In app.post('/api/admin/admins', ...)
   try {
       const { email, password, adminCode } = req.body;
@@ -598,11 +604,14 @@ app.post('/api/admin/admins', async (req, res) => {
 });
 
 // POST /api/admin/reset-code - Reset the admin creation code
-app.post('/api/admin/reset-code', async (req, res) => {
+app.post('/api/admin/reset-code', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     // In app.post('/api/admin/reset-code', ...)
     try {
         const { email, newCode } = req.body;
-        if (email.toLowerCase() !== 'daykid555@gmail.com') return res.status(403).json({ error: 'Unauthorized action.' });
+        // Only the logged-in admin can reset the code, and they must re-enter their email to confirm.
+        if (email.toLowerCase() !== req.user.email) {
+            return res.status(403).json({ error: 'Unauthorized. You can only reset the code using your own email.' });
+        }
         if (!newCode || !/^\d{4}$/.test(newCode)) return res.status(400).json({ error: 'New code must be 4 digits.' });
         
         const hashedCode = await bcrypt.hash(newCode, 10);
@@ -623,7 +632,7 @@ app.post('/api/admin/reset-code', async (req, res) => {
 // --- ADMIN USER MANAGEMENT ROUTES ---
 
 // GET /api/admin/pending-users - Get all users awaiting activation
-app.get('/api/admin/pending-users', async (req, res) => {
+app.get('/api/admin/pending-users', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const pendingUsers = await prisma.user.findMany({
       where: {
@@ -666,13 +675,11 @@ app.get('/api/admin/users/all', authenticateToken, async (req, res) => {
 });
 
 // PUT /api/admin/users/:id/activate - Activate a user account
-app.put('/api/admin/users/:id/activate', async (req, res) => {
+app.put('/api/admin/users/:id/activate', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const { id } = req.params;
-    // We need to know WHICH admin approved this user.
-    // For now, we'll hardcode the admin's ID. When we add JWT auth to the backend,
-    // we will get this from the token. Let's assume our main admin is user ID 3.
-    const adminApproverId = 3; 
+    // Get the ID of the admin performing the action from the token
+    const adminApproverId = req.user.userId;
 
     const activatedUser = await prisma.user.update({
       where: {
@@ -887,8 +894,8 @@ app.get('/api/printing/history', authenticateToken, async (req, res) => {
 
 // In backend/index.js, inside the PRINTING PORTAL ROUTES section
 
-// GET /api/printing/seal/:code - Generate and download a single, complete seal
-app.get('/api/printing/seal/:code', authenticateToken, async (req, res) => {
+// GET /api/printing/seal/:code - Generate and download a single, complete seal (protected for printing role)
+app.get('/api/printing/seal/:code', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { code } = req.params;
 
@@ -916,14 +923,13 @@ app.get('/api/printing/seal/:code', authenticateToken, async (req, res) => {
             margin: 1,
         });
 
-        // 3. Get the path to the background image
-        // The URL is like '/uploads/seals/file.png', so we remove the leading '/'
-        const backgroundPath = path.join(process.cwd(), qrCode.batch.seal_background_url.substring(1));
-
-        if (!fs.existsSync(backgroundPath)) {
-            return res.status(404).json({ error: 'Seal background file not found on server.' });
-        }
-        const backgroundBuffer = fs.readFileSync(backgroundPath);
+        // 3. Fetch the background image from its Cloudinary URL
+        const backgroundResponse = await axios({
+            method: 'get',
+            url: qrCode.batch.seal_background_url,
+            responseType: 'arraybuffer' // Important to get the image data as a buffer
+        });
+        const backgroundBuffer = backgroundResponse.data;
 
         // 4. Use Sharp to composite the QR code on top of the background
         // This is a placeholder for actual positioning. We'll assume the QR goes at a specific spot.
@@ -931,8 +937,9 @@ app.get('/api/printing/seal/:code', authenticateToken, async (req, res) => {
         const finalImageBuffer = await sharp(backgroundBuffer)
             .composite([{
                 input: qrCodeBuffer,
-                top: 50,  // Pixels from the top
-                left: 150, // Pixels from the left
+                // These values might need adjustment based on your seal design
+                top: 50,
+                left: 150,
             }])
             .png()
             .toBuffer();
@@ -951,7 +958,7 @@ app.get('/api/printing/seal/:code', authenticateToken, async (req, res) => {
 // In backend/index.js, inside the PRINTING PORTAL ROUTES section
 
 // POST /api/printing/batch/:id/zip - Generate a ZIP of all final seal images for a batch
-app.post('/api/printing/batch/:id/zip', authenticateToken, async (req, res) => {
+app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     // In backend/index.js, for the /api/printing/batch/:id/zip route
     try {
         const { id } = req.params;
@@ -964,12 +971,13 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Batch or seal background not found.' });
         }
         
-        const backgroundPath = path.join(process.cwd(), batch.seal_background_url.substring(1));
-        if (!fs.existsSync(backgroundPath)) {
-            console.error(`Background file not found at path: ${backgroundPath}`);
-            return res.status(500).json({ error: 'Server error: Background file is missing.' });
-        }
-        const backgroundBuffer = fs.readFileSync(backgroundPath);
+        // Fetch the background image from its Cloudinary URL
+        const backgroundResponse = await axios({
+            method: 'get',
+            url: batch.seal_background_url,
+            responseType: 'arraybuffer'
+        });
+        const backgroundBuffer = backgroundResponse.data;
 
         res.attachment(`batch_${id}_seals.zip`);
         const archive = archiver('zip');
@@ -1007,7 +1015,7 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, async (req, res) => {
 // --- LOGISTICS PORTAL ROUTES ---
 
 // GET /api/logistics/pending-pickup - Get batches that are complete and ready for pickup
-app.get('/api/logistics/pending-pickup', authenticateToken, async (req, res) => {
+app.get('/api/logistics/pending-pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
   try {
     const readyBatches = await prisma.batch.findMany({
       where: {
@@ -1026,7 +1034,7 @@ app.get('/api/logistics/pending-pickup', authenticateToken, async (req, res) => 
 });
 
 // PUT /api/logistics/batches/:id/pickup - Mark a batch as picked up and in transit
-app.put('/api/logistics/batches/:id/pickup', authenticateToken, async (req, res) => {
+app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
         const { pickup_notes } = req.body; // Allow for optional notes
@@ -1047,7 +1055,7 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, async (req, res)
 });
 
 // PUT /api/logistics/batches/:id/deliver - Mark a batch as delivered
-app.put('/api/logistics/batches/:id/deliver', authenticateToken, async (req, res) => {
+app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
         const { delivery_notes } = req.body; // Allow for optional notes
@@ -1068,7 +1076,7 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, async (req, res
 });
 
 // GET /api/logistics/history - Get all completed logistics jobs
-app.get('/api/logistics/history', authenticateToken, async (req, res) => {
+app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
   try {
     const deliveredBatches = await prisma.batch.findMany({
       where: { status: 'DELIVERED' },
