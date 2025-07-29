@@ -18,6 +18,7 @@ enum Role {
   CUSTOMER
   PRINTING // <-- ADD THIS
   LOGISTICS // <-- AND THIS
+  SKINCARE_BRAND // <-- ADD THIS NEW ROLE
 }
 
 // Defines the possible statuses for a batch
@@ -50,6 +51,7 @@ model User {
   updatedAt    DateTime @updatedAt
   approvedBy   Int?     // The ID of the admin who approved them
   approvedAt   DateTime?
+  skincareBrand SkincareBrand? // <-- ADD THIS LINE
 }
 
 // Batch model for tracking drug production requests
@@ -116,4 +118,40 @@ model SystemSetting {
   key       String   @unique // e.g., "admin_creation_code"
   value     String   // The actual value of the setting
   updatedAt DateTime @updatedAt
+}
+
+// --- NEW MODELS FOR SKINCARE SYSTEM ---
+
+// A SkincareBrand is linked to a User account
+model SkincareBrand {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique // Each brand is owned by one user
+  user        User     @relation(fields: [userId], references: [id])
+  
+  brandName   String
+  cacNumber   String   @unique
+  isVerified  Boolean  @default(false) // Verified by Admin
+  
+  placardQrCode String?  // The dynamic QR code for the brand's placard
+  
+  products    SkincareProduct[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// A SkincareProduct is created by a SkincareBrand
+model SkincareProduct {
+  id              Int      @id @default(autoincrement())
+  brandId         Int
+  brand           SkincareBrand @relation(fields: [brandId], references: [id])
+  
+  productName     String
+  ingredients     String   // A list of ingredients
+  skinReactions   String?  // Potential skin reactions
+  nafdacNumber    String?
+  
+  uniqueCode      String   @unique // The unique code for this specific product item
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

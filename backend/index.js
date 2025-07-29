@@ -1111,37 +1111,54 @@ app.post('/api/auth/register', async (req, res) => {
     
     let successMessage = '';
 
-switch (role) {
-  case 'MANUFACTURER':
-    if (!companyName || !companyRegNumber) return res.status(400).json({ error: 'Company Name and Registration Number are required.' });
-    const existingCompany = await prisma.user.findFirst({ where: { companyRegNumber } });
-    if (existingCompany) return res.status(409).json({ error: 'A company with this registration number already exists.' });
-    dataToCreate.companyName = companyName;
-    dataToCreate.companyRegNumber = companyRegNumber;
-    dataToCreate.isActive = false; // MUST BE APPROVED
-    successMessage = 'Registration successful! Your account is pending approval.';
-    break;
-    
-  case 'CUSTOMER':
-    if (!fullName) return res.status(400).json({ error: 'Full Name is required.' });
-    dataToCreate.companyName = fullName;
-    dataToCreate.isActive = true; // Customers are active immediately
-    successMessage = 'Registration successful! You can now log in.';
-    break;
+    // In backend/index.js, inside the /api/auth/register route
 
-  // THIS IS THE FIX: All these roles now correctly default to isActive: false
-  case 'DVA':
-  case 'PRINTING':
-  case 'LOGISTICS':
-    if (!fullName) return res.status(400).json({ error: 'Full Name / Company Name is required.' });
-    dataToCreate.companyName = fullName;
-    dataToCreate.isActive = false; // MUST BE APPROVED
-    successMessage = 'Registration successful! Your account is pending approval.';
-    break;
-    
-  default:
-    return res.status(400).json({ error: 'Invalid user role specified.' });
-}
+    switch (role) {
+      case 'MANUFACTURER':
+        if (!companyName || !companyRegNumber) return res.status(400).json({ error: 'Company Name and Registration Number are required.' });
+        const existingCompany = await prisma.user.findFirst({ where: { companyRegNumber } });
+        if (existingCompany) return res.status(409).json({ error: 'A company with this registration number already exists.' });
+        dataToCreate.companyName = companyName;
+        dataToCreate.companyRegNumber = companyRegNumber;
+        dataToCreate.isActive = false; // MUST BE APPROVED
+        successMessage = 'Registration successful! Your account is pending approval.';
+        break;
+
+      // --- NEW CASE FOR SKINCARE BRANDS ---
+      case 'SKINCARE_BRAND':
+        if (!companyName || !companyRegNumber) {
+          return res.status(400).json({ error: 'Brand Name and CAC Registration Number are required.' });
+        }
+        // Check if CAC number is already used by another brand
+        const existingBrand = await prisma.user.findFirst({ where: { companyRegNumber } });
+        if (existingBrand) {
+          return res.status(409).json({ error: 'A brand with this registration number already exists.' });
+        }
+        dataToCreate.companyName = companyName;
+        dataToCreate.companyRegNumber = companyRegNumber;
+        dataToCreate.isActive = false; // Skincare brands must be approved by an Admin
+        successMessage = 'Registration successful! Your brand is pending approval from an administrator.';
+        break;
+      
+      case 'CUSTOMER':
+        if (!fullName) return res.status(400).json({ error: 'Full Name is required.' });
+        dataToCreate.companyName = fullName;
+        dataToCreate.isActive = true; // Customers are active immediately
+        successMessage = 'Registration successful! You can now log in.';
+        break;
+
+      case 'DVA':
+      case 'PRINTING':
+      case 'LOGISTICS':
+        if (!fullName) return res.status(400).json({ error: 'Full Name / Company Name is required.' });
+        dataToCreate.companyName = fullName;
+        dataToCreate.isActive = false; // MUST BE APPROVED
+        successMessage = 'Registration successful! Your account is pending approval.';
+        break;
+        
+      default:
+        return res.status(400).json({ error: 'Invalid user role specified.' });
+    }
 
     await prisma.user.create({
       data: dataToCreate,
