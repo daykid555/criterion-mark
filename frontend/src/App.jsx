@@ -18,6 +18,7 @@ import VerificationPage from './pages/VerificationPage.jsx';
 import AdminMapPage from './pages/AdminMapPage.jsx';
 import PrintingDashboard from './pages/PrintingDashboard.jsx'; // <-- NEW: Import the new dashboard
 import PrintingBatchPage from './pages/PrintingBatchPage.jsx'; // <-- NEW: Import the page
+import LogisticsDashboard from './pages/LogisticsDashboard.jsx'; // <-- NEW: Import the page
 
 // ProtectedRoute and PublicLayout remain the same...
 const ProtectedRoute = ({ children }) => {
@@ -53,6 +54,7 @@ function App() {
         <Route path="/admin/map" element={<AdminMapPage />} />
         <Route path="/printing/dashboard" element={<PrintingDashboard />} /> {/* <-- NEW ROUTE */}
         <Route path="/printing/batch/:id" element={<PrintingBatchPage />} /> {/* <-- NEW ROUTE */}
+        <Route path="/logistics/dashboard" element={<LogisticsDashboard />} /> {/* <-- NEW ROUTE */}
       </Route>
     </Routes>
   );

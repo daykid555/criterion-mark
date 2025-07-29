@@ -43,8 +43,8 @@ switch (user.role) {
     navigate('/printing/dashboard');
     break;
   case 'LOGISTICS':
-    // We will build this next
-    navigate('/'); // This one can stay as a placeholder for now
+    // THIS IS THE FIX:
+    navigate('/logistics/dashboard');
     break;
   default:
     // This will now correctly handle CUSTOMER roles
