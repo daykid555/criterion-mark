@@ -1,6 +1,5 @@
-// backend/index.js
+// backend/index.js - THE FINAL, STABLE, REVERTED VERSION
 
-// Import necessary packages
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -8,10 +7,6 @@ import { PrismaClient } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { Parser } from 'json2csv';
-import { authenticateToken } from './middleware.js';
-import { v2 as cloudinary } from 'cloudinary';
-import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import multer from 'multer';
 import archiver from 'archiver';
 import qrcode from 'qrcode';
@@ -19,51 +14,22 @@ import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
 import axios from 'axios';
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import { authenticateToken } from './middleware.js'; // Assuming middleware.js exists
+import { Parser } from 'json2csv'; // Import Parser for CSV conversion
+import { authorizeRole } from './middleware.js'; // Import authorizeRole middleware
 
-// Load environment variables from .env file
 dotenv.config();
 const prisma = new PrismaClient();
-
-// Initialize the Express application
 const app = express();
-
-// Define the port the server will run on
-// It will use the PORT from the .env file, or default to 5001 if it's not defined
 const PORT = process.env.PORT || 5001;
 
-// --- MIDDLEWARE ---
-
-// NEW: Role-based authorization middleware
-const authorizeRole = (roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
-    }
-    next();
-  };
-};
-
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://criterion-mark.vercel.app'
-];
-
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-};
-
-app.set('trust proxy', true); // For accurate IP address logging behind proxies
-
-// Enable CORS (Cross-Origin Resource Sharing) for all routes
-app.use(cors(corsOptions));
-// Enable the Express app to parse JSON formatted request bodies
+// --- MIDDLEWARE SETUP ---
+const allowedOrigins = ['http://localhost:5173', 'https://criterion-mark.vercel.app'];
+app.use(cors({ origin: (origin, callback) => { if (!origin || allowedOrigins.includes(origin)) { callback(null, true); } else { callback(new Error('Not allowed by CORS')); } } }));
 app.use(express.json());
+app.set('trust proxy', true);
 
 // --- CLOUDINARY & MULTER CONFIGURATION ---
 cloudinary.config({
@@ -71,601 +37,444 @@ cloudinary.config({
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
 const storage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: {
-        folder: 'criterion-mark-seals', // A folder name in your Cloudinary account
-        allowed_formats: ['jpeg', 'png', 'jpg'],
-        // public_id is how the file will be named in Cloudinary
-        public_id: (req, file) => `batch-${req.params.id}-${Date.now()}`,
-    },
+    params: { folder: 'criterion-mark-seals', allowed_formats: ['jpeg', 'png', 'jpg'], public_id: (req, file) => `batch-${req.params.id}-${Date.now()}` },
 });
-
 const upload = multer({ storage: storage });
 
-// We no longer need app.use('/uploads', ...) because files are served from Cloudinary's URL.
-
 // --- ROUTES ---
-// A simple test route to make sure the server is working
-app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to the Seal It API!' });
-});
+app.get('/', (req, res) => res.json({ message: 'Welcome to the Seal It API!' }));
 
-// --- BATCH ROUTES ---
-// POST /api/batches - Create a new batch request
+// --- BATCH ROUTES (for Manufacturer) ---
 app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
-  try {
-    // 1. Get the drug name, quantity, and expiration date from the request body
-    const { drugName, quantity, expirationDate, nafdacNumber } = req.body;
-
-    // 2. Basic Validation: Check if the required fields are present
-    if (!drugName || !quantity || !expirationDate || !nafdacNumber) {
-      return res.status(400).json({ error: 'All fields are required.' });
-    }
-
-    // 3. Get the manufacturer's ID from their authentication token
-    const manufacturerId = req.user.userId;
-
-    // 4. Use Prisma to create the new batch in the database
-    const newBatch = await prisma.batch.create({
-      data: {
-        drugName: drugName,
-        quantity: parseInt(quantity, 10), // Ensure quantity is an integer
-        expirationDate: new Date(expirationDate), // Add this line
-        nafdacNumber: nafdacNumber, // Add this
-        manufacturerId: manufacturerId,
-        // The status defaults to PENDING_DVA_APPROVAL as defined in our schema
-      },
-    });
-
-    // 5. Send a success response back to the frontend with the new batch data
-    console.log('Successfully created batch:', newBatch);
-    res.status(201).json(newBatch);
-
-  } catch (error) {
-    // 6. If anything goes wrong, log the error and send a server error response
-    console.error('Error creating batch:', error);
-    res.status(500).json({ error: 'Failed to create batch.' });
-  }
-});
-
-// GET /api/manufacturer/batches - Get all batches for the logged-in manufacturer
-app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
-  try {
-    const manufacturerId = req.user.userId;
-
-    // Use Prisma to find all batches created by this manufacturer
-    const batches = await prisma.batch.findMany({
-      where: {
-        manufacturerId: manufacturerId,
-      },
-      // Order the results so the newest batches appear first
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    // Send the list of batches back to the frontend
-    res.status(200).json(batches);
-
-  } catch (error) {
-    console.error('Error fetching manufacturer batches:', error);
-    res.status(500).json({ error: 'Failed to fetch batches.' });
-  }
-});
-
-// --- DVA ROUTES ---
-
-// GET /api/dva/pending-batches - Get all batches with status PENDING_DVA_APPROVAL
-app.get('/api/dva/pending-batches', authorizeRole(['DVA']), async (req, res) => {
-  try {
-    const pendingBatches = await prisma.batch.findMany({
-      where: {
-        status: 'PENDING_DVA_APPROVAL',
-      },
-      // Include the manufacturer's company name for context
-      include: {
-        manufacturer: {
-          select: {
-            companyName: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'asc', // Show oldest requests first
-      },
-    });
-    res.status(200).json(pendingBatches);
-  } catch (error) {
-    console.error('Error fetching DVA pending batches:', error);
-    res.status(500).json({ error: 'Failed to fetch pending batches.' });
-  }
-});
-
-// PUT /api/dva/batches/:id/approve - DVA approves a batch
-app.put('/api/dva/batches/:id/approve', authorizeRole(['DVA']), async (req, res) => {
-  try {
-    const { id } = req.params; // Get batch ID from URL
-
-    const updatedBatch = await prisma.batch.update({
-      where: {
-        id: parseInt(id, 10),
-      },
-      data: {
-        status: 'PENDING_ADMIN_APPROVAL', // Change status to the next step
-        dva_approved_at: new Date(),   // Record the approval time
-      },
-    });
-
-    res.status(200).json(updatedBatch);
-  } catch (error) {
-    console.error('Error approving batch:', error);
-    res.status(500).json({ error: 'Failed to approve batch.' });
-  }
-});
-
-
-// GET /api/dva/history - Get all batches already processed by the DVA
-app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
-  try {
-    const processedBatches = await prisma.batch.findMany({
-      where: {
-        // A batch has been processed by the DVA if its status is no longer PENDING_DVA_APPROVAL
-        NOT: {
-          status: 'PENDING_DVA_APPROVAL'
+    try {
+        const { drugName, quantity, expirationDate, nafdacNumber } = req.body;
+        if (!drugName || !quantity || !expirationDate || !nafdacNumber) {
+            return res.status(400).json({ error: 'All fields are required.' });
         }
-      },
-      include: {
-        manufacturer: {
-          select: { companyName: true },
-        },
-      },
-      orderBy: {
-        dva_approved_at: 'desc', // Show most recently processed first
-      },
-    });
-    res.status(200).json(processedBatches);
-  } catch (error) {
-    console.error('Error fetching DVA history:', error);
-    res.status(500).json({ error: 'Failed to fetch DVA history.' });
-  }
-});
-
-// --- ADMIN ROUTES ---
-
-// GET /api/admin/pending-batches - Get all batches with status PENDING_ADMIN_APPROVAL
-app.get('/api/admin/pending-batches', authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const pendingBatches = await prisma.batch.findMany({
-      where: {
-        status: 'PENDING_ADMIN_APPROVAL',
-      },
-      include: {
-        manufacturer: {
-          select: {
-            companyName: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'asc', // Show oldest requests first
-      },
-    });
-    res.status(200).json(pendingBatches);
-  } catch (error) {
-    console.error('Error fetching admin pending batches:', error);
-    res.status(500).json({ error: 'Failed to fetch pending batches.' });
-  }
-});
-
-// PUT /api/admin/batches/:id/approve - Admin gives final approval for a batch
-app.put('/api/admin/batches/:id/approve', authorizeRole(['ADMIN']), async (req, res) => {
-  // This is the replacement for the try...catch block in the Admin approve route
-  try {
-    const { id } = req.params;
-
-    // First, get the batch details, especially the quantity
-    const batchToProcess = await prisma.batch.findUnique({
-      where: { id: parseInt(id, 10) },
-    });
-
-    if (!batchToProcess) {
-      return res.status(404).json({ error: 'Batch not found.' });
+        const manufacturerId = req.user.userId;
+        const newBatch = await prisma.batch.create({
+            data: {
+                drugName: drugName,
+                quantity: parseInt(quantity, 10),
+                expirationDate: new Date(expirationDate),
+                nafdacNumber: nafdacNumber,
+                manufacturerId: manufacturerId,
+            },
+        });
+        console.log('Successfully created batch:', newBatch);
+        res.status(201).json(newBatch);
+    } catch (error) {
+        console.error('Error creating batch:', error);
+        res.status(500).json({ error: 'Failed to create batch.' });
     }
-
-    // --- Generate QR Codes ---
-    const codesToCreate = [];
-    for (let i = 0; i < batchToProcess.quantity; i++) {
-      codesToCreate.push({
-        code: nanoid(12), // Generate a unique 12-character ID
-        batchId: batchToProcess.id,
-      });
+});
+app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
+    try {
+        const manufacturerId = req.user.userId;
+        const batches = await prisma.batch.findMany({
+            where: {
+                manufacturerId: manufacturerId,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+        res.status(200).json(batches);
+    } catch (error) {
+        console.error('Error fetching manufacturer batches:', error);
+        res.status(500).json({ error: 'Failed to fetch batches.' });
     }
-
-    // --- Use a Database Transaction ---
-    // This is important: it ensures that BOTH updating the batch
-    // AND creating the codes happen successfully, or NEITHER does.
-    const [updatedBatch, createdCodes] = await prisma.$transaction([
-      // 1. Update the batch status
-      prisma.batch.update({
-        where: { id: parseInt(id, 10) },
-        data: {
-          status: 'PENDING_PRINTING',
-          admin_approved_at: new Date(),
-        },
-      }),
-      // 2. Create all the new QR codes in the database
-      prisma.qRCode.createMany({
-        data: codesToCreate,
-      }),
-    ]);
-
-    console.log(`Successfully generated ${createdCodes.count} codes for Batch ID: ${updatedBatch.id}`);
-    res.status(200).json(updatedBatch);
-
-  } catch (error) {
-    console.error('Error in admin approval and code generation:', error);
-    res.status(500).json({ error: 'Failed to approve batch and generate codes.' });
-  }
 });
 
-
-// GET /api/admin/batches/:id/codes/download - Download all QR codes for a batch as a CSV
-app.get('/api/admin/batches/:id/codes/download', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // 1. Fetch all QR codes associated with the given batch ID
-    const qrCodes = await prisma.qRCode.findMany({
-      where: {
-        batchId: parseInt(id, 10),
-      },
-    });
-
-    if (qrCodes.length === 0) {
-      return res.status(404).json({ error: 'No QR codes found for this batch.' });
+// --- DVA ROUTES (REVERTED TO STABLE VERSION) ---
+app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
+    try {
+        const pendingBatches = await prisma.batch.findMany({
+            where: {
+                status: 'PENDING_DVA_APPROVAL',
+            },
+            include: {
+                manufacturer: {
+                    select: {
+                        companyName: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'asc',
+            },
+        });
+        res.status(200).json(pendingBatches);
+    } catch (error) {
+        console.error('Error fetching DVA pending batches:', error);
+        res.status(500).json({ error: 'Failed to fetch pending batches.' });
     }
-
-    // 2. Create the CSV header and rows
-    const csvHeader = 'code\n'; // The column header
-    const csvRows = qrCodes.map(qr => qr.code).join('\n'); // Each code on a new line
-    const csvContent = csvHeader + csvRows;
-
-    // 3. Set the response headers to trigger a file download
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="batch_${id}_codes.csv"`);
-    
-    // 4. Send the CSV content as the response
-    res.status(200).send(csvContent);
-
-  } catch (error) {
-    console.error('Error downloading CSV:', error);
-    res.status(500).json({ error: 'Failed to download codes.' });
-  }
 });
-
-// GET /api/admin/batches/all - Get all batches for admin dashboard
-app.get('/api/admin/batches/all', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const allBatches = await prisma.batch.findMany({
-      include: {
-        manufacturer: {
-          select: {
-            companyName: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc', // Show newest batches first
-      },
-    });
-    res.status(200).json(allBatches);
-  } catch (error) {
-    console.error('Error fetching all batches:', error);
-    res.status(500).json({ error: 'Failed to fetch batches.' });
-  }
-});
-
-// GET /api/admin/batches/:id - Get details for a single batch, including its QR codes
-app.get('/api/admin/batches/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const batchDetails = await prisma.batch.findUnique({
-      where: {
-        id: parseInt(id, 10),
-      },
-      include: {
-        manufacturer: {
-          select: { companyName: true },
-        },
-        qrCodes: { // <-- This is the important part
-          orderBy: {
-            id: 'asc',
-          },
-        },
-      },
-    });
-
-    if (!batchDetails) {
-      return res.status(404).json({ error: 'Batch not found.' });
-    }
-
-    res.status(200).json(batchDetails);
-
-  } catch (error) {
-    console.error(`Error fetching details for batch ${req.params.id}:`, error);
-    res.status(500).json({ error: 'Failed to fetch batch details.' });
-  }
-});
-
-// POST /api/admin/batches/:id/codes/zip - Generate and download a ZIP of all QR codes
-app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const batch = await prisma.batch.findUnique({
-      where: { id: parseInt(id, 10) },
-      include: { qrCodes: true },
-    });
-
-    if (!batch || batch.qrCodes.length === 0) {
-      return res.status(404).json({ error: 'No codes found for this batch.' });
-    }
-
-    // Set the headers for a zip file download
-    const zipFileName = `batch_${id}_${batch.drugName.replace(/\s+/g, '_')}_qrcodes.zip`;
-    res.attachment(zipFileName);
-
-    const archive = archiver('zip', {
-      zlib: { level: 9 }, // Sets the compression level.
-    });
-
-    // Pipe the archive data to the response
-    archive.pipe(res);
-
-    // Loop through each QR code and generate its image
-    for (const qr of batch.qrCodes) {
-      const qrCodeBuffer = await qrcode.toBuffer(qr.code, {
-        errorCorrectionLevel: 'H', type: 'png', width: 500, margin: 2,
-        color: { dark: '#000000', light: '#0000' }, // Transparent background
-      });
-      
-      const logoBuffer = fs.readFileSync(path.join(process.cwd(), 'assets/shield-logo.svg'));
-
-      const finalImageBuffer = await sharp(qrCodeBuffer)
-        .composite([{ input: logoBuffer, gravity: 'center' }])
-        .toBuffer();
-
-      // Add the generated image buffer to the zip archive
-      archive.append(finalImageBuffer, { name: `qr_code_${qr.code}.png` });
-    }
-
-    // Finalize the archive (this sends the zip file)
-    await archive.finalize();
-
-  } catch (error) {
-    console.error('Error creating zip file:', error);
-    res.status(500).json({ error: 'Failed to create zip file.' });
-  }
-});
-
-// In backend/index.js, inside the ADMIN ROUTES section
-
-// POST /api/admin/batches/:id/upload-seal - Upload a seal background for a batch
-app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole(['ADMIN']), upload.single('sealBackground'), async (req, res) => {
-    // In backend/index.js, for the /api/admin/batches/:id/upload-seal route
+app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
     try {
         const { id } = req.params;
-        
+        const updatedBatch = await prisma.batch.update({
+            where: {
+                id: parseInt(id, 10),
+            },
+            data: {
+                status: 'PENDING_ADMIN_APPROVAL',
+                dva_approved_at: new Date(),
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        console.error('Error approving batch:', error);
+        res.status(500).json({ error: 'Failed to approve batch.' });
+    }
+});
+app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
+    try {
+        const processedBatches = await prisma.batch.findMany({
+            where: {
+                NOT: {
+                    status: 'PENDING_DVA_APPROVAL'
+                }
+            },
+            include: {
+                manufacturer: {
+                    select: { companyName: true },
+                },
+            },
+            orderBy: {
+                dva_approved_at: 'desc',
+            },
+        });
+        res.status(200).json(processedBatches);
+    } catch (error) {
+        console.error('Error fetching DVA history:', error);
+        res.status(500).json({ error: 'Failed to fetch DVA history.' });
+    }
+});
+
+// --- ADMIN ROUTES (REVERTED TO STABLE VERSION FOR APPROVALS) ---
+app.get('/api/admin/pending-batches', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const pendingBatches = await prisma.batch.findMany({
+            where: {
+                status: 'PENDING_ADMIN_APPROVAL',
+            },
+            include: {
+                manufacturer: {
+                    select: {
+                        companyName: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'asc',
+            },
+        });
+        res.status(200).json(pendingBatches);
+    } catch (error) {
+        console.error('Error fetching admin pending batches:', error);
+        res.status(500).json({ error: 'Failed to fetch pending batches.' });
+    }
+});
+app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const batchToProcess = await prisma.batch.findUnique({
+            where: { id: parseInt(id, 10) },
+        });
+        if (!batchToProcess) {
+            return res.status(404).json({ error: 'Batch not found.' });
+        }
+        const codesToCreate = [];
+        for (let i = 0; i < batchToProcess.quantity; i++) {
+            codesToCreate.push({
+                code: nanoid(12),
+                batchId: batchToProcess.id,
+            });
+        }
+        const [updatedBatch, createdCodes] = await prisma.$transaction([
+            prisma.batch.update({
+                where: { id: parseInt(id, 10) },
+                data: {
+                    status: 'PENDING_PRINTING',
+                    admin_approved_at: new Date(),
+                },
+            }),
+            prisma.qRCode.createMany({
+                data: codesToCreate,
+            }),
+        ]);
+        console.log(`Successfully generated ${createdCodes.count} codes for Batch ID: ${updatedBatch.id}`);
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        console.error('Error in admin approval and code generation:', error);
+        res.status(500).json({ error: 'Failed to approve batch and generate codes.' });
+    }
+});
+app.get('/api/admin/batches/:id/codes/download', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const qrCodes = await prisma.qRCode.findMany({
+            where: {
+                batchId: parseInt(id, 10),
+            },
+        });
+        if (qrCodes.length === 0) {
+            return res.status(404).json({ error: 'No QR codes found for this batch.' });
+        }
+        const csvHeader = 'code\n';
+        const csvRows = qrCodes.map(qr => qr.code).join('\n');
+        const csvContent = csvHeader + csvRows;
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="batch_${id}_codes.csv"`);
+        res.status(200).send(csvContent);
+    } catch (error) {
+        console.error('Error downloading CSV:', error);
+        res.status(500).json({ error: 'Failed to download codes.' });
+    }
+});
+app.get('/api/admin/batches/all', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const allBatches = await prisma.batch.findMany({
+            include: {
+                manufacturer: {
+                    select: {
+                        companyName: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+        res.status(200).json(allBatches);
+    } catch (error) {
+        console.error('Error fetching all batches:', error);
+        res.status(500).json({ error: 'Failed to fetch batches.' });
+    }
+});
+app.get('/api/admin/batches/:id', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const batchDetails = await prisma.batch.findUnique({
+            where: {
+                id: parseInt(id, 10),
+            },
+            include: {
+                manufacturer: {
+                    select: { companyName: true },
+                },
+                qrCodes: {
+                    orderBy: {
+                        id: 'asc',
+                    },
+                },
+            },
+        });
+        if (!batchDetails) {
+            return res.status(404).json({ error: 'Batch not found.' });
+        }
+        res.status(200).json(batchDetails);
+    } catch (error) {
+        console.error(`Error fetching details for batch ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to fetch batch details.' });
+    }
+});
+app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const batch = await prisma.batch.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: { qrCodes: true },
+        });
+        if (!batch || batch.qrCodes.length === 0) {
+            return res.status(404).json({ error: 'No codes found for this batch.' });
+        }
+        const zipFileName = `batch_${id}_${batch.drugName.replace(/\s+/g, '_')}_qrcodes.zip`;
+        res.attachment(zipFileName);
+        const archive = archiver('zip', {
+            zlib: { level: 9 },
+        });
+        archive.pipe(res);
+        for (const qr of batch.qrCodes) {
+            const qrCodeBuffer = await qrcode.toBuffer(qr.code, {
+                errorCorrectionLevel: 'H', type: 'png', width: 500, margin: 2,
+                color: { dark: '#000000', light: '#0000' },
+            });
+            const logoBuffer = fs.readFileSync(path.join(process.cwd(), 'assets/shield-logo.svg'));
+            const finalImageBuffer = await sharp(qrCodeBuffer)
+                .composite([{ input: logoBuffer, gravity: 'center' }])
+                .toBuffer();
+            archive.append(finalImageBuffer, { name: `qr_code_${qr.code}.png` });
+        }
+        await archive.finalize();
+    } catch (error) {
+        console.error('Error creating zip file:', error);
+        res.status(500).json({ error: 'Failed to create zip file.' });
+    }
+});
+app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole(['ADMIN']), upload.single('sealBackground'), async (req, res) => {
+    try {
+        const { id } = req.params;
         if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded.' });
         }
-    
-        // THIS IS THE FIX: Cloudinary provides the permanent URL in req.file.path
-        const fileUrl = req.file.path; 
-    
+        const fileUrl = req.file.path;
         await prisma.batch.update({
             where: { id: parseInt(id, 10) },
             data: {
-                seal_background_url: fileUrl, // Save the permanent Cloudinary URL
+                seal_background_url: fileUrl,
             },
         });
-    
         res.status(200).json({ message: 'Seal background uploaded successfully.', fileUrl: fileUrl });
-    
     } catch (error) {
         console.error('Error uploading seal background:', error);
         res.status(500).json({ error: 'Failed to upload file.' });
     }
 });
-
-// GET /api/admin/history - Get all batches already processed by an admin
 app.get('/api/admin/history', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const processedBatches = await prisma.batch.findMany({
-      where: {
-        // We fetch any batch that is NOT pending admin or DVA approval anymore
-        NOT: {
-          status: {
-            in: ['PENDING_DVA_APPROVAL', 'PENDING_ADMIN_APPROVAL']
-          }
-        }
-      },
-      include: {
-        manufacturer: {
-          select: { companyName: true },
-        },
-      },
-      orderBy: {
-        admin_approved_at: 'desc', // Show most recently approved first
-      },
-    });
-    res.status(200).json(processedBatches);
-  } catch (error) {
-    console.error('Error fetching admin history:', error);
-    res.status(500).json({ error: 'Failed to fetch history.' });
-  }
-});
-
-// --- ADD THIS NEW ADMIN ROUTE ---
-
-// GET /api/admin/scans - Get all scan records for the map view
-app.get('/api/admin/scans', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const allScans = await prisma.scanRecord.findMany({
-      // We only want scans that have some location data
-      where: {
-        // This ensures we don't try to map scans from before we added location tracking
-        ipAddress: {
-          not: null, 
-        },
-      },
-      include: {
-        // We need to know which product was scanned
-        qrCode: {
-          include: {
-            batch: {
-              select: {
-                drugName: true,
-                manufacturer: {
-                  select: {
-                    companyName: true,
-                  }
+    try {
+        const processedBatches = await prisma.batch.findMany({
+            where: {
+                NOT: {
+                    status: {
+                        in: ['PENDING_DVA_APPROVAL', 'PENDING_ADMIN_APPROVAL']
+                    }
                 }
-              }
-            }
-          }
-        }
-      },
-      orderBy: {
-        scannedAt: 'desc', // Show most recent scans first
-      },
-    });
-    res.status(200).json(allScans);
-  } catch (error) {
-    console.error('Error fetching all scan records:', error);
-    res.status(500).json({ error: 'Failed to fetch scan records.' });
-  }
+            },
+            include: {
+                manufacturer: { select: { companyName: true } },
+            },
+            orderBy: { admin_approved_at: 'desc' },
+        });
+        res.status(200).json(processedBatches);
+    } catch (error) {
+        console.error('Error fetching admin history:', error);
+        res.status(500).json({ error: 'Failed to fetch history.' });
+    }
 });
-
-// --- ADD THESE NEW ADMIN MANAGEMENT ROUTES ---
-
-// GET /api/admin/admins - Get a list of all admin users
+app.get('/api/admin/scans', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const allScans = await prisma.scanRecord.findMany({
+            where: {
+                ipAddress: {
+                    not: null,
+                },
+            },
+            include: {
+                qrCode: {
+                    include: {
+                        batch: {
+                            select: {
+                                drugName: true,
+                                manufacturer: {
+                                    select: {
+                                        companyName: true,
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: {
+                scannedAt: 'desc',
+            },
+        });
+        res.status(200).json(allScans);
+    } catch (error) {
+        console.error('Error fetching all scan records:', error);
+        res.status(500).json({ error: 'Failed to fetch scan records.' });
+    }
+});
 app.get('/api/admin/admins', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const admins = await prisma.user.findMany({
-      where: { role: 'ADMIN' },
-      select: { id: true, email: true, companyName: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.status(200).json(admins);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch admins.' });
-  }
+    try {
+        const admins = await prisma.user.findMany({
+            where: { role: 'ADMIN' },
+            select: { id: true, email: true, companyName: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.status(200).json(admins);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch admins.' });
+    }
 });
-
-// POST /api/admin/admins - Create a new admin user
 app.post('/api/admin/admins', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  // In app.post('/api/admin/admins', ...)
-  try {
-      const { email, password, adminCode } = req.body;
-      if (!email || !password || !adminCode) return res.status(400).json({ error: 'All fields are required.' });
-  
-      const codeSetting = await prisma.systemSetting.findUnique({ where: { key: 'admin_creation_code' } });
-      
-      // THIS IS THE FIX: Ensure codeSetting exists before comparing
-      if (!codeSetting) {
-          return res.status(500).json({ error: 'Admin code setting not found in database. Please re-seed.' });
-      }
-      
-      const isCodeValid = await bcrypt.compare(adminCode, codeSetting.value);
-      if (!isCodeValid) {
-          return res.status(401).json({ error: 'Invalid Admin Code.' });
-      }
-  
-      const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-      if (existingUser) return res.status(409).json({ error: 'Email already exists.' });
-      
-      const hashedPassword = await bcrypt.hash(password, 10);
-      await prisma.user.create({
-          data: {
-              email: email.toLowerCase(),
-              password: hashedPassword,
-              companyName: 'Administrator',
-              role: 'ADMIN',
-              isActive: true,
-          },
-      });
-      res.status(201).json({ message: 'Admin created successfully.' });
-  } catch (error) {
-      console.error("ADD ADMIN ERROR:", error);
-      res.status(500).json({ error: 'Failed to create admin.' });
-  }
+    try {
+        const { email, password, adminCode } = req.body;
+        if (!email || !password || !adminCode) return res.status(400).json({ error: 'All fields are required.' });
+        const codeSetting = await prisma.systemSetting.findUnique({ where: { key: 'admin_creation_code' } });
+        if (!codeSetting) {
+            return res.status(500).json({ error: 'Admin code setting not found in database. Please re-seed.' });
+        }
+        const isCodeValid = await bcrypt.compare(adminCode, codeSetting.value);
+        if (!isCodeValid) {
+            return res.status(401).json({ error: 'Invalid Admin Code.' });
+        }
+        const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+        if (existingUser) return res.status(409).json({ error: 'Email already exists.' });
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await prisma.user.create({
+            data: {
+                email: email.toLowerCase(),
+                password: hashedPassword,
+                companyName: 'Administrator',
+                role: 'ADMIN',
+                isActive: true,
+            },
+        });
+        res.status(201).json({ message: 'Admin created successfully.' });
+    } catch (error) {
+        console.error("ADD ADMIN ERROR:", error);
+        res.status(500).json({ error: 'Failed to create admin.' });
+    }
 });
-
-// POST /api/admin/reset-code - Reset the admin creation code
 app.post('/api/admin/reset-code', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-    // In app.post('/api/admin/reset-code', ...)
     try {
         const { email, newCode } = req.body;
-        // Only the logged-in admin can reset the code, and they must re-enter their email to confirm.
         if (email.toLowerCase() !== req.user.email) {
             return res.status(403).json({ error: 'Unauthorized. You can only reset the code using your own email.' });
         }
         if (!newCode || !/^\d{4}$/.test(newCode)) return res.status(400).json({ error: 'New code must be 4 digits.' });
-        
         const hashedCode = await bcrypt.hash(newCode, 10);
-        
-        // THIS IS THE FIX: Using upsert is safer. It will create the setting if it's missing.
         await prisma.systemSetting.upsert({
             where: { key: 'admin_creation_code' },
             update: { value: hashedCode },
             create: { key: 'admin_creation_code', value: hashedCode },
         });
-    
         res.status(200).json({ message: 'Admin code has been reset successfully.' });
     } catch (error) {
         console.error("RESET CODE ERROR:", error);
         res.status(500).json({ error: 'Failed to reset admin code.' });
     }
 });
-// --- ADMIN USER MANAGEMENT ROUTES ---
-
-// GET /api/admin/pending-users - Get all users awaiting activation
 app.get('/api/admin/pending-users', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const pendingUsers = await prisma.user.findMany({
-      where: {
-        // THIS IS THE FIX:
-        // We want any user who is inactive AND is not a 'CUSTOMER'.
-        // Customers are active by default and don't need approval.
-        isActive: false,
-        role: {
-          not: 'CUSTOMER'
-        }
-      },
-      orderBy: {
-        createdAt: 'asc', // Show oldest signups first
-      },
-    });
-    res.status(200).json(pendingUsers);
-  } catch (error) {
-    console.error('Error fetching pending users:', error);
-    res.status(500).json({ error: 'Failed to fetch pending users.' });
-  }
+    try {
+        const pendingUsers = await prisma.user.findMany({
+            where: {
+                isActive: false,
+                role: {
+                    not: 'CUSTOMER'
+                }
+            },
+            orderBy: {
+                createdAt: 'asc',
+            },
+        });
+        res.status(200).json(pendingUsers);
+    } catch (error) {
+        console.error('Error fetching pending users:', error);
+        res.status(500).json({ error: 'Failed to fetch pending users.' });
+    }
 });
-
-// In backend/index.js (ADMIN ROUTES)
-
-// GET /api/admin/users/all - Get all non-admin users
-app.get('/api/admin/users/all', authenticateToken, async (req, res) => {
+app.get('/api/admin/users/all', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     if (req.user.role !== 'ADMIN') return res.status(403).json({ error: 'Forbidden' });
     try {
         const users = await prisma.user.findMany({
             where: {
-                role: { not: 'ADMIN' } // Don't fetch other admins
+                role: { not: 'ADMIN' }
             },
             orderBy: { createdAt: 'desc' },
             select: { id: true, email: true, companyName: true, role: true, isActive: true }
@@ -675,110 +484,79 @@ app.get('/api/admin/users/all', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch users.' });
     }
 });
-
-// PUT /api/admin/users/:id/activate - Activate a user account
 app.put('/api/admin/users/:id/activate', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-  try {
-    const { id } = req.params;
-    // Get the ID of the admin performing the action from the token
-    const adminApproverId = req.user.userId;
-
-    const activatedUser = await prisma.user.update({
-      where: {
-        id: parseInt(id, 10),
-      },
-      data: {
-        isActive: true,
-        approvedBy: adminApproverId,
-        approvedAt: new Date(),
-      },
-    });
-
-    // We don't want to send the password back
-    const { password, ...userWithoutPassword } = activatedUser;
-    res.status(200).json(userWithoutPassword);
-  } catch (error) {
-    console.error('Error activating user:', error);
-    res.status(500).json({ error: 'Failed to activate user.' });
-  }
+    try {
+        const { id } = req.params;
+        const adminApproverId = req.user.userId;
+        const activatedUser = await prisma.user.update({
+            where: {
+                id: parseInt(id, 10),
+            },
+            data: {
+                isActive: true,
+                approvedBy: adminApproverId,
+                approvedAt: new Date(),
+            },
+        });
+        const { password, ...userWithoutPassword } = activatedUser;
+        res.status(200).json(userWithoutPassword);
+    } catch (error) {
+        console.error('Error activating user:', error);
+        res.status(500).json({ error: 'Failed to activate user.' });
+    }
 });
-
-// In backend/index.js, inside the ADMIN ROUTES section
-
-// PUT /api/admin/users/:id/toggle-activation - Deactivate or Reactivate a user
-app.put('/api/admin/users/:id/toggle-activation', authenticateToken, async (req, res) => {
-    // Simple security check: ensure the user is an admin
+app.put('/api/admin/users/:id/toggle-activation', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     if (req.user.role !== 'ADMIN') {
         return res.status(403).json({ error: 'Forbidden' });
     }
-
     try {
         const { id } = req.params;
         const userToToggle = await prisma.user.findUnique({ where: { id: parseInt(id, 10) } });
-
         if (!userToToggle) {
             return res.status(404).json({ error: 'User not found.' });
         }
-
-        // You cannot deactivate yourself
         if (userToToggle.id === req.user.userId) {
             return res.status(400).json({ error: 'You cannot deactivate your own account.' });
         }
-
         const updatedUser = await prisma.user.update({
             where: { id: parseInt(id, 10) },
-            data: { isActive: !userToToggle.isActive }, // Toggles the boolean value
+            data: { isActive: !userToToggle.isActive },
         });
-        
-        res.status(200).json({ 
+        res.status(200).json({
             message: `User ${updatedUser.email} has been ${updatedUser.isActive ? 'activated' : 'deactivated'}.`,
-            user: updatedUser 
+            user: updatedUser
         });
     } catch (error) {
         console.error('Error toggling user activation:', error);
         res.status(500).json({ error: 'Failed to update user status.' });
     }
 });
-
-
-// POST /api/admin/system-reset - Exports all data to Cloudinary and then deletes it
-app.post('/api/admin/system-reset', authenticateToken, async (req, res) => {
+app.post('/api/admin/system-reset', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     if (req.user.role !== 'ADMIN') {
         return res.status(403).json({ error: 'Forbidden' });
     }
-
-    // --- Admin Code Verification ---
     const { adminCode } = req.body;
     if (!adminCode) {
         return res.status(400).json({ error: 'Admin code is required for this action.' });
     }
-
     const codeSetting = await prisma.systemSetting.findUnique({ where: { key: 'admin_creation_code' } });
     if (!codeSetting || !(await bcrypt.compare(adminCode, codeSetting.value))) {
         return res.status(401).json({ error: 'Invalid Admin Code.' });
     }
-    // --- End of Verification ---
-
     try {
-        // 1. Fetch all data from all relevant tables
         const batches = await prisma.batch.findMany({ include: { manufacturer: true } });
         const users = await prisma.user.findMany();
         const qrCodes = await prisma.qRCode.findMany();
         const scanRecords = await prisma.scanRecord.findMany();
         const skincareBrands = await prisma.skincareBrand.findMany({ include: { user: true } });
         const skincareProducts = await prisma.skincareProduct.findMany({ include: { brand: true } });
-        
-        // 2. Convert each dataset to CSV
         const json2csvParser = new Parser();
-        
-        // 3. Create a ZIP archive and upload it to Cloudinary
         const archive = archiver('zip');
-
         const cloudinaryUpload = new Promise((resolve, reject) => {
             const uploadStream = cloudinary.uploader.upload_stream(
                 {
                     folder: "system-backups",
-                    resource_type: "raw", // Use 'raw' for zip files
+                    resource_type: "raw",
                     public_id: `criterion_mark_backup_${new Date().toISOString()}`
                 },
                 (error, result) => {
@@ -788,35 +566,23 @@ app.post('/api/admin/system-reset', authenticateToken, async (req, res) => {
             );
             archive.pipe(uploadStream);
         });
-        
-        // 4. Add each CSV file to the archive
         archive.append(json2csvParser.parse(users), { name: 'users_backup.csv' });
         archive.append(json2csvParser.parse(batches), { name: 'batches_backup.csv' });
         archive.append(json2csvParser.parse(qrCodes), { name: 'qrcodes_backup.csv' });
         archive.append(json2csvParser.parse(scanRecords), { name: 'scanrecords_backup.csv' });
         archive.append(json2csvParser.parse(skincareBrands), { name: 'skincare_brands_backup.csv' });
         archive.append(json2csvParser.parse(skincareProducts), { name: 'skincare_products_backup.csv' });
-
-        // Finalize the archive to trigger the upload stream
         await archive.finalize();
-
-        // Wait for the upload to complete
         const uploadResult = await cloudinaryUpload;
         console.log('System backup uploaded to Cloudinary:', uploadResult.secure_url);
-
-        // 5. After the backup is complete, delete the data.
         await prisma.$transaction([
             prisma.scanRecord.deleteMany(),
             prisma.qRCode.deleteMany(),
             prisma.batch.deleteMany(),
             prisma.skincareProduct.deleteMany(),
             prisma.skincareBrand.deleteMany(),
-            // We don't delete users, we just clear their data relations
         ]);
-
-        // 6. Send success response to the client
         res.status(200).json({ message: `System data has been backed up and reset successfully.` });
-
     } catch (error) {
         console.error('CRITICAL ERROR during system reset:', error);
         if (!res.headersSent) {
@@ -827,12 +593,11 @@ app.post('/api/admin/system-reset', authenticateToken, async (req, res) => {
 
 // --- PRINTING PORTAL ROUTES ---
 
-// GET /api/printing/pending - Get batches ready for printing
-app.get('/api/printing/pending', authenticateToken, async (req, res) => {
+app.get('/api/printing/pending', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
       where: {
-        status: 'PRINTING_COMPLETE',
+        status: 'PENDING_PRINTING',
       },
       include: {
         manufacturer: { select: { companyName: true } },
@@ -846,8 +611,7 @@ app.get('/api/printing/pending', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /api/printing/in-progress - Get batches currently being printed
-app.get('/api/printing/in-progress', authenticateToken, async (req, res) => {
+app.get('/api/printing/in-progress', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const inProgressBatches = await prisma.batch.findMany({
             where: { status: 'PRINTING_IN_PROGRESS' },
@@ -861,8 +625,7 @@ app.get('/api/printing/in-progress', authenticateToken, async (req, res) => {
     }
 });
 
-// PUT /api/printing/batches/:id/start - Mark a batch as printing in progress
-app.put('/api/printing/batches/:id/start', authenticateToken, async (req, res) => {
+app.put('/api/printing/batches/:id/start', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { id } = req.params;
         const updatedBatch = await prisma.batch.update({
@@ -879,8 +642,7 @@ app.put('/api/printing/batches/:id/start', authenticateToken, async (req, res) =
     }
 });
 
-// PUT /api/printing/batches/:id/complete - Mark a batch as printing complete
-app.put('/api/printing/batches/:id/complete', authenticateToken, async (req, res) => {
+app.put('/api/printing/batches/:id/complete', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { id } = req.params;
         const updatedBatch = await prisma.batch.update({
@@ -897,8 +659,7 @@ app.put('/api/printing/batches/:id/complete', authenticateToken, async (req, res
     }
 });
 
-// GET /api/printing/history - Get all completed printing jobs
-app.get('/api/printing/history', authenticateToken, async (req, res) => {
+app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
   try {
     const completedBatches = await prisma.batch.findMany({
       where: {
@@ -918,105 +679,73 @@ app.get('/api/printing/history', authenticateToken, async (req, res) => {
   }
 });
 
-// In backend/index.js, inside the PRINTING PORTAL ROUTES section
-
-// GET /api/printing/seal/:code - Generate and download a single, complete seal (protected for printing role)
 app.get('/api/printing/seal/:code', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { code } = req.params;
-
-        // 1. Find the QR code and its batch information, including the seal URL
         const qrCode = await prisma.qRCode.findUnique({
             where: { code },
             include: {
                 batch: { select: { seal_background_url: true } },
             },
         });
-
         if (!qrCode) {
             return res.status(404).json({ error: 'QR Code not found.' });
         }
-
         if (!qrCode.batch.seal_background_url) {
             return res.status(400).json({ error: 'No seal background has been assigned to this batch by an admin.' });
         }
-
-        // 2. Generate the QR code image as a buffer
         const qrCodeBuffer = await qrcode.toBuffer(code, {
             errorCorrectionLevel: 'H',
             type: 'png',
-            width: 200, // A suitable size for the seal
+            width: 200,
             margin: 1,
         });
-
-        // 3. Fetch the background image from its Cloudinary URL
         const backgroundResponse = await axios({
             method: 'get',
             url: qrCode.batch.seal_background_url,
-            responseType: 'arraybuffer' // Important to get the image data as a buffer
+            responseType: 'arraybuffer'
         });
         const backgroundBuffer = backgroundResponse.data;
-
-        // 4. Use Sharp to composite the QR code on top of the background
-        // This is a placeholder for actual positioning. We'll assume the QR goes at a specific spot.
-        // For a 500x500 background, this places it near the top-center.
         const finalImageBuffer = await sharp(backgroundBuffer)
             .composite([{
                 input: qrCodeBuffer,
-                // These values might need adjustment based on your seal design
                 top: 50,
                 left: 150,
             }])
             .png()
             .toBuffer();
-        
-        // 5. Send the final image as a downloadable file
         res.setHeader('Content-Type', 'image/png');
         res.setHeader('Content-Disposition', `attachment; filename="seal_${code}.png"`);
         res.status(200).send(finalImageBuffer);
-
     } catch (error) {
         console.error('Error generating final seal:', error);
         res.status(500).json({ error: 'Failed to generate seal image.' });
     }
 });
 
-// In backend/index.js, inside the PRINTING PORTAL ROUTES section
-
-// POST /api/printing/batch/:id/zip - Generate a ZIP of all final seal images for a batch
 app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
-    // In backend/index.js, for the /api/printing/batch/:id/zip route
     try {
         const { id } = req.params;
         const batch = await prisma.batch.findUnique({
             where: { id: parseInt(id, 10) },
             include: { qrCodes: true },
         });
-
         if (!batch || !batch.seal_background_url) {
             return res.status(404).json({ error: 'Batch or seal background not found.' });
         }
-        
-        // Fetch the background image from its Cloudinary URL
         const backgroundResponse = await axios({
             method: 'get',
             url: batch.seal_background_url,
             responseType: 'arraybuffer'
         });
         const backgroundBuffer = backgroundResponse.data;
-
         res.attachment(`batch_${id}_seals.zip`);
         const archive = archiver('zip');
-
-        // Good practice: handle errors on the archive stream
         archive.on('error', function(err) {
-            // This was causing an unhandled exception and crashing the server.
             console.error('Archive stream error:', err);
-            res.end(); // End the response abruptly. The client will see a failed download.
+            res.end();
         });
-
         archive.pipe(res);
-
         for (const qr of batch.qrCodes) {
             const qrCodeBuffer = await qrcode.toBuffer(qr.code, {
                 errorCorrectionLevel: 'H', type: 'png', width: 200, margin: 1
@@ -1027,20 +756,17 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole(['PRINT
                 .toBuffer();
             archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
         }
-
         await archive.finalize();
-
     } catch (error) {
         console.error('Error creating seal zip file:', error);
-        // Don't send a JSON response if headers have already been sent for the zip
         if (!res.headersSent) {
             res.status(500).json({ error: 'Failed to create zip file.' });
         }
     }
 });
+
 // --- LOGISTICS PORTAL ROUTES ---
 
-// GET /api/logistics/pending-pickup - Get batches that are complete and ready for pickup
 app.get('/api/logistics/pending-pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
   try {
     const readyBatches = await prisma.batch.findMany({
@@ -1059,11 +785,10 @@ app.get('/api/logistics/pending-pickup', authenticateToken, authorizeRole(['LOGI
   }
 });
 
-// PUT /api/logistics/batches/:id/pickup - Mark a batch as picked up and in transit
 app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
-        const { pickup_notes } = req.body; // Allow for optional notes
+        const { pickup_notes } = req.body;
 
         const updatedBatch = await prisma.batch.update({
             where: { id: parseInt(id, 10) },
@@ -1080,11 +805,10 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
     }
 });
 
-// PUT /api/logistics/batches/:id/deliver - Mark a batch as delivered
 app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
-        const { delivery_notes } = req.body; // Allow for optional notes
+        const { delivery_notes } = req.body;
 
         const updatedBatch = await prisma.batch.update({
             where: { id: parseInt(id, 10) },
@@ -1101,7 +825,6 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
     }
 });
 
-// GET /api/logistics/history - Get all completed logistics jobs
 app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
   try {
     const deliveredBatches = await prisma.batch.findMany({
@@ -1115,17 +838,10 @@ app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']
   }
 });
 
-// In backend/index.js, inside the LOGISTICS PORTAL ROUTES section
-
-
-
-
 // --- SKINCARE BRAND PORTAL ROUTES ---
 
-// Middleware to verify user is a skincare brand and get their brand ID
 const getSkincareBrand = async (req, res, next) => {
-    // THIS IS THE FIX: We get the real userId from the token via the middleware
-    const userId = req.user.userId; 
+    const userId = req.user.userId;
     
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) return res.status(404).json({ error: "User not found." });
@@ -1146,9 +862,7 @@ const getSkincareBrand = async (req, res, next) => {
     next();
 };
 
-
-// GET /api/skincare/products - Get all products for the logged-in brand
-app.get('/api/skincare/products', authenticateToken, getSkincareBrand, async (req, res) => {
+app.get('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_BRAND']), getSkincareBrand, async (req, res) => {
     try {
         const products = await prisma.skincareProduct.findMany({
             where: { brandId: req.brand.id },
@@ -1160,8 +874,7 @@ app.get('/api/skincare/products', authenticateToken, getSkincareBrand, async (re
     }
 });
 
-// POST /api/skincare/products - Add a new product
-app.post('/api/skincare/products', authenticateToken, getSkincareBrand, async (req, res) => {
+app.post('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_BRAND']), getSkincareBrand, async (req, res) => {
     try {
         const { productName, ingredients, skinReactions, nafdacNumber } = req.body;
 
@@ -1169,7 +882,6 @@ app.post('/api/skincare/products', authenticateToken, getSkincareBrand, async (r
             return res.status(400).json({ error: 'Product Name and Ingredients are required.' });
         }
         
-        // This is the missing logic to create the product in the database.
         const newProduct = await prisma.skincareProduct.create({
             data: {
                 brandId: req.brand.id,
@@ -1187,8 +899,6 @@ app.post('/api/skincare/products', authenticateToken, getSkincareBrand, async (r
     }
 });
 
-// backend/index.js
-
 // --- PUBLIC SKINCARE VERIFICATION ROUTE ---
 
 app.get('/api/skincare/verify/:code', async (req, res) => {
@@ -1200,9 +910,9 @@ app.get('/api/skincare/verify/:code', async (req, res) => {
         }
 
         const product = await prisma.skincareProduct.findUnique({
-            where: { uniqueCode: code.toUpperCase() }, // Ensure we check against the uppercase code
+            where: { uniqueCode: code.toUpperCase() },
             include: {
-                brand: { // Include the parent brand's information
+                brand: {
                     select: {
                         brandName: true,
                         isVerified: true,
@@ -1211,7 +921,6 @@ app.get('/api/skincare/verify/:code', async (req, res) => {
             }
         });
 
-        // CASE 1: Code does not exist = FAKE
         if (!product) {
             return res.status(404).json({
                 status: 'error',
@@ -1219,7 +928,6 @@ app.get('/api/skincare/verify/:code', async (req, res) => {
             });
         }
         
-        // CASE 2: The brand itself is not yet verified by an Admin
         if (!product.brand.isVerified) {
              return res.status(403).json({
                 status: 'error',
@@ -1227,7 +935,6 @@ app.get('/api/skincare/verify/:code', async (req, res) => {
             });
         }
 
-        // CASE 3: Success
         res.status(200).json({
             status: 'success',
             message: 'Product Verified Successfully!',
@@ -1239,8 +946,9 @@ app.get('/api/skincare/verify/:code', async (req, res) => {
         res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
     }
 });
+
 // --- PUBLIC VERIFICATION ROUTE ---
-app.get('/api/verify/:code', async (req, res) => { // This line was being incorrectly parsed as part of the broken function above.
+app.get('/api/verify/:code', async (req, res) => {
   try {
     const { code } = req.params;
 
@@ -1252,14 +960,13 @@ app.get('/api/verify/:code', async (req, res) => { // This line was being incorr
             manufacturer: { select: { companyName: true } },
           },
         },
-        scanRecords: { // We still get the old records to show the history
+        scanRecords: {
           orderBy: { scannedAt: 'asc' },
           include: { scanner: { select: { companyName: true, role: true } } }
         }
       },
     });
 
-    // CASE 1: Code does not exist = FAKE
     if (!qrCode) {
       return res.status(404).json({
         status: 'error',
@@ -1267,18 +974,15 @@ app.get('/api/verify/:code', async (req, res) => { // This line was being incorr
       });
     }
 
-    // --- MODIFIED: Geolocation Logic ---
     const ip = req.ip;
     let locationData = {
       ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
     };
 
-    // NEW: Check for a header that tells us if the user consented to location tracking
     const useLocation = req.headers['x-use-location'] === 'true';
 
     if (useLocation && process.env.IPINFO_API_KEY) {
         try {
-            // We now call the IPinfo API with our secure key
             const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
             const { city, region, country, loc } = geoResponse.data;
             
@@ -1295,36 +999,30 @@ app.get('/api/verify/:code', async (req, res) => { // This line was being incorr
             console.error('IPinfo lookup failed:', geoError.message);
         }
     }
-    // --- End of Geolocation Logic ---
     
-    // CASE 2: The code is VALID. Now we log this new scan.
-    // We will now include the location data we just fetched.
     await prisma.scanRecord.create({
       data: {
         qrCodeId: qrCode.id,
         scannedByRole: 'CUSTOMER',
-        // Add all the location data to the record
         ipAddress: locationData.ipAddress,
         city: locationData.city,
         region: locationData.region,
         country: locationData.country,
-        latitude: locationData.latitude,   // NEW: Save to database
-        longitude: locationData.longitude, // NEW: Save to database
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
       },
     });
     
-    // Refetch the data to include the scan we just added
     const updatedQrCodeDetails = await prisma.qRCode.findUnique({
       where: { id: qrCode.id },
       include: {
         batch: { include: { manufacturer: { select: { companyName: true } } } },
-        scanRecords: { // The history now includes our new scan with location
+        scanRecords: {
           orderBy: { scannedAt: 'asc' },
         }
       },
     });
 
-    // CASE 3: Return a success response with all the product details AND the full scan history
     res.status(200).json({
       status: 'success',
       message: 'Product Verified Successfully!',
@@ -1339,7 +1037,6 @@ app.get('/api/verify/:code', async (req, res) => { // This line was being incorr
 
 // --- AUTHENTICATION ROUTES ---
 
-// POST /api/auth/login - Handle user login
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -1355,12 +1052,9 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
-    // --- THIS IS THE CRITICAL SECURITY FIX ---
-    // We must check if the user's account has been activated by an admin.
     if (!user.isActive) {
       return res.status(403).json({ error: 'Your account has not been approved by an administrator yet.' });
     }
-    // --- END OF FIX ---
 
     const payload = { userId: user.id, role: user.role };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
@@ -1381,7 +1075,6 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// POST /api/auth/register - Handle new user registration for ALL roles
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, role, companyName, companyRegNumber, fullName } = req.body;
@@ -1406,8 +1099,6 @@ app.post('/api/auth/register', async (req, res) => {
     
     let successMessage = '';
 
-    // In backend/index.js, inside the /api/auth/register route
-
     switch (role) {
       case 'MANUFACTURER':
         if (!companyName || !companyRegNumber) return res.status(400).json({ error: 'Company Name and Registration Number are required.' });
@@ -1415,30 +1106,28 @@ app.post('/api/auth/register', async (req, res) => {
         if (existingCompany) return res.status(409).json({ error: 'A company with this registration number already exists.' });
         dataToCreate.companyName = companyName;
         dataToCreate.companyRegNumber = companyRegNumber;
-        dataToCreate.isActive = false; // MUST BE APPROVED
+        dataToCreate.isActive = false;
         successMessage = 'Registration successful! Your account is pending approval.';
         break;
 
-      // --- NEW CASE FOR SKINCARE BRANDS ---
       case 'SKINCARE_BRAND':
         if (!companyName || !companyRegNumber) {
           return res.status(400).json({ error: 'Brand Name and CAC Registration Number are required.' });
         }
-        // Check if CAC number is already used by another brand
         const existingBrand = await prisma.user.findFirst({ where: { companyRegNumber } });
         if (existingBrand) {
           return res.status(409).json({ error: 'A brand with this registration number already exists.' });
         }
         dataToCreate.companyName = companyName;
         dataToCreate.companyRegNumber = companyRegNumber;
-        dataToCreate.isActive = false; // Skincare brands must be approved by an Admin
+        dataToCreate.isActive = false;
         successMessage = 'Registration successful! Your brand is pending approval from an administrator.';
         break;
       
       case 'CUSTOMER':
         if (!fullName) return res.status(400).json({ error: 'Full Name is required.' });
         dataToCreate.companyName = fullName;
-        dataToCreate.isActive = true; // Customers are active immediately
+        dataToCreate.isActive = true;
         successMessage = 'Registration successful! You can now log in.';
         break;
 
@@ -1447,7 +1136,7 @@ app.post('/api/auth/register', async (req, res) => {
       case 'LOGISTICS':
         if (!fullName) return res.status(400).json({ error: 'Full Name / Company Name is required.' });
         dataToCreate.companyName = fullName;
-        dataToCreate.isActive = false; // MUST BE APPROVED
+        dataToCreate.isActive = false;
         successMessage = 'Registration successful! Your account is pending approval.';
         break;
         
@@ -1469,7 +1158,6 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // --- START THE SERVER ---
-// Make the server listen on the defined port
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
