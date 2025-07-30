@@ -158,7 +158,7 @@ app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACT
 // --- DVA ROUTES ---
 
 // GET /api/dva/pending-batches - Get all batches with status PENDING_DVA_APPROVAL
-app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
+app.get('/api/dva/pending-batches', authorizeRole(['DVA']), async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
       where: {
@@ -184,7 +184,7 @@ app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), a
 });
 
 // PUT /api/dva/batches/:id/approve - DVA approves a batch
-app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
+app.put('/api/dva/batches/:id/approve', authorizeRole(['DVA']), async (req, res) => {
   try {
     const { id } = req.params; // Get batch ID from URL
 
@@ -205,27 +205,6 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']
   }
 });
 
-// PUT /api/dva/batches/:id/reject - DVA rejects a batch
-app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { reason } = req.body;
-        if (!reason) {
-            return res.status(400).json({ error: 'A reason for rejection is required.' });
-        }
-
-        const updatedBatch = await prisma.batch.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                status: 'DVA_REJECTED',
-                rejection_reason: `DVA: ${reason}`,
-            },
-        });
-        res.status(200).json(updatedBatch);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to reject batch.' });
-    }
-});
 
 // GET /api/dva/history - Get all batches already processed by the DVA
 app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
@@ -256,7 +235,7 @@ app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (re
 // --- ADMIN ROUTES ---
 
 // GET /api/admin/pending-batches - Get all batches with status PENDING_ADMIN_APPROVAL
-app.get('/api/admin/pending-batches', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+app.get('/api/admin/pending-batches', authorizeRole(['ADMIN']), async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
       where: {
@@ -281,7 +260,7 @@ app.get('/api/admin/pending-batches', authenticateToken, authorizeRole(['ADMIN']
 });
 
 // PUT /api/admin/batches/:id/approve - Admin gives final approval for a batch
-app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+app.put('/api/admin/batches/:id/approve', authorizeRole(['ADMIN']), async (req, res) => {
   // This is the replacement for the try...catch block in the Admin approve route
   try {
     const { id } = req.params;
@@ -331,27 +310,6 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole(['ADM
   }
 });
 
-// PUT /api/admin/batches/:id/reject - Admin rejects a batch
-app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { reason } = req.body;
-        if (!reason) {
-            return res.status(400).json({ error: 'A reason for rejection is required.' });
-        }
-
-        const updatedBatch = await prisma.batch.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                status: 'ADMIN_REJECTED',
-                rejection_reason: `Admin: ${reason}`,
-            },
-        });
-        res.status(200).json(updatedBatch);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to reject batch.' });
-    }
-});
 
 // GET /api/admin/batches/:id/codes/download - Download all QR codes for a batch as a CSV
 app.get('/api/admin/batches/:id/codes/download', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
