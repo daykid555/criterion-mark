@@ -845,6 +845,18 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
         const { id } = req.params;
         const { pickup_notes } = req.body;
 
+        const batch = await prisma.batch.findUnique({
+            where: { id: parseInt(id, 10) },
+        });
+
+        if (!batch) {
+            return res.status(404).json({ error: 'Batch not found.' });
+        }
+
+        if (batch.status !== 'PRINTING_COMPLETE') {
+            return res.status(400).json({ error: `Batch status is '${batch.status}', expected 'PRINTING_COMPLETE' for pickup.` });
+        }
+
         const updatedBatch = await prisma.batch.update({
             where: { id: parseInt(id, 10) },
             data: {
@@ -856,7 +868,10 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
         res.status(200).json(updatedBatch);
     } catch (error) {
         console.error('Error marking batch as picked up:', error);
-        res.status(500).json({ error: 'Failed to update batch.' });
+        if (error.code === 'P2025') {
+            return res.status(404).json({ error: 'Batch not found for pickup.' });
+        }
+        res.status(500).json({ error: 'Failed to update batch due to an internal server error.' });
     }
 });
 
