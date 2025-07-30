@@ -89,7 +89,7 @@ function SkincareDashboard() {
 
   return (
     <div>
-      <h1 className="text-4xl font-bold text-white mb-4">Skincare Brand Dashboard</h1>
+      <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4">Skincare Brand Dashboard</h1>
       <div className="flex border-b border-white/20 mb-8">
         <button onClick={() => setActiveTab('add')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'add' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Add Product</button>
         <button onClick={() => setActiveTab('history')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Product History</button>

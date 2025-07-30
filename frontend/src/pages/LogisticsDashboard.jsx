@@ -82,7 +82,7 @@ function LogisticsDashboard() {
 
   return (
     <div>
-      <h1 className="text-4xl font-bold text-white mb-4 drop-shadow-lg">Logistics Dashboard</h1>
+      <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 drop-shadow-lg">Logistics Dashboard</h1>
       <div className="flex border-b border-white/20 mb-8">
         <button onClick={() => setActiveTab('queue')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'queue' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Pickup Queue</button>
         <button onClick={() => setActiveTab('history')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Delivery History</button>

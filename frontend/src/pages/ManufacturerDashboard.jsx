@@ -39,7 +39,7 @@ function ManufacturerDashboard() {
   
   return (
     <>
-      <h1 className="text-4xl font-bold text-white mb-8 drop-shadow-lg">
+      <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 drop-shadow-lg">
         Manufacturer Dashboard
       </h1>
       

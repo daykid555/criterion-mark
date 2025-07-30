@@ -18,7 +18,7 @@ function AdminDashboard() {
   return (
     <>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-4xl font-bold text-white drop-shadow-lg">Admin Dashboard</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg">Admin Dashboard</h1>
         <Link to="/admin/map" className="glass-button-sm font-bold py-2 px-4 rounded-lg">
           View Scan Map
         </Link>
