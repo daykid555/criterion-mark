@@ -48,8 +48,8 @@ function VerificationPage() {
       { facingMode: "environment" },
       config, // Use the updated config
       onScanSuccess,
-      (errorMessage) => { /* Optional */ }
-    ).catch(err => {
+      (_errorMessage) => { /* Optional */ }
+    ).catch(_err => {
       setError("CAMERA ERROR: Please grant camera permissions and refresh the page.");
       setScanState('idle');
     });
@@ -72,6 +72,21 @@ function VerificationPage() {
               <div id={qrcodeRegionId}></div>
               {scanState === 'idle' && <ScanConsent onScan={startScanner} />}
             </div>
+
+            {scanState === 'scanning' && (
+              <button
+                onClick={() => {
+                  if (scannerRef.current && scannerRef.current.isScanning) {
+                    scannerRef.current.stop().then(() => {
+                      setScanState('idle');
+                    }).catch(err => console.error("Error stopping scanner:", err));
+                  }
+                }}
+                className="glass-button py-2 px-6 rounded-lg text-sm font-bold mt-4"
+              >
+                End Scan
+              </button>
+            )}
 
             {error && <p className="text-red-400 text-sm mt-4 text-center">{error}</p>}
             

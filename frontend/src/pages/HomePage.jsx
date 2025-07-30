@@ -5,11 +5,11 @@ import NodeBackground from '../components/NodeBackground';
 // This is the new, stacked logo component, designed to be the hero
 const HeroLogo = () => (
   <div className="text-center text-white select-none">
-    <span className="block text-2xl md:text-3xl font-light tracking-widest text-white/70">THE</span>
-    <h1 className="text-7xl md:text-9xl font-extrabold tracking-wider text-white drop-shadow-2xl">
+    <span className="block text-xl md:text-3xl font-light tracking-widest text-white/70">THE</span>
+    <h1 className="text-5xl md:text-7xl lg:text-9xl font-extrabold tracking-wider text-white drop-shadow-2xl">
       CRITERION
     </h1>
-    <span className="block text-3xl md:text-4xl font-light tracking-widest text-white/70">MARK</span>
+    <span className="block text-2xl md:text-4xl font-light tracking-widest text-white/70">MARK</span>
   </div>
 );
 
