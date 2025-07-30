@@ -122,6 +122,7 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']
             data: {
                 status: 'PENDING_ADMIN_APPROVAL',
                 dva_approved_at: new Date(),
+                rejection_reason: null, // Clear any previous rejection reason
             },
         });
         res.status(200).json(updatedBatch);
@@ -130,6 +131,33 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']
         res.status(500).json({ error: 'Failed to approve batch.' });
     }
 });
+
+app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+
+        if (!reason) {
+            return res.status(400).json({ error: 'Rejection reason is required.' });
+        }
+
+        const updatedBatch = await prisma.batch.update({
+            where: {
+                id: parseInt(id, 10),
+            },
+            data: {
+                status: 'DVA_REJECTED',
+                rejection_reason: reason,
+                dva_approved_at: new Date(), // Still record the time of action
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        console.error('Error rejecting batch:', error);
+        res.status(500).json({ error: 'Failed to reject batch.' });
+    }
+});
+
 app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
     try {
         const processedBatches = await prisma.batch.findMany({
@@ -200,6 +228,7 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole(['ADM
                 data: {
                     status: 'PENDING_PRINTING',
                     admin_approved_at: new Date(),
+                    rejection_reason: null, // Clear any previous rejection reason
                 },
             }),
             prisma.qRCode.createMany({
@@ -211,6 +240,32 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole(['ADM
     } catch (error) {
         console.error('Error in admin approval and code generation:', error);
         res.status(500).json({ error: 'Failed to approve batch and generate codes.' });
+    }
+});
+
+app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+
+        if (!reason) {
+            return res.status(400).json({ error: 'Rejection reason is required.' });
+        }
+
+        const updatedBatch = await prisma.batch.update({
+            where: {
+                id: parseInt(id, 10),
+            },
+            data: {
+                status: 'ADMIN_REJECTED',
+                rejection_reason: reason,
+                admin_approved_at: new Date(), // Still record the time of action
+            },
+        });
+        res.status(200).json(updatedBatch);
+    } catch (error) {
+        console.error('Error rejecting batch:', error);
+        res.status(500).json({ error: 'Failed to reject batch.' });
     }
 });
 app.get('/api/admin/batches/:id/codes/download', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {

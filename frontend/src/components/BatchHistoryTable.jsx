@@ -32,8 +32,8 @@ function BatchHistoryTable({ batches }) {
               <th className="p-4 text-sm font-semibold opacity-80">Quantity</th>
               <th className="p-4 text-sm font-semibold opacity-80">Status</th>
               <th className="p-4 text-sm font-semibold opacity-80">Date Requested</th>
-              {/* --- NEW: Add the Seal Design column header --- */}
               <th className="p-4 text-sm font-semibold opacity-80 text-center">Seal Design</th>
+              <th className="p-4 text-sm font-semibold opacity-80">Rejection Reason</th> {/* New column header */}
             </tr>
           </thead>
           <tbody>
@@ -50,18 +50,22 @@ function BatchHistoryTable({ batches }) {
                 <td className="p-4 opacity-70 whitespace-nowrap">
                   {new Date(batch.createdAt).toLocaleDateString()}
                 </td>
-                {/* --- NEW: Add the Seal Design table data cell --- */}
                 <td className="p-4 text-center">
                   {batch.seal_background_url ? (
-                    // If a seal URL exists, display the image
                     <img 
                       src={`${API_BASE_URL}${batch.seal_background_url}`}
                       alt="Seal Preview"
                       className="h-10 w-auto object-contain mx-auto rounded-sm bg-white/10 p-1"
                     />
                   ) : (
-                    // If not, show a pending message
                     <span className="text-xs text-white/50 italic">Pending Admin</span>
+                  )}
+                </td>
+                <td className="p-4 text-red-300 text-sm"> {/* New column for rejection reason */}
+                  {batch.status.includes('REJECTED') && batch.rejection_reason ? (
+                    <span className="italic">{batch.rejection_reason}</span>
+                  ) : (
+                    <span className="text-white/50">N/A</span>
                   )}
                 </td>
               </tr>
