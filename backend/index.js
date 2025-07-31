@@ -1,4 +1,4 @@
-// backend/index.js - THE FULL AND CORRECTED FILE
+// backend/index.js - THE FULL, COMPLETE, AND FINAL CORRECTED CODE
 
 import express from 'express';
 import cors from 'cors';
@@ -657,7 +657,7 @@ app.get('/api/printing/pending', authenticateToken, authorizeRole(['PRINTING']),
       include: {
         manufacturer: { select: { companyName: true } },
       },
-      orderBy: { admin_approved_at: 'asc' }, // Oldest approved first
+      orderBy: { admin_approved_at: 'asc' },
     });
     res.status(200).json(pendingBatches);
   } catch (error) {
@@ -719,7 +719,7 @@ app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']),
     const completedBatches = await prisma.batch.findMany({
       where: {
         status: {
-          in: ['PRINTING_COMPLETE', 'IN_TRANSIT', 'DELIVERED'] // Show all jobs that are past the printing stage
+          in: ['PRINTING_COMPLETE', 'IN_TRANSIT', 'DELIVERED']
         }
       },
       include: {
@@ -732,6 +732,35 @@ app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']),
     console.error('Error fetching printing history:', error);
     res.status(500).json({ error: 'Failed to fetch history.' });
   }
+});
+
+// THIS IS THE ROUTE THAT WAS MISSING AND CAUSED THE 404 ERROR
+app.get('/api/printing/batches/:id', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const batchDetails = await prisma.batch.findUnique({
+            where: {
+                id: parseInt(id, 10),
+            },
+            include: {
+                manufacturer: {
+                    select: { companyName: true },
+                },
+                qrCodes: {
+                    orderBy: {
+                        id: 'asc',
+                    },
+                },
+            },
+        });
+        if (!batchDetails) {
+            return res.status(404).json({ error: 'Batch not found.' });
+        }
+        res.status(200).json(batchDetails);
+    } catch (error) {
+        console.error(`Error fetching printing details for batch ${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to fetch batch details.' });
+    }
 });
 
 app.get('/api/printing/seal/:code', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
@@ -840,13 +869,10 @@ app.get('/api/logistics/pending-pickup', authenticateToken, authorizeRole(['LOGI
   }
 });
 
-// =======================================================================================================
-// --- THIS IS THE ONLY CHANGE IN THIS ENTIRE FILE. THE REST OF THE FILE IS IDENTICAL TO YOUR ORIGINAL. ---
-// =======================================================================================================
+// THIS IS THE LOGISTICS ROUTE THAT WAS CAUSING THE 500 ERROR. IT IS NOW FIXED.
 app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
-        // This safely handles cases where the frontend sends no body or no pickup_notes.
         const pickup_notes = req.body?.pickup_notes || null;
 
         const batch = await prisma.batch.findUnique({
@@ -866,7 +892,7 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
             data: {
                 status: 'IN_TRANSIT',
                 picked_up_at: new Date(),
-                pickup_notes: pickup_notes, // This is now guaranteed to be safe
+                pickup_notes: pickup_notes,
             },
         });
         res.status(200).json(updatedBatch);
@@ -878,9 +904,6 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
         res.status(500).json({ error: 'Failed to update batch due to an internal server error.' });
     }
 });
-// =======================================================================================================
-// --- END OF THE ONLY CHANGE IN THIS FILE ---
-// =======================================================================================================
 
 app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
