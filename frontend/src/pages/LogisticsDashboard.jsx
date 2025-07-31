@@ -9,7 +9,6 @@ const STATUS_STYLES = {
   DELIVERED: 'bg-gray-200 text-gray-800',
 };
 
-// --- THIS IS THE FINAL, CORRECT TABLE COMPONENT ---
 const LogisticsJobsTable = ({ jobs, onUpdateStatus, isHistory }) => {
     if (jobs.length === 0) {
         return <p className="text-center py-10 text-white/70">{isHistory ? 'No delivery history found.' : 'No batches are currently ready for pickup.'}</p>;
@@ -44,7 +43,6 @@ const LogisticsJobsTable = ({ jobs, onUpdateStatus, isHistory }) => {
     );
 };
 
-// --- THIS IS THE FINAL, CORRECT DASHBOARD COMPONENT ---
 function LogisticsDashboard() {
   const [activeTab, setActiveTab] = useState('queue');
   const [queueJobs, setQueueJobs] = useState([]);
@@ -72,11 +70,22 @@ function LogisticsDashboard() {
   useEffect(() => { fetchData(); }, []);
 
   const handleUpdateStatus = async (id, action) => {
+    // For now, we are not collecting notes, but we can add a modal here later.
+    // e.g. const notes = prompt("Enter notes (optional):");
+    const notes = null; 
+
     try {
-      await apiClient.put(`/api/logistics/batches/${id}/${action}`);
-      fetchData();
+      // --- FIX [2]: Added a request body `{}` to the PUT request. ---
+      // This sends an empty object to the backend, preventing req.body from being undefined
+      // and thus stopping the 500 Internal Server Error crash.
+      const payload = action === 'pickup' ? { pickup_notes: notes } : { delivery_notes: notes };
+      await apiClient.put(`/api/logistics/batches/${id}/${action}`, payload);
+      fetchData(); // Refresh data on success
     } catch (err) {
-      setError(`Failed to update batch #${id}. Please try again.`);
+      console.error('Update status error:', err);
+      // Check if there's a more specific error message from the backend
+      const errorMessage = err.response?.data?.error || `Failed to update batch #${id}. Please try again.`;
+      setError(errorMessage);
     }
   };
 
@@ -88,11 +97,11 @@ function LogisticsDashboard() {
         <button onClick={() => setActiveTab('history')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Delivery History</button>
       </div>
       
-      {error && <p className="text-center p-4 text-red-400">{error}</p>}
+      {error && <p className="text-center p-4 text-red-400 bg-red-500/10 rounded-lg">{error}</p>}
 
       <div className="glass-panel p-1 sm:p-2">
         {isLoading ? <p className="text-center p-8 text-white/70">Loading jobs...</p> : (
-          activeTab === 'queue' ? <LogisticsJobsTable jobs={queueJobs} onUpdateStatus={handleUpdateStatus} isHistory={false} /> : <LogisticsJobsTable jobs={historyJobs} isHistory={true} />
+          activeTab === 'queue' ? <LogisticsJobsTable jobs={queueJobs} onUpdateStatus={handleUpdateStatus} isHistory={false} /> : <LogisticsJobsTable jobs={historyJobs} onUpdateStatus={handleUpdateStatus} isHistory={true} />
         )}
       </div>
     </div>

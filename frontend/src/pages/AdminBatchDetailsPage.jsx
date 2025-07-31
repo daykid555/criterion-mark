@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import apiClient from '../api';
-import SealUploader from '../components/SealUploader'; // Uploader component
-import StyledQRCode from '../components/StyledQRCode'; // QR Code preview component
+import SealUploader from '../components/SealUploader';
+import StyledQRCode from '../components/StyledQRCode';
 
 function AdminBatchDetailsPage() {
   const { id } = useParams();
@@ -31,7 +31,6 @@ function AdminBatchDetailsPage() {
   }, [id]);
 
   const handleZipDownload = async () => {
-    // ... (This function remains unchanged)
     setIsZipping(true);
     try {
         const response = await apiClient({
@@ -46,6 +45,7 @@ function AdminBatchDetailsPage() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
     } catch (err) {
         alert('Error generating ZIP file.');
     } finally {
@@ -54,7 +54,6 @@ function AdminBatchDetailsPage() {
   };
 
   const handleUploadSuccess = () => {
-    // Refetch the data to show the new seal preview
     fetchBatchDetails();
   };
 
@@ -76,10 +75,7 @@ function AdminBatchDetailsPage() {
         </button>
       </div>
 
-      {/* --- THIS IS THE DEFINITIVE LAYOUT FIX --- */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-        {/* Column 1: Generated Codes */}
         <div className="glass-panel p-6">
           <h2 className="text-xl font-bold mb-4 text-white">Generated Codes</h2>
           <ul className="h-96 overflow-y-auto">
@@ -94,21 +90,20 @@ function AdminBatchDetailsPage() {
           </ul>
         </div>
 
-        {/* Column 2: QR Preview AND Seal Uploader */}
         <div className="space-y-8">
-          {/* QR Preview Section */}
           <div className="glass-panel p-6 flex flex-col items-center justify-center">
             <h2 className="text-xl font-bold mb-4 text-white">QR Code Preview</h2>
             {selectedCode ? <StyledQRCode code={selectedCode} /> : <p className="text-white/70">Select a code to view the QR image.</p>}
           </div>
 
-          {/* Seal Management Section */}
-          {/* THIS IS THE LOGIC THAT SHOWS THE UPLOADER OR THE PREVIEW */}
           <div>
             {batch.seal_background_url ? (
               <div className="glass-panel p-4">
                 <h3 className="font-semibold text-white mb-2">Assigned Seal Background</h3>
                 <div className="bg-gray-800 p-2 rounded-lg">
+                  {/* --- FIX [3]: This is the correct way to display the Cloudinary URL. --- */}
+                  {/* The URL from Cloudinary is absolute and should be used directly as the src. */}
+                  {/* This prevents the API base URL from being incorrectly prepended. */}
                   <img 
                     src={batch.seal_background_url} 
                     alt="Seal Background Preview"
@@ -117,7 +112,6 @@ function AdminBatchDetailsPage() {
                 </div>
               </div>
             ) : (
-              // The uploader is now correctly placed here
               <SealUploader batchId={id} onUploadSuccess={handleUploadSuccess} />
             )}
           </div>
