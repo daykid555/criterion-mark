@@ -16,9 +16,9 @@ enum Role {
   MANUFACTURER
   DVA
   CUSTOMER
-  PRINTING // <-- ADD THIS
-  LOGISTICS // <-- AND THIS
-  SKINCARE_BRAND // <-- ADD THIS NEW ROLE
+  PRINTING
+  LOGISTICS
+  SKINCARE_BRAND
 }
 
 // Defines the possible statuses for a batch
@@ -33,125 +33,111 @@ enum BatchStatus {
   PRINTING_IN_PROGRESS
   PRINTING_COMPLETE
   IN_TRANSIT
+  PENDING_MANUFACTURER_CONFIRMATION // <-- NEW STATUS
   DELIVERED
 }
 
 // User model for authentication and roles
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  password     String
-  companyName  String?
-  companyRegNumber String?  @unique // Must be unique to prevent duplicates
-  role         Role
-  isActive     Boolean  @default(false) // All new users are inactive by default
-  batches      Batch[]
-  scanRecords  ScanRecord[] // A user can have many scan records
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  approvedBy   Int?     // The ID of the admin who approved them
-  approvedAt   DateTime?
-  skincareBrand SkincareBrand? // <-- ADD THIS LINE
+  id               Int            @id @default(autoincrement())
+  email            String         @unique
+  password         String
+  companyName      String?
+  companyRegNumber String?        @unique
+  role             Role
+  isActive         Boolean        @default(false)
+  batches          Batch[]
+  scanRecords      ScanRecord[]
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  approvedBy       Int?
+  approvedAt       DateTime?
+  skincareBrand    SkincareBrand?
 }
 
 // Batch model for tracking drug production requests
 model Batch {
-  id                  Int          @id @default(autoincrement())
-  drugName            String
-  quantity            Int
-  nafdacNumber        String
-  expirationDate      DateTime
-  manufacturerId      Int
-  status              BatchStatus  @default(PENDING_DVA_APPROVAL)
-  manufacturer        User         @relation(fields: [manufacturerId], references: [id])
-  qrCodes             QRCode[]
-  dva_approved_at     DateTime?
-  admin_approved_at   DateTime?
-  print_started_at    DateTime?
-  print_completed_at  DateTime?
-  picked_up_at        DateTime?
-  delivered_at        DateTime?
-  rejection_reason    String?
-  cancellation_reason String?
-  pickup_notes        String?
-  delivery_notes      String?
-  seal_background_url String? // <-- ADD THIS NEW FIELD. It's optional.
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  id                                Int          @id @default(autoincrement())
+  drugName                          String
+  quantity                          Int
+  nafdacNumber                      String
+  expirationDate                    DateTime
+  manufacturerId                    Int
+  status                            BatchStatus  @default(PENDING_DVA_APPROVAL)
+  manufacturer                      User         @relation(fields: [manufacturerId], references: [id])
+  qrCodes                           QRCode[]
+  dva_approved_at                   DateTime?
+  admin_approved_at                 DateTime?
+  print_started_at                  DateTime?
+  print_completed_at                DateTime?
+  picked_up_at                      DateTime?
+  delivered_at                      DateTime?
+  rejection_reason                  String?
+  cancellation_reason               String?
+  pickup_notes                      String?
+  delivery_notes                    String?
+  seal_background_url               String?
+  manufacturer_received_quantity    Int? // <-- NEW FIELD
+  delivery_confirmation_code        String? // <-- NEW FIELD
+  createdAt                         DateTime     @default(now())
+  updatedAt                         DateTime     @updatedAt
 }
 
 // QRCode model - NOW SIMPLER
 model QRCode {
-  id          Int      @id @default(autoincrement())
-  code        String   @unique
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
   batchId     Int
-  batch       Batch    @relation(fields: [batchId], references: [id])
-  scanRecords ScanRecord[] // Each QR Code can have many scan records
-  createdAt   DateTime @default(now())
+  batch       Batch        @relation(fields: [batchId], references: [id])
+  scanRecords ScanRecord[]
+  createdAt   DateTime     @default(now())
 }
 
 model ScanRecord {
   id            Int      @id @default(autoincrement())
   qrCodeId      Int
   qrCode        QRCode   @relation(fields: [qrCodeId], references: [id])
-  
   scannedAt     DateTime @default(now())
   scannedByRole Role
-  
   scannerId     Int?
   scanner       User?    @relation(fields: [scannerId], references: [id])
-  
   ipAddress     String?
   city          String?
   region        String?
   country       String?
-
-  // --- NEW COORDINATE FIELDS ---
   latitude      Float?
   longitude     Float?
 }
-// backend/prisma/schema.prisma
 
-// --- NEW MODEL FOR SYSTEM-WIDE SETTINGS ---
 model SystemSetting {
   id        Int      @id @default(autoincrement())
-  key       String   @unique // e.g., "admin_creation_code"
-  value     String   // The actual value of the setting
+  key       String   @unique
+  value     String
   updatedAt DateTime @updatedAt
 }
 
-// --- NEW MODELS FOR SKINCARE SYSTEM ---
-
-// A SkincareBrand is linked to a User account
 model SkincareBrand {
-  id          Int      @id @default(autoincrement())
-  userId      Int      @unique // Each brand is owned by one user
-  user        User     @relation(fields: [userId], references: [id])
-  
-  brandName   String
-  cacNumber   String   @unique
-  isVerified  Boolean  @default(false) // Verified by Admin
-  
-  placardQrCode String?  // The dynamic QR code for the brand's placard
-  
-  products    SkincareProduct[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            Int               @id @default(autoincrement())
+  userId        Int               @unique
+  user          User              @relation(fields: [userId], references: [id])
+  brandName     String
+  cacNumber     String            @unique
+  isVerified    Boolean           @default(false)
+  placardQrCode String?
+  products      SkincareProduct[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 }
 
-// A SkincareProduct is created by a SkincareBrand
 model SkincareProduct {
-  id              Int      @id @default(autoincrement())
-  brandId         Int
-  brand           SkincareBrand @relation(fields: [brandId], references: [id])
-  
-  productName     String
-  ingredients     String   // A list of ingredients
-  skinReactions   String?  // Potential skin reactions
-  nafdacNumber    String?
-  
-  uniqueCode      String   @unique // The unique code for this specific product item
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            Int           @id @default(autoincrement())
+  brandId       Int
+  brand         SkincareBrand @relation(fields: [brandId], references: [id])
+  productName   String
+  ingredients   String
+  skinReactions String?
+  nafdacNumber  String?
+  uniqueCode    String        @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 }

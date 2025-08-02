@@ -1,23 +1,19 @@
-import { useState, useEffect } from 'react'; // Import hooks
-import axios from 'axios'; // Import axios
-
+import { useState, useEffect } from 'react';
 import RequestBatchForm from "../components/RequestBatchForm";
-import BatchHistoryTable from '../components/BatchHistoryTable'; // Import the table
+import BatchHistoryTable from '../components/BatchHistoryTable';
 import apiClient from '../api';
 
 function ManufacturerDashboard() {
-  // State to hold the list of batches
   const [batches, setBatches] = useState([]);
-  // State to handle loading and errors during fetch
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // This function will fetch data from the backend
   const fetchBatches = async () => {
     try {
-      setIsLoading(true);
+      // Don't set loading to true on refetch, makes the UI flicker
+      // setIsLoading(true);
       const response = await apiClient.get('/api/manufacturer/batches');
-      setBatches(response.data); // Store the fetched batches in state
+      setBatches(response.data);
     } catch (err) {
       setError('Failed to load batch history.');
       console.error(err);
@@ -26,14 +22,11 @@ function ManufacturerDashboard() {
     }
   };
   
-  // useEffect runs once when the component first loads
   useEffect(() => {
     fetchBatches();
   }, []);
 
-  // This function will be called from the form when a new batch is created
   const handleNewBatchSuccess = () => {
-    // Refetch the list of batches to show the new one immediately
     fetchBatches();
   };
   
@@ -50,7 +43,7 @@ function ManufacturerDashboard() {
       <div className="glass-panel p-8">
         {isLoading && <p className="text-center text-white">Loading history...</p>}
         {error && <p className="text-center text-red-300">{error}</p>}
-        {!isLoading && !error && <BatchHistoryTable batches={batches} />}
+        {!isLoading && !error && <BatchHistoryTable batches={batches} onRefreshData={fetchBatches} />}
       </div>
     </>
   );
