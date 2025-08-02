@@ -14,7 +14,7 @@ const STATUS_STYLES = {
     DVA_REJECTED: 'bg-red-400/20 text-red-200 border border-red-400/30',
 };
 
-// --- MODAL FOR CONFIRMING RECEIPT ---
+// --- MODAL FOR CONFIRMING RECEIPT (RESTYLED TO MATCH LOGISTICS MODAL) ---
 const ConfirmationModal = ({ batch, onClose, onRefreshData }) => {
     const [step, setStep] = useState(1); // 1: input quantity, 2: show code
     const [quantity, setQuantity] = useState(batch.quantity);
@@ -31,7 +31,7 @@ const ConfirmationModal = ({ batch, onClose, onRefreshData }) => {
             });
             setCode(response.data.confirmationCode);
             setStep(2);
-            onRefreshData(); // Refresh the parent component's data
+            onRefreshData();
         } catch (err) {
             setError(err.response?.data?.error || 'Failed to confirm receipt.');
         } finally {
