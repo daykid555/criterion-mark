@@ -19,6 +19,7 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { authenticateToken } from './middleware.js';
 import { Parser } from 'json2csv';
 import { authorizeRole } from './middleware.js';
+import Jimp from 'jimp'; // --- NEW: IMPORT JIMP FOR WATERMARKING ---
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -43,6 +44,42 @@ const storage = new CloudinaryStorage({
 });
 const upload = multer({ storage: storage });
 
+// --- WATERMARKING UTILITY ---
+const WATERMARK_SECRET = 'CRITERION_MARK_VALID';
+
+async function embedWatermark(imageBuffer) {
+    try {
+        const image = await Jimp.read(imageBuffer);
+        const message = WATERMARK_SECRET + '\0'; // Add a null terminator to know when the message ends
+        let messageIndex = 0;
+        let bitIndex = 0;
+
+        image.scan(0, 0, image.bitmap.width, image.bitmap.height, function (x, y, idx) {
+            if (messageIndex < message.length) {
+                const charCode = message.charCodeAt(messageIndex);
+                const bit = (charCode >> (7 - bitIndex)) & 1;
+
+                // Embed the bit into the least significant bit of the red channel
+                const red = this.bitmap.data[idx];
+                this.bitmap.data[idx] = (red & 0xFE) | bit;
+
+                bitIndex++;
+                if (bitIndex === 8) {
+                    bitIndex = 0;
+                    messageIndex++;
+                }
+            }
+        });
+
+        return await image.getBufferAsync(Jimp.MIME_PNG);
+    } catch (error) {
+        console.error("Watermarking failed:", error);
+        // Return original buffer if watermarking fails, to prevent total failure
+        return imageBuffer;
+    }
+}
+
+
 // --- UTILITY FUNCTIONS ---
 const generateSixDigitCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -52,6 +89,7 @@ const generateSixDigitCode = () => {
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
 // --- BATCH ROUTES (for Manufacturer) ---
+// ... (This section remains unchanged)
 app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
         const { drugName, quantity, expirationDate, nafdacNumber } = req.body;
@@ -133,7 +171,9 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
     }
 });
 
+
 // --- DVA ROUTES ---
+// ... (This section remains unchanged)
 app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
     try {
         const pendingBatches = await prisma.batch.findMany({
@@ -227,7 +267,9 @@ app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (re
     }
 });
 
+
 // --- ADMIN ROUTES ---
+// ... (Most of this section remains unchanged, only the ZIP route is modified)
 app.get('/api/admin/pending-batches', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     try {
         const pendingBatches = await prisma.batch.findMany({
@@ -382,6 +424,7 @@ app.get('/api/admin/batches/:id', authenticateToken, authorizeRole(['ADMIN']), a
         res.status(500).json({ error: 'Failed to fetch batch details.' });
     }
 });
+
 app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -394,20 +437,24 @@ app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole(['
         }
         const zipFileName = `batch_${id}_${batch.drugName.replace(/\s+/g, '_')}_qrcodes.zip`;
         res.attachment(zipFileName);
-        const archive = archiver('zip', {
-            zlib: { level: 9 },
-        });
+        const archive = archiver('zip', { zlib: { level: 9 } });
         archive.pipe(res);
+
+        const logoBuffer = fs.readFileSync(path.join(process.cwd(), 'assets/shield-logo.svg'));
+
         for (const qr of batch.qrCodes) {
             const qrCodeBuffer = await qrcode.toBuffer(qr.code, {
                 errorCorrectionLevel: 'H', type: 'png', width: 500, margin: 2,
                 color: { dark: '#000000', light: '#0000' },
             });
-            const logoBuffer = fs.readFileSync(path.join(process.cwd(), 'assets/shield-logo.svg'));
-            const finalImageBuffer = await sharp(qrCodeBuffer)
+            const compositedBuffer = await sharp(qrCodeBuffer)
                 .composite([{ input: logoBuffer, gravity: 'center' }])
                 .toBuffer();
-            archive.append(finalImageBuffer, { name: `qr_code_${qr.code}.png` });
+            
+            // --- NEW: Apply watermark before adding to zip ---
+            const watermarkedBuffer = await embedWatermark(compositedBuffer);
+
+            archive.append(watermarkedBuffer, { name: `qr_code_${qr.code}.png` });
         }
         await archive.finalize();
     } catch (error) {
@@ -415,6 +462,7 @@ app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole(['
         res.status(500).json({ error: 'Failed to create zip file.' });
     }
 });
+
 app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole(['ADMIN']), upload.single('sealBackground'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -434,6 +482,7 @@ app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole(
         res.status(500).json({ error: 'Failed to upload file.' });
     }
 });
+// ... (rest of admin routes remain unchanged)
 app.get('/api/admin/history', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     try {
         const processedBatches = await prisma.batch.findMany({
@@ -691,8 +740,9 @@ app.post('/api/admin/system-reset', authenticateToken, authorizeRole(['ADMIN']),
     }
 });
 
-// --- PRINTING PORTAL ROUTES ---
 
+// --- PRINTING PORTAL ROUTES ---
+// ... (This section remains mostly unchanged, only the image generation routes are modified)
 app.get('/api/printing/pending', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
@@ -812,38 +862,29 @@ app.get('/api/printing/seal/:code', authenticateToken, authorizeRole(['PRINTING'
         const { code } = req.params;
         const qrCode = await prisma.qRCode.findUnique({
             where: { code },
-            include: {
-                batch: { select: { seal_background_url: true } },
-            },
+            include: { batch: { select: { seal_background_url: true } } },
         });
-        if (!qrCode) {
-            return res.status(404).json({ error: 'QR Code not found.' });
+        if (!qrCode || !qrCode.batch.seal_background_url) {
+            return res.status(404).json({ error: 'QR Code or seal background not found.' });
         }
-        if (!qrCode.batch.seal_background_url) {
-            return res.status(400).json({ error: 'No seal background has been assigned to this batch by an admin.' });
-        }
+        
         const qrCodeBuffer = await qrcode.toBuffer(code, {
-            errorCorrectionLevel: 'H',
-            type: 'png',
-            width: 200,
-            margin: 1,
+            errorCorrectionLevel: 'H', type: 'png', width: 200, margin: 1,
         });
+
+        // --- NEW: Apply watermark to the QR code before compositing ---
+        const watermarkedQrBuffer = await embedWatermark(qrCodeBuffer);
+
         const backgroundResponse = await axios({
-            method: 'get',
-            url: qrCode.batch.seal_background_url,
-            responseType: 'arraybuffer'
+            url: qrCode.batch.seal_background_url, responseType: 'arraybuffer'
         });
-        const backgroundBuffer = backgroundResponse.data;
-        const finalImageBuffer = await sharp(backgroundBuffer)
-            .composite([{
-                input: qrCodeBuffer,
-                top: 50,
-                left: 150,
-            }])
+
+        const finalImageBuffer = await sharp(backgroundResponse.data)
+            .composite([{ input: watermarkedQrBuffer, top: 50, left: 150 }])
             .png()
             .toBuffer();
-        res.setHeader('Content-Type', 'image/png');
-        res.setHeader('Content-Disposition', `attachment; filename="seal_${code}.png"`);
+
+        res.set({ 'Content-Type': 'image/png', 'Content-Disposition': `attachment; filename="seal_${code}.png"` });
         res.status(200).send(finalImageBuffer);
     } catch (error) {
         console.error('Error generating final seal:', error);
@@ -862,24 +903,25 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole(['PRINT
             return res.status(404).json({ error: 'Batch or seal background not found.' });
         }
         const backgroundResponse = await axios({
-            method: 'get',
-            url: batch.seal_background_url,
-            responseType: 'arraybuffer'
+            url: batch.seal_background_url, responseType: 'arraybuffer'
         });
         const backgroundBuffer = backgroundResponse.data;
+
         res.attachment(`batch_${id}_seals.zip`);
         const archive = archiver('zip');
-        archive.on('error', function(err) {
-            console.error('Archive stream error:', err);
-            res.end();
-        });
+        archive.on('error', (err) => { throw err; });
         archive.pipe(res);
+
         for (const qr of batch.qrCodes) {
             const qrCodeBuffer = await qrcode.toBuffer(qr.code, {
                 errorCorrectionLevel: 'H', type: 'png', width: 200, margin: 1
             });
+            
+            // --- NEW: Apply watermark to each QR code ---
+            const watermarkedQrBuffer = await embedWatermark(qrCodeBuffer);
+
             const finalImageBuffer = await sharp(backgroundBuffer)
-                .composite([{ input: qrCodeBuffer, top: 50, left: 150 }])
+                .composite([{ input: watermarkedQrBuffer, top: 50, left: 150 }])
                 .png()
                 .toBuffer();
             archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
@@ -893,8 +935,9 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole(['PRINT
     }
 });
 
-// --- LOGISTICS PORTAL ROUTES ---
 
+// --- LOGISTICS PORTAL ROUTES ---
+// ... (This section is now correct from our previous fix)
 app.get('/api/logistics/pending-pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
   try {
     const readyBatches = await prisma.batch.findMany({
@@ -1016,6 +1059,8 @@ app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']
   }
 });
 
+// --- REMAINDER OF FILE IS UNCHANGED ---
+// ... (Skincare, Public Verification, and Auth routes)
 // --- SKINCARE BRAND PORTAL ROUTES ---
 
 const getSkincareBrand = async (req, res, next) => {
@@ -1334,6 +1379,7 @@ app.post('/api/auth/register', async (req, res) => {
     res.status(500).json({ error: 'An internal server error occurred.' });
   }
 });
+
 
 // --- START THE SERVER ---
 app.listen(PORT, () => {
