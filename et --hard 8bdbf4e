@@ -1,0 +1,95 @@
+[33m00a7f69[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m fix(scanner): Revert to stable html5-qrcode and fix dependencies
+[33m9c391da[m revert(scanner): Restore stable VerificationPage and implement multi-scan warning UI
+[33m0805ad5[m fix(scanner): Rebuild verification page for stability and state handling
+[33me0c8d19[m feat(scanner): Implement dynamic watermark and multi-scan velocity checks 2
+[33m1d26b11[m feat(scanner): Implement dynamic watermark and multi-scan velocity checks
+[33mde84625[m feat(scanner): Implement two-step LSB watermark verification
+[33md8693a1[m feat(backend): Implement LSB watermarking for QR codes
+[33m8bdbf4e[m refactor(ui): Unify manufacturer and logistics modal styles
+[33ma7ac4e6[m feat(workflow): Implement secure delivery confirmation
+[33m50d1990[m fix: default BatchHistoryTable
+[33m8ef547c[m fix: fuxkkkkkkkkkkkkkkkkkkkkkk 2
+[33m8760c81[m fix: fuxkkkkkkkkkkkkkkkkkkkkkk
+[33mcd748cd[m fix: many 403 erroes fuck Cloudinary
+[33mcfbb0b7[m fix: many errors again full
+[33m878a2b7[m fix: many errors
+[33m98eb619[m fix: Finalize PWA configuration using vite-plugin-pwa
+[33m60d1dd3[m Add:end button on verify page, animated background is back , and responsive for mobile
+[33m95035c2[m fix: Restore background and improve responsive typography .    refactor: Align DVA queue with Admin UI and secure routes
+[33mbd1af9c[m Update . reject button
+[33m85f970c[m revert: Definitive revert of backend to stable state ai 2
+[33m7da26ee[m revert: Definitive revert of backend to stable state ai
+[33mfa0ac8d[m revert: Remove batch rejection functionality to restore stability
+[33m8ab7851[m fix: Add missing auth middleware to all DVA and Admin routes Ai 2
+[33ma258252[m fix: Add missing auth middleware to all DVA and Admin routes Ai
+[33m7585bae[m feat: Add system reset protection and batch rejection
+[33md716b8a[m feat: Migrate file storage to Cloudinary for persistence
+[33mf865558[m feat: Add public API endpoint for skincare verification
+[33m7b79604[m fix: Provide definitive complete code for AdminDashboard
+[33m7779def[m feat: Add backend for system reset and user deactivation
+[33m69047e6[m fix: Implement full, correct code for Printing Dashboard UI Gemini
+[33m340b2fa[m fix: Implement full, correct code for Printing Dashboard UI
+[33m1ecf052[m fix: Definitively fix Skincare auth and Logistics update errors
+[33m9a9ebc9[m fix: Definitive fix for backend syntax error crash gemini fix
+[33m62bb964[m fix: Definitive fix for backend syntax error crash
+[33mffda9ac[m fix: Implement full, correct code for Logistics and Skincare dashboards
+[33mdf087e0[m feat: Build Skincare Brand dashboard UI
+[33m9dcbae4[m feat: Add API endpoints for Skincare Portal
+[33m396b6fd[m feat: Add Skincare Brand to frontend registration
+[33m7129485[m fix: Definitive architectural fix for Router context crash
+[33m0d17628[m fix: Definitive architectural fix for routing and auth
+[33mcf8f01a[m fix: Definitive architectural fix for login redirects2
+[33me35d36e[m fix: Definitive architectural fix for login redirects
+[33m0515c82[m fix: Definitively fix Logistics login and sync all routes
+[33mfad09af[m fix: Definitive fix for all role login redirects
+[33m8b505aa[m feat: Add skincare brand to registration page
+[33mcd67182[m fix: Correct login redirect for Logistics role
+[33m0139a0d[m feat: Add backend foundation for Skincare System
+[33mfd46076[m feat: Build Logistics Portal UI and routing
+[33mf20ffe9[m fix: Definitively remove scanner borders and black bars
+[33m3ec414d[m fix: Definitively fix scanner UI black bars and focus box
+[33mf9cf577[m fix: Revert to html5-qrcode with stable state management
+[33med42518[m fix: Definitive fix for scanner crash and update consent UI
+[33m78b9cae[m feat: Enhance location tracking and add user consent
+[33mc82add8[m fix: Definitively fix printing portal errors and UI
+[33me264693[m fix: Overhaul printing portal with history and correct UI
+[33m251ed3b[m feat: Build final seal download page for printing portal
+[33mf700be1[m feat: Add backend for final seal generation and update printing UI
+[33m311b45f[m fix: Definitively fix admin seal uploader layout
+[33ma354c62[m feat: Add admin seal uploader and manufacturer preview
+[33ma64f06f[m feat: Add backend foundation for dynamic seal uploads
+[33m3abb43f[m feat: Add API endpoints for Logistics Portal
+[33mf05496a[m fix: Remove duplicate HamburgerIcon declaration
+[33maed5472[m fix: Secure printing role and overhaul dashboard UI2
+[33m0532f53[m fix: Secure printing role and overhaul dashboard UI
+[33mc920bf7[m fix: Show all roles in admin queue and correct login redirects
+[33m8b28797[m feat: Build Printing Portal UI and routing
+[33mdc71e20[m feat: Add API endpoints for Printing Portal
+[33m89031b5[m fix: Harden admin creation and code reset logic
+[33m12f60ab[m feat: Build UI for admin management
+[33m4f44a71[m feat: Add backend for admin management and creation code
+[33mcd026c0[m feat: Implement full admin map view with coordinate tracking
+[33mec1e967[m feat: Create API endpoint to fetch all scan data for map
+[33m5a93dff[m feat: Implement responsive navbar with hamburger menu
+[33m5173109[m fix: Correct login state and overhaul verification page UI
+[33m1ffd60c[m fix: Style admin map button to match UI design
+[33m83a0b7e[m feat: Add initial admin map page and route
+[33ma9deb4b[m feat: Implement IP address location tracking on scan
+[33mfd5b516[m feat: Add location fields to ScanRecord schema
+[33m0ed6c30[m fix: Force schema sync with --accept-data-loss
+[33ma51e972[m fix: Implement db push to force schema sync
+[33m3c3e495[m fix: Add postinstall script to generate prisma client
+[33mf788780[m chore: Force server rebuild to update prisma client
+[33m75fd65d[m fix: Finalize production migration files
+[33mef5d25c[m feat: Separate Printing and Logistics roles
+[33m504041a[m fix: Set dropdown option text color to black
+[33mfccd91b[m fix: Remove instruction text from registration page
+[33m5d1683c[m Update registration page for all roles
+[33mcd91ff1[m fix: add vercel.json for SPA routing
+[33m2e5a2df[m fix: add vercel.json for SPA routing
+[33ma47aae6[m fix: add vercel.json for SPA routing
+[33m944eaa6[m fix: add vercel.json for SPA routing
+[33m7dbf1a5[m fix: add vercel.json for SPA routing
+[33m5c263de[m feat: add production frontend URL to CORS whitelist
+[33mf25a448[m feat: migrate database to PostgreSQL and configure for deployment
+[33m910ff5a[m Initial commit of the project

@@ -1,4 +1,5 @@
-// backend/index.js - THE FULL, COMPLETE, AND FINAL CORRECTED CODE
+// backend/index.js
+// actually complete code
 
 import express from 'express';
 import cors from 'cors';
@@ -1178,6 +1179,7 @@ app.get('/api/verify/:code', async (req, res) => {
         }
     }
     
+    // Log the new scan BEFORE fetching the full history for the response
     await prisma.scanRecord.create({
       data: {
         qrCodeId: qrCode.id,
@@ -1191,6 +1193,7 @@ app.get('/api/verify/:code', async (req, res) => {
       },
     });
     
+    // Now, get the fresh, complete list of scan records including the one we just added
     const updatedQrCodeDetails = await prisma.qRCode.findUnique({
       where: { id: qrCode.id },
       include: {
@@ -1201,11 +1204,27 @@ app.get('/api/verify/:code', async (req, res) => {
       },
     });
 
-    res.status(200).json({
+    const responsePayload = {
       status: 'success',
       message: 'Product Verified Successfully!',
       data: updatedQrCodeDetails,
-    });
+    };
+
+    // START OF NEW LOGIC FOR MULTI-SCAN WARNING
+    if (updatedQrCodeDetails.scanRecords && updatedQrCodeDetails.scanRecords.length > 0) {
+        const uniqueIps = new Set(
+            updatedQrCodeDetails.scanRecords
+                .map(record => record.ipAddress)
+                .filter(ip => ip) // Filter out any null/undefined IPs
+        );
+
+        if (uniqueIps.size >= 3) {
+            responsePayload.warning = 'This genuine product has been scanned from multiple locations. If you are not the first-time buyer at a pharmacy, please exercise caution.';
+        }
+    }
+    // END OF NEW LOGIC
+
+    res.status(200).json(responsePayload);
 
   } catch (error) {
     console.error('Error verifying code:', error);
