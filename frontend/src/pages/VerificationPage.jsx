@@ -9,6 +9,7 @@ import { ShieldCheckIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicon
 
 const qrcodeRegionId = "qr-reader";
 
+// No changes to ScanConsent component
 const ScanConsent = ({ onScan }) => (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 p-4 text-center">
         <svg className="w-12 h-12 text-white/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
@@ -22,22 +23,23 @@ const ScanConsent = ({ onScan }) => (
     </div>
 );
 
+// The component that shows the result
 const VerificationResult = ({ result, onReset }) => {
     const isSuccess = result.status === 'success';
     const hasWarning = !!result.warning;
     const isError = result.status === 'error';
 
     const getTheme = () => {
-        if (isError) return { 
-            bg: 'bg-red-500/20', text: 'text-red-200', iconColor: 'text-red-400', 
-            Icon: XCircleIcon, animation: 'animate-blink-red' 
+        if (isError) return {
+            bg: 'bg-red-500/20', text: 'text-red-200', iconColor: 'text-red-400',
+            Icon: XCircleIcon, animation: 'animate-blink-red'
         };
-        if (hasWarning) return { 
-            bg: 'bg-yellow-500/20', text: 'text-yellow-200', iconColor: 'text-yellow-400', 
+        if (hasWarning) return {
+            bg: 'bg-yellow-500/20', text: 'text-yellow-200', iconColor: 'text-yellow-400',
             Icon: ExclamationTriangleIcon, animation: 'animate-blink-yellow'
         };
-        return { 
-            bg: 'bg-green-500/20', text: 'text-green-200', iconColor: 'text-green-400', 
+        return {
+            bg: 'bg-green-500/20', text: 'text-green-200', iconColor: 'text-green-400',
             Icon: ShieldCheckIcon, animation: 'animate-blink-green'
         };
     };
@@ -78,6 +80,8 @@ const VerificationResult = ({ result, onReset }) => {
     );
 };
 
+
+// The main page component
 function VerificationPage() {
     const [scanState, setScanState] = useState('idle');
     const [verificationResult, setVerificationResult] = useState(null);
@@ -85,6 +89,7 @@ function VerificationPage() {
     const [error, setError] = useState('');
     const scannerRef = useRef(null);
 
+    // This lookup ensures the full class strings are present in the file for the build tool to find.
     const themeClasses = {
       success: 'bg-gradient-to-br from-green-900/50 via-gray-900 to-gray-900',
       warning: 'bg-gradient-to-br from-yellow-900/50 via-gray-900 to-gray-900',
@@ -97,7 +102,7 @@ function VerificationPage() {
         if (backgroundEffect) {
             timer = setTimeout(() => {
                 setBackgroundEffect('');
-            }, 6000); // Gradient effect lasts 6 seconds
+            }, 6000);
         }
         return () => {
             clearTimeout(timer);
