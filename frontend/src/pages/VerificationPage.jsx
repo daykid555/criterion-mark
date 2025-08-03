@@ -28,18 +28,27 @@ const VerificationResult = ({ result, onReset }) => {
     const isError = result.status === 'error';
 
     const getTheme = () => {
-        if (isError) return { bg: 'bg-red-500/20', text: 'text-red-200', iconColor: 'text-red-400', Icon: XCircleIcon };
-        if (hasWarning) return { bg: 'bg-yellow-500/20', text: 'text-yellow-200', iconColor: 'text-yellow-400', Icon: ExclamationTriangleIcon };
-        return { bg: 'bg-green-500/20', text: 'text-green-200', iconColor: 'text-green-400', Icon: ShieldCheckIcon };
+        if (isError) return { 
+            bg: 'bg-red-500/20', text: 'text-red-200', iconColor: 'text-red-400', 
+            Icon: XCircleIcon, animation: 'animate-blink-red' 
+        };
+        if (hasWarning) return { 
+            bg: 'bg-yellow-500/20', text: 'text-yellow-200', iconColor: 'text-yellow-400', 
+            Icon: ExclamationTriangleIcon, animation: 'animate-blink-yellow'
+        };
+        return { 
+            bg: 'bg-green-500/20', text: 'text-green-200', iconColor: 'text-green-400', 
+            Icon: ShieldCheckIcon, animation: 'animate-blink-green'
+        };
     };
 
-    const { bg, text, iconColor, Icon } = getTheme();
+    const { bg, text, iconColor, Icon, animation } = getTheme();
     const data = result.data?.batch;
     const scanCount = result.data?.scanRecords?.length || 0;
 
     return (
         <div className="w-full max-w-md mx-auto my-4">
-            <div className={`glass-panel p-6 rounded-xl text-white ${bg} border ${text.replace('text-', 'border-')}`}>
+            <div className={`glass-panel p-6 rounded-xl text-white ${bg} border ${text.replace('text-', 'border-')} ${animation}`}>
                 <div className="flex flex-col items-center text-center">
                     <Icon className={`w-16 h-16 ${iconColor}`} />
                     <h2 className={`mt-4 text-2xl font-bold ${text.replace('200', '100')}`}>{result.message}</h2>
@@ -72,16 +81,31 @@ const VerificationResult = ({ result, onReset }) => {
 function VerificationPage() {
     const [scanState, setScanState] = useState('idle');
     const [verificationResult, setVerificationResult] = useState(null);
+    const [backgroundEffect, setBackgroundEffect] = useState('');
     const [error, setError] = useState('');
     const scannerRef = useRef(null);
 
+    const themeClasses = {
+      success: 'bg-gradient-to-br from-green-900/50 via-gray-900 to-gray-900',
+      warning: 'bg-gradient-to-br from-yellow-900/50 via-gray-900 to-gray-900',
+      error: 'bg-gradient-to-br from-red-900/60 via-gray-900 to-gray-900',
+      '': 'bg-gray-900'
+    };
+
     useEffect(() => {
+        let timer;
+        if (backgroundEffect) {
+            timer = setTimeout(() => {
+                setBackgroundEffect('');
+            }, 6000); // Gradient effect lasts 6 seconds
+        }
         return () => {
+            clearTimeout(timer);
             if (scannerRef.current && scannerRef.current.isScanning) {
                 scannerRef.current.stop().catch(err => console.error("Cleanup failed:", err));
             }
         };
-    }, []);
+    }, [backgroundEffect]);
 
     const startScanner = (withLocation) => {
         setScanState('scanning');
@@ -91,14 +115,11 @@ function VerificationPage() {
             scannerRef.current = new Html5Qrcode(qrcodeRegionId);
         }
 
-        const config = { fps: 10 };
-
         const onScanSuccess = (decodedText) => {
             if (scannerRef.current.isScanning) {
                 scannerRef.current.stop()
                     .then(() => {
                         setScanState('loading');
-                        // Use the full URL from the QR code if it exists
                         const code = decodedText.split('/').pop();
                         verifyCode(code, withLocation);
                     })
@@ -108,9 +129,9 @@ function VerificationPage() {
 
         scannerRef.current.start(
             { facingMode: "environment" },
-            config,
+            { fps: 10 },
             onScanSuccess,
-            (_errorMessage) => { /* Optional */ }
+            () => {}
         ).catch(_err => {
             setError("CAMERA ERROR: Please grant camera permissions and refresh the page.");
             setScanState('idle');
@@ -122,9 +143,15 @@ function VerificationPage() {
             const config = { headers: { 'X-Use-Location': String(withLocation) } };
             const response = await apiClient.get(`/api/verify/${code}`, config);
             setVerificationResult(response.data);
+            if(response.data.warning) {
+                setBackgroundEffect('warning');
+            } else {
+                setBackgroundEffect('success');
+            }
         } catch (err) {
             const errorText = err.response?.data?.message || 'Verification failed.';
             setVerificationResult({ status: 'error', message: errorText });
+            setBackgroundEffect('error');
         } finally {
             setScanState('result');
         }
@@ -134,10 +161,11 @@ function VerificationPage() {
         setVerificationResult(null);
         setError('');
         setScanState('idle');
+        setBackgroundEffect('');
     };
 
     return (
-        <div className="min-h-screen w-full relative flex items-center justify-center p-4">
+        <div className={`min-h-screen w-full relative flex items-center justify-center p-4 transition-all duration-1000 ${themeClasses[backgroundEffect]}`}>
             <NodeBackground />
             <div className="relative z-10 w-full max-w-md">
                 {scanState !== 'result' ? (

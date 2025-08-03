@@ -1210,19 +1210,11 @@ app.get('/api/verify/:code', async (req, res) => {
       data: updatedQrCodeDetails,
     };
 
-    // START OF NEW LOGIC FOR MULTI-SCAN WARNING
-    if (updatedQrCodeDetails.scanRecords && updatedQrCodeDetails.scanRecords.length > 0) {
-        const uniqueIps = new Set(
-            updatedQrCodeDetails.scanRecords
-                .map(record => record.ipAddress)
-                .filter(ip => ip) // Filter out any null/undefined IPs
-        );
-
-        if (uniqueIps.size >= 3) {
-            responsePayload.warning = 'This genuine product has been scanned from multiple locations. If you are not the first-time buyer at a pharmacy, please exercise caution.';
-        }
+    // --- MODIFIED LOGIC FOR MULTI-SCAN WARNING ---
+    if (updatedQrCodeDetails.scanRecords && updatedQrCodeDetails.scanRecords.length > 5) {
+        responsePayload.warning = 'This genuine product has been scanned multiple times. If you are not the first-time buyer at a pharmacy, please exercise caution.';
     }
-    // END OF NEW LOGIC
+    // --- END OF MODIFICATION ---
 
     res.status(200).json(responsePayload);
 
