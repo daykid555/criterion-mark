@@ -13,7 +13,7 @@ const NodeBackground = ({ theme = 'default' }) => {
   const themeColors = {
     default: { particle: '#8B5CF6', link: '#ffffff' },
     success: { particle: '#22c55e', link: '#a7f3d0' },
-    warning: { particle: '#facc15', link: 'rgb(253 230 138)' },
+    warning: { particle: '#facc15', link: '#fde68a' }, // Brighter link for yellow
     error:   { particle: '#ef4444', link: '#fecaca' },
   };
 
@@ -22,7 +22,9 @@ const NodeBackground = ({ theme = 'default' }) => {
   const particlesOptions = useMemo(() => ({
     background: {
       color: {
-        value: 'transparent', // THIS IS THE KEY FIX FOR THE GRADIENT
+        // THIS IS THE FIX: Only be transparent when a theme is active.
+        // Otherwise, use the original dark background color.
+        value: theme === 'default' ? '#0d1117' : 'transparent',
       },
     },
     fpsLimit: 60,
@@ -32,10 +34,10 @@ const NodeBackground = ({ theme = 'default' }) => {
     },
     particles: {
       color: {
-        value: selectedTheme.particle, // Dynamic particle color
+        value: selectedTheme.particle,
       },
       links: {
-        color: selectedTheme.link, // Dynamic link color
+        color: selectedTheme.link,
         distance: 150,
         enable: true,
         opacity: 0.1,
@@ -48,7 +50,7 @@ const NodeBackground = ({ theme = 'default' }) => {
       size: { value: { min: 1, max: 3 } },
     },
     detectRetina: true,
-  }), [selectedTheme]); // Recalculate options only when theme changes
+  }), [selectedTheme]);
 
   return (
     <div className="absolute top-0 left-0 w-full h-full z-0">
