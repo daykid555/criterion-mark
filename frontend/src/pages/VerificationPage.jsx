@@ -23,8 +23,8 @@ const ScanConsent = ({ onScan }) => (
     </div>
 );
 
-// The component that shows the result
-const VerificationResult = ({ result, onReset }) => {
+
+const VerificationResult = ({ result, onReset, isAnimating }) => {
     const isSuccess = result.status === 'success';
     const hasWarning = !!result.warning;
     const isError = result.status === 'error';
@@ -45,12 +45,13 @@ const VerificationResult = ({ result, onReset }) => {
     };
 
     const { bg, text, iconColor, Icon, animation } = getTheme();
+    const animationClass = isAnimating ? animation : ''; // Apply animation class only when isAnimating is true
     const data = result.data?.batch;
     const scanCount = result.data?.scanRecords?.length || 0;
 
     return (
         <div className="w-full max-w-md mx-auto my-4">
-            <div className={`glass-panel p-6 rounded-xl text-white ${bg} border ${text.replace('text-', 'border-')} ${animation}`}>
+            <div className={`glass-panel p-6 rounded-xl text-white ${bg} border ${text.replace('text-', 'border-')} ${animationClass}`}>
                 <div className="flex flex-col items-center text-center">
                     <Icon className={`w-16 h-16 ${iconColor}`} />
                     <h2 className={`mt-4 text-2xl font-bold ${text.replace('200', '100')}`}>{result.message}</h2>
@@ -81,36 +82,29 @@ const VerificationResult = ({ result, onReset }) => {
 };
 
 
-// The main page component
 function VerificationPage() {
     const [scanState, setScanState] = useState('idle');
     const [verificationResult, setVerificationResult] = useState(null);
-    const [backgroundEffect, setBackgroundEffect] = useState('');
+    const [backgroundEffect, setBackgroundEffect] = useState('default');
+    const [isAnimating, setIsAnimating] = useState(false); // State to control the animation
     const [error, setError] = useState('');
     const scannerRef = useRef(null);
 
-    // This lookup ensures the full class strings are present in the file for the build tool to find.
     const themeClasses = {
+      default: 'bg-gray-900',
       success: 'bg-gradient-to-br from-green-900/50 via-gray-900 to-gray-900',
       warning: 'bg-gradient-to-br from-yellow-900/50 via-gray-900 to-gray-900',
       error: 'bg-gradient-to-br from-red-900/60 via-gray-900 to-gray-900',
-      '': 'bg-gray-900'
     };
 
     useEffect(() => {
-        let timer;
-        if (backgroundEffect) {
-            timer = setTimeout(() => {
-                setBackgroundEffect('');
-            }, 6000);
-        }
+        // Cleanup scanner on component unmount
         return () => {
-            clearTimeout(timer);
             if (scannerRef.current && scannerRef.current.isScanning) {
                 scannerRef.current.stop().catch(err => console.error("Cleanup failed:", err));
             }
         };
-    }, [backgroundEffect]);
+    }, []);
 
     const startScanner = (withLocation) => {
         setScanState('scanning');
@@ -143,20 +137,40 @@ function VerificationPage() {
         });
     };
 
+    const triggerResultEffects = (theme) => {
+        setBackgroundEffect(theme);
+        setIsAnimating(true); // Start animation
+
+        // Timer to stop the animation after 6 seconds
+        const animationTimer = setTimeout(() => {
+            setIsAnimating(false);
+        }, 6000);
+        
+        // Timer to reset the background gradient
+        const backgroundTimer = setTimeout(() => {
+            setBackgroundEffect('default');
+        }, 6000);
+
+        return () => {
+            clearTimeout(animationTimer);
+            clearTimeout(backgroundTimer);
+        };
+    };
+
     const verifyCode = async (code, withLocation) => {
         try {
             const config = { headers: { 'X-Use-Location': String(withLocation) } };
             const response = await apiClient.get(`/api/verify/${code}`, config);
             setVerificationResult(response.data);
-            if(response.data.warning) {
-                setBackgroundEffect('warning');
+            if (response.data.warning) {
+                triggerResultEffects('warning');
             } else {
-                setBackgroundEffect('success');
+                triggerResultEffects('success');
             }
         } catch (err) {
             const errorText = err.response?.data?.message || 'Verification failed.';
             setVerificationResult({ status: 'error', message: errorText });
-            setBackgroundEffect('error');
+            triggerResultEffects('error');
         } finally {
             setScanState('result');
         }
@@ -166,12 +180,13 @@ function VerificationPage() {
         setVerificationResult(null);
         setError('');
         setScanState('idle');
-        setBackgroundEffect('');
+        setBackgroundEffect('default');
+        setIsAnimating(false);
     };
 
     return (
         <div className={`min-h-screen w-full relative flex items-center justify-center p-4 transition-all duration-1000 ${themeClasses[backgroundEffect]}`}>
-            <NodeBackground />
+            <NodeBackground theme={backgroundEffect} />
             <div className="relative z-10 w-full max-w-md">
                 {scanState !== 'result' ? (
                     <div className="glass-panel p-6 sm:p-8 space-y-4">
@@ -206,11 +221,11 @@ function VerificationPage() {
                         </div>
                     </div>
                 ) : (
-                    verificationResult && <VerificationResult result={verificationResult} onReset={resetScanner} />
+                    verificationResult && <VerificationResult result={verificationResult} onReset={resetScanner} isAnimating={isAnimating} />
                 )}
             </div>
         </div>
     );
 }
 
-export default VerificationPage;
+export default VerificationPage;```
