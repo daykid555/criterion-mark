@@ -9,7 +9,6 @@ import { ShieldCheckIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicon
 
 const qrcodeRegionId = "qr-reader";
 
-// No changes to ScanConsent component
 const ScanConsent = ({ onScan }) => (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 p-4 text-center">
         <svg className="w-12 h-12 text-white/30 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
@@ -22,7 +21,6 @@ const ScanConsent = ({ onScan }) => (
         <p className="text-yellow-300 text-xs font-semibold p-2 bg-yellow-500/20 rounded-md mt-4">For your privacy, please use the "without location" option when scanning at home.</p>
     </div>
 );
-
 
 const VerificationResult = ({ result, onReset, isAnimating }) => {
     const isSuccess = result.status === 'success';
@@ -45,7 +43,7 @@ const VerificationResult = ({ result, onReset, isAnimating }) => {
     };
 
     const { bg, text, iconColor, Icon, animation } = getTheme();
-    const animationClass = isAnimating ? animation : ''; // Apply animation class only when isAnimating is true
+    const animationClass = isAnimating ? animation : '';
     const data = result.data?.batch;
     const scanCount = result.data?.scanRecords?.length || 0;
 
@@ -81,12 +79,11 @@ const VerificationResult = ({ result, onReset, isAnimating }) => {
     );
 };
 
-
 function VerificationPage() {
     const [scanState, setScanState] = useState('idle');
     const [verificationResult, setVerificationResult] = useState(null);
     const [backgroundEffect, setBackgroundEffect] = useState('default');
-    const [isAnimating, setIsAnimating] = useState(false); // State to control the animation
+    const [isAnimating, setIsAnimating] = useState(false);
     const [error, setError] = useState('');
     const scannerRef = useRef(null);
 
@@ -98,13 +95,30 @@ function VerificationPage() {
     };
 
     useEffect(() => {
-        // Cleanup scanner on component unmount
         return () => {
             if (scannerRef.current && scannerRef.current.isScanning) {
                 scannerRef.current.stop().catch(err => console.error("Cleanup failed:", err));
             }
         };
     }, []);
+
+    const triggerResultEffects = (theme) => {
+        setBackgroundEffect(theme);
+        setIsAnimating(true);
+
+        const animationTimer = setTimeout(() => {
+            setIsAnimating(false);
+        }, 6000);
+        
+        const backgroundTimer = setTimeout(() => {
+            setBackgroundEffect('default');
+        }, 6000);
+
+        return () => {
+            clearTimeout(animationTimer);
+            clearTimeout(backgroundTimer);
+        };
+    };
 
     const startScanner = (withLocation) => {
         setScanState('scanning');
@@ -135,26 +149,6 @@ function VerificationPage() {
             setError("CAMERA ERROR: Please grant camera permissions and refresh the page.");
             setScanState('idle');
         });
-    };
-
-    const triggerResultEffects = (theme) => {
-        setBackgroundEffect(theme);
-        setIsAnimating(true); // Start animation
-
-        // Timer to stop the animation after 6 seconds
-        const animationTimer = setTimeout(() => {
-            setIsAnimating(false);
-        }, 6000);
-        
-        // Timer to reset the background gradient
-        const backgroundTimer = setTimeout(() => {
-            setBackgroundEffect('default');
-        }, 6000);
-
-        return () => {
-            clearTimeout(animationTimer);
-            clearTimeout(backgroundTimer);
-        };
     };
 
     const verifyCode = async (code, withLocation) => {
@@ -228,4 +222,4 @@ function VerificationPage() {
     );
 }
 
-export default VerificationPage;```
+export default VerificationPage;
