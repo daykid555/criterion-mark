@@ -1017,6 +1017,73 @@ app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']
   }
 });
 
+// --- VALIDATOR ROUTES ---
+
+app.get('/api/validator/pending-batches', authenticateToken, authorizeRole(['VALIDATOR']), async (req, res) => {
+    try {
+        const pendingBatches = await prisma.batch.findMany({
+            where: {
+                status: 'VALIDATION_PENDING',
+            },
+            include: {
+                manufacturer: { select: { companyName: true } },
+            },
+            orderBy: { print_completed_at: 'asc' },
+        });
+        res.status(200).json(pendingBatches);
+    } catch (error) {
+        console.error('Error fetching pending validation batches:', error);
+        res.status(500).json({ error: 'Failed to fetch batches.' });
+    }
+});
+
+app.post('/api/validator/scan', authenticateToken, authorizeRole(['VALIDATOR']), async (req, res) => {
+    const { qrCode, batchId } = req.body;
+    const validatorId = req.user.userId;
+
+    if (!qrCode || !batchId) {
+        return res.status(400).json({ status: 'error', message: 'QR Code and Batch ID are required.' });
+    }
+
+    try {
+        const codeRecord = await prisma.qRCode.findUnique({
+            where: { code: qrCode },
+        });
+
+        // --- Validation Checks ---
+        if (!codeRecord) {
+            return res.status(404).json({ status: 'error', message: `Code ${qrCode} not found in database.` });
+        }
+        if (codeRecord.batchId !== parseInt(batchId)) {
+            return res.status(400).json({ status: 'error', message: `Code ${qrCode} does not belong to this batch.` });
+        }
+        if (codeRecord.status !== 'UNUSED') {
+            return res.status(409).json({ status: 'error', message: `Code ${qrCode} has already been scanned (Status: ${codeRecord.status}).` });
+        }
+
+        // --- Success Path ---
+        const [updatedCode, validationRecord] = await prisma.$transaction([
+            prisma.qRCode.update({
+                where: { id: codeRecord.id },
+                data: { status: 'VALIDATED' },
+            }),
+            prisma.validationRecord.create({
+                data: {
+                    qrCodeId: codeRecord.id,
+                    batchId: parseInt(batchId),
+                    validatorId: validatorId,
+                },
+            }),
+        ]);
+
+        res.status(200).json({ status: 'success', message: `Code ${qrCode} validated successfully.` });
+
+    } catch (error) {
+        console.error('Error during validation scan:', error);
+        res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
+    }
+});
+
 // --- SKINCARE BRAND PORTAL ROUTES ---
 
 const getSkincareBrand = async (req, res, next) => {

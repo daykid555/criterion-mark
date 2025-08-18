@@ -37,6 +37,12 @@ function LoginPage() {
         case 'ADMIN': navigate('/admin/dashboard'); break;
         case 'PRINTING': navigate('/printing/dashboard'); break;
         case 'LOGISTICS': navigate('/logistics/dashboard'); break;
+        case 'PHARMACY':
+          navigate('/pharmacy/dashboard');
+          break;
+        case 'VALIDATOR':
+          navigate('/validator/dashboard');
+          break;
         case 'SKINCARE_BRAND': navigate('/skincare/dashboard'); break;
         default: navigate('/');
       }

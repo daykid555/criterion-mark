@@ -10,7 +10,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Defines the user roles in the system
+// --- ENUMS ---
+
 enum Role {
   ADMIN
   MANUFACTURER
@@ -18,26 +19,54 @@ enum Role {
   CUSTOMER
   PRINTING
   LOGISTICS
+  LOGISTICS_DISTRIBUTOR
+  PHARMACY
+  VALIDATOR
   SKINCARE_BRAND
 }
 
-// Defines the possible statuses for a batch
 enum BatchStatus {
   PENDING_DVA_APPROVAL
   PENDING_ADMIN_APPROVAL
   ADMIN_REJECTED
   DVA_REJECTED
+  PENDING_PRINTING
+  PRINTING_COMPLETE
+  VALIDATION_PENDING
+  READY_FOR_SEALING
+  READY_FOR_SHIPPING
+  
+  // THIS IS THE FIX: We map the new name to the old database value
+  DELIVERED_TO_MANUFACTURER @map("DELIVERED")
+
+  // These are kept to prevent data loss errors on old records
   ON_HOLD
   CANCELLED
-  PENDING_PRINTING
   PRINTING_IN_PROGRESS
-  PRINTING_COMPLETE
   IN_TRANSIT
-  PENDING_MANUFACTURER_CONFIRMATION // <-- NEW STATUS
-  DELIVERED
+  PENDING_MANUFACTURER_CONFIRMATION
 }
 
-// User model for authentication and roles
+enum QRCodeStatus {
+  UNUSED
+  VALIDATED
+  SEALED
+  VERIFIED_ONCE
+  FLAGGED
+  INVALID_STATE
+}
+
+enum ShipmentStatus {
+  PENDING_PICKUP
+  IN_TRANSIT
+  AWAITING_VERIFICATION
+  DELIVERED
+  REJECTED
+}
+
+
+// --- CORE MODELS ---
+
 model User {
   id               Int            @id @default(autoincrement())
   email            String         @unique
@@ -46,51 +75,71 @@ model User {
   companyRegNumber String?        @unique
   role             Role
   isActive         Boolean        @default(false)
-  batches          Batch[]
-  scanRecords      ScanRecord[]
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   approvedBy       Int?
   approvedAt       DateTime?
+
+  batches          Batch[]
+  scanRecords      ScanRecord[]
   skincareBrand    SkincareBrand?
+  manufacturerShipments Shipment[]       @relation("ManufacturerShipments")
+  distributorShipments  Shipment[]       @relation("DistributorShipments")
+  pharmacyShipments     Shipment[]       @relation("PharmacyShipments")
+  dispenseRecords       DispenseRecord[]
+  reports               Report[]
+  communications        Communication[]  @relation("AuthorCommunications")
+  validationRecords     ValidationRecord[]
+  notifications         NotificationLog[]
 }
 
-// Batch model for tracking drug production requests
 model Batch {
-  id                                Int          @id @default(autoincrement())
-  drugName                          String
-  quantity                          Int
-  nafdacNumber                      String
-  expirationDate                    DateTime
-  manufacturerId                    Int
-  status                            BatchStatus  @default(PENDING_DVA_APPROVAL)
-  manufacturer                      User         @relation(fields: [manufacturerId], references: [id])
-  qrCodes                           QRCode[]
-  dva_approved_at                   DateTime?
-  admin_approved_at                 DateTime?
-  print_started_at                  DateTime?
-  print_completed_at                DateTime?
-  picked_up_at                      DateTime?
-  delivered_at                      DateTime?
-  rejection_reason                  String?
-  cancellation_reason               String?
-  pickup_notes                      String?
-  delivery_notes                    String?
-  seal_background_url               String?
-  manufacturer_received_quantity    Int? // <-- NEW FIELD
-  delivery_confirmation_code        String? // <-- NEW FIELD
-  createdAt                         DateTime     @default(now())
-  updatedAt                         DateTime     @updatedAt
+  id                 Int          @id @default(autoincrement())
+  drugName           String
+  quantity           Int
+  nafdacNumber       String
+  expirationDate     DateTime
+  manufacturerId     Int
+  status             BatchStatus  @default(PENDING_DVA_APPROVAL)
+  manufacturer       User         @relation(fields: [manufacturerId], references: [id])
+  qrCodes            QRCode[]
+  dva_approved_at    DateTime?
+  admin_approved_at  DateTime?
+  print_started_at   DateTime? // Re-added to prevent data loss
+  print_completed_at DateTime?
+  picked_up_at       DateTime? // Re-added to prevent data loss
+  delivered_at       DateTime?
+  rejection_reason   String?
+  shipmentItems      ShipmentItem[]
+  validationRecords  ValidationRecord[]
+  delivery_confirmation_code String? @default("") // Re-added to prevent data loss
+  manufacturer_received_quantity Int? // Re-added to prevent data loss
+  seal_background_url String? // Re-added to prevent data loss
+
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 }
 
-// QRCode model - NOW SIMPLER
 model QRCode {
-  id          Int          @id @default(autoincrement())
-  code        String       @unique
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
   batchId     Int
-  batch       Batch        @relation(fields: [batchId], references: [id])
+  status      QRCodeStatus @default(UNUSED)
+  batch       Batch    @relation(fields: [batchId], references: [id])
   scanRecords ScanRecord[]
-  createdAt   DateTime     @default(now())
+  dispenseRecord DispenseRecord?
+  validationRecord ValidationRecord?
+
+  isReinitiated      Boolean  @default(false)
+  reinitiatedBy      Int?
+  reinitiatedAt      DateTime?
+  reinitiationReason String?
+  
+  firstVerificationTimestamp DateTime?
+  firstVerificationIp        String?
+  firstVerificationLocation  String?
+
+  createdAt   DateTime @default(now())
 }
 
 model ScanRecord {
@@ -105,8 +154,91 @@ model ScanRecord {
   city          String?
   region        String?
   country       String?
-  latitude      Float?
-  longitude     Float?
+  latitude      Float? // Re-added to prevent data loss
+  longitude     Float? // Re-added to prevent data loss
+}
+
+model ValidationRecord {
+  id          Int      @id @default(autoincrement())
+  qrCodeId    Int      @unique
+  qrCode      QRCode   @relation(fields: [qrCodeId], references: [id])
+  batchId     Int
+  batch       Batch    @relation(fields: [batchId], references: [id])
+  validatorId Int
+  validator   User     @relation(fields: [validatorId], references: [id])
+  validatedAt DateTime @default(now())
+}
+
+model NotificationLog {
+  id           Int      @id @default(autoincrement())
+  targetUserId Int
+  targetUser   User     @relation(fields: [targetUserId], references: [id])
+  message      String
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model Shipment {
+  id                Int             @id @default(autoincrement())
+  manufacturerId    Int
+  distributorId     Int
+  pharmacyId        Int
+  
+  manufacturer      User            @relation("ManufacturerShipments", fields: [manufacturerId], references: [id])
+  distributor       User            @relation("DistributorShipments", fields: [distributorId], references: [id])
+  pharmacy          User            @relation("PharmacyShipments", fields: [pharmacyId], references: [id])
+
+  status            ShipmentStatus  @default(PENDING_PICKUP)
+  confirmationCode  String          @unique
+  
+  shipmentItems     ShipmentItem[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model ShipmentItem {
+  id          Int      @id @default(autoincrement())
+  shipmentId  Int
+  batchId     Int
+  quantity    Int
+
+  shipment    Shipment @relation(fields: [shipmentId], references: [id])
+  batch       Batch    @relation(fields: [batchId], references: [id])
+
+  @@unique([shipmentId, batchId])
+}
+
+model DispenseRecord {
+  id          Int      @id @default(autoincrement())
+  qrCodeId    Int      @unique
+  pharmacyId  Int
+
+  qrCode      QRCode   @relation(fields: [qrCodeId], references: [id])
+  pharmacy    User     @relation(fields: [pharmacyId], references: [id])
+
+  dispensedAt DateTime @default(now())
+}
+
+model Report {
+  id          Int      @id @default(autoincrement())
+  pharmacyId  Int
+  pharmacy    User     @relation(fields: [pharmacyId], references: [id])
+  
+  message     String
+  imageUrl    String?
+  isResolved  Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+}
+
+model Communication {
+  id        Int      @id @default(autoincrement())
+  title     String
+  body      String
+  authorId  Int
+  author    User     @relation("AuthorCommunications", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
 }
 
 model SystemSetting {
