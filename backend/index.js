@@ -1333,7 +1333,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { email, password, role, companyName, companyRegNumber, fullName }.body;
+    const { email, password, role, companyName, companyRegNumber, fullName } = req.body;
 
     if (!email || !password || !role) {
       return res.status(400).json({ error: 'Email, password, and role are required.' });
