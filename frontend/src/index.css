@@ -167,3 +167,54 @@ html {
 .no-wrap {
   white-space: nowrap;
 }
+/* ===== PASTE THIS ENTIRE BLOCK AT THE END OF YOUR index.css FILE ===== */
+
+/* ===== Animated Title ===== */
+.animated-title-text {
+  /* Responsive font size: scales from 2rem up to 5rem based on viewport width */
+  font-size: clamp(2rem, 10vw, 5rem);
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 0 5px rgba(255,255,255,0.3), 0 0 10px rgba(255,255,255,0.2);
+}
+
+.animated-letter {
+  display: inline-block; /* Necessary for transformations and animations */
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+/* Define 3 different font-cycling animations */
+@keyframes font-cycle-1 {
+  0%, 100% { font-family: 'Times New Roman', Times, serif; }
+  33% { font-family: 'Courier New', Courier, monospace; }
+  66% { font-family: 'Georgia', serif; }
+}
+
+@keyframes font-cycle-2 {
+  0%, 100% { font-family: 'Arial', Helvetica, sans-serif; }
+  33% { font-family: 'Verdana', Geneva, sans-serif; }
+  66% { font-family: 'Garamond', serif; }
+}
+
+@keyframes font-cycle-3 {
+  0%, 100% { font-family: 'Cursive', fantasy; }
+  33% { font-family: 'Impact', Haettenschweiler, 'Arial Narrow Bold', sans-serif; }
+  66% { font-family: 'Tahoma', sans-serif; }
+}
+
+/* Assign the animations to classes */
+.animate-font-1 {
+  animation-name: font-cycle-1;
+  animation-duration: 8s;
+}
+
+.animate-font-2 {
+  animation-name: font-cycle-2;
+  animation-duration: 8s;
+}
+
+.animate-font-3 {
+  animation-name: font-cycle-3;
+  animation-duration: 8s;
+}
