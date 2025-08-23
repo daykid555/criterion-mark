@@ -1,38 +1,88 @@
-// frontend/src/pages/LogisticsDashboard.jsx
-import { FiTruck, FiPackage } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
+// frontend/src/pages/LoginPage.jsx
 
-const StatCard = ({ title, value, icon, linkTo }) => (
-  <Link to={linkTo} className="glass-panel p-6 rounded-lg flex items-start justify-between hover:bg-white/10 transition-colors">
-    <div>
-      <p className="text-sm font-medium text-white/70">{title}</p>
-      <p className="text-3xl font-bold text-white">{value}</p>
-    </div>
-    <div className="bg-white/10 p-3 rounded-md">{icon}</div>
-  </Link>
-);
+import React, { useState, useContext } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
+import NodeBackground from '../components/NodeBackground';
+import apiClient from '../api';
 
-function LogisticsDashboard() {
-  return (
-    <div>
-      <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 drop-shadow-lg">Logistics Dashboard</h1>
+function LoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const navigate = useNavigate();
+  const { login } = useContext(AuthContext);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await apiClient.post('/api/auth/login', {
+        email: email.toLowerCase(),
+        password: password,
+      });
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <StatCard title="Batches for Pickup" value="5" icon={<FiPackage size={24} className="text-white/80" />} linkTo="/logistics/active" />
-        <StatCard title="Batches In Transit" value="11" icon={<FiTruck size={24} className="text-white/80" />} linkTo="/logistics/active" />
-      </div>
+      const { token, user } = response.data;
+      
+      login(user, token);
+      
+      // The redirect logic now safely lives here again
+      switch (user.role) {
+        case 'MANUFACTURER': navigate('/manufacturer/dashboard'); break;
+        case 'DVA': navigate('/dva/dashboard'); break;
+        case 'ADMIN': navigate('/admin/dashboard'); break;
+        case 'PRINTING': navigate('/printing/dashboard'); break;
+        case 'LOGISTICS': navigate('/logistics/dashboard'); break;
+        case 'PHARMACY':
+          navigate('/pharmacy/dashboard');
+          break;
+        case 'VALIDATOR':
+          navigate('/validator/dashboard');
+          break;
+        case 'SKINCARE_BRAND': navigate('/skincare/dashboard'); break;
+        default: navigate('/');
+      }
 
-      <div className="glass-panel p-6 rounded-lg mt-8">
-        <h2 className="text-xl font-bold text-white mb-4">Your Active Shipments</h2>
-        <p className="text-white/80 mb-4">
-          View all batches that are ready for pickup or are currently in transit.
-        </p>
-        <Link to="/logistics/active" className="glass-button font-bold py-2 px-5 rounded-lg">
-          View Active Shipments
-        </Link>
+    } catch (err) {
+      const errorMessage = err.response?.data?.error || 'Login failed. Please try again.';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-full relative flex items-center justify-center">
+      <NodeBackground />
+      <div className="relative z-10 w-full max-w-md">
+        <div className="glass-panel p-8 space-y-6">
+          <h2 className="text-3xl font-bold text-center text-white mb-4">Sign In</h2>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-white/80">Email</label>
+              <input type="email" id="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
+            </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-white/80">Password</label>
+              <input type="password" id="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
+            </div>
+            {error && (<div className="p-3 bg-red-500/20 text-red-200 rounded-lg text-sm">{error}</div>)}
+            <div>
+              <button type="submit" disabled={isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button flex items-center justify-center">
+                {isLoading ? 'Signing In...' : 'Sign In'}
+              </button>
+            </div>
+          </form>
+          <div className="text-center text-white/70 text-sm pt-4 border-t border-white/20">
+            <p>Don't have an account? <Link to="/register" className="font-medium text-white hover:underline">Register Here</Link></p>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-
-export default LogisticsDashboard;
+export default LoginPage;
