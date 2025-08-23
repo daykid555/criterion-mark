@@ -5,9 +5,9 @@
 
 /* ===== DYNAMIC BODY BACKGROUNDS ===== */
 
-/* Default Professional Gradient */
+/* Default "Beautifully Red" Gradient */
 body {
-  background: linear-gradient(-45deg, #01041a, #0d112b, #13072e, #1e0a3f);
+  background: linear-gradient(-45deg, #4c0a0a, #7f1d1d, #b91c1c, #f87171);
   background-size: 400% 400%;
   animation: gradientAnimation 15s ease infinite;
 }
