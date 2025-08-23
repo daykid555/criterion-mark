@@ -1,6 +1,6 @@
 // frontend/src/App.jsx
-import { useContext, useEffect } from 'react'; // Import useEffect
-import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'; // Import useLocation
+import { useContext, useEffect } from 'react';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthContext } from './context/AuthContext';
 
 import AppLayout from './components/AppLayout.jsx';
@@ -20,6 +20,9 @@ import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
 import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
 
+// --- IMPORT THE NEW PAGE ---
+import AdminUserManagementPage from './pages/AdminUserManagementPage.jsx';
+
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, isLoading } = useContext(AuthContext);
     
@@ -37,7 +40,6 @@ const ProtectedRoute = ({ children }) => {
 const PublicLayout = () => ( <div className="min-h-screen w-full relative"> <Navbar /> <main><Outlet /></main> </div> );
 
 function App() {
-  // THIS IS THE FIX: Implementing YOUR logic exactly as you described it.
   const location = useLocation();
 
   useEffect(() => {
@@ -47,11 +49,10 @@ function App() {
       document.body.classList.remove('admin-bg');
     }
     
-    // Cleanup to be safe on component unmount
     return () => {
       document.body.classList.remove('admin-bg');
     };
-  }, [location]); // Re-run this logic every time the location changes
+  }, [location]);
 
   return (
     <Routes>
@@ -65,6 +66,8 @@ function App() {
         <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
         <Route path="/dva/dashboard" element={<DvaDashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        {/* --- ADD THE NEW ROUTE HERE --- */}
+        <Route path="/admin/users" element={<AdminUserManagementPage />} />
         <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
         <Route path="/admin/map" element={<AdminMapPage />} />
         <Route path="/printing/dashboard" element={<PrintingDashboard />} />
