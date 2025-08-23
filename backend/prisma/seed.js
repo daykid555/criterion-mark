@@ -1,6 +1,9 @@
 // backend/prisma/seed.js
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv'; // <-- THIS IS THE FIX (LINE 1)
+
+dotenv.config(); // <-- THIS IS THE FIX (LINE 2)
 
 const prisma = new PrismaClient();
 
