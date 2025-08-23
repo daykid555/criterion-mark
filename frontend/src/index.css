@@ -4,7 +4,40 @@
 @tailwind utilities;
 
 /* ===== Base & Background ===== */
+/* ===== DYNAMIC BODY BACKGROUNDS ===== */
 
+/* Default "Samsung-like" Gradient */
+body {
+  /* This is your original animated gradient background from the first file you gave me */
+  background: linear-gradient(-45deg, #0d1117, #161b22, #0d1117, #21262d);
+  background-size: 400% 400%;
+  animation: gradientAnimation 15s ease infinite;
+}
+
+/* Admin Portal "Black and Gold" Gradient Override */
+body.admin-bg {
+  background: linear-gradient(135deg, #000000, #4a4a4a, #b8860b, #daa520);
+  background-size: 400% 400%;
+  animation: adminGradientAnimation 15s ease infinite;
+}
+
+/* Keyframe Animations */
+@keyframes gradientAnimation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes adminGradientAnimation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Ensure html and body take full height */
+html, body, #root {
+  height: 100%;
+}
 /* Animated Gradient Background */
 .bg-gradient-animated {
   background-image: linear-gradient(-45deg, #0d1117, #161b22, #0d1117, #21262d);

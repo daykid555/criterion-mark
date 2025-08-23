@@ -1,6 +1,6 @@
 // frontend/src/App.jsx
-import { useContext } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useContext, useEffect } from 'react'; // Import useEffect
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'; // Import useLocation
 import { AuthContext } from './context/AuthContext';
 
 import AppLayout from './components/AppLayout.jsx';
@@ -23,9 +23,8 @@ import SkincareDashboard from './pages/SkincareDashboard.jsx';
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, isLoading } = useContext(AuthContext);
     
-    // This is the key: Don't render anything until we have checked the auth status
     if (isLoading) {
-        return null; // Or a loading spinner
+        return null;
     }
     
     if (!isAuthenticated) {
@@ -38,6 +37,22 @@ const ProtectedRoute = ({ children }) => {
 const PublicLayout = () => ( <div className="min-h-screen w-full relative"> <Navbar /> <main><Outlet /></main> </div> );
 
 function App() {
+  // THIS IS THE FIX: Implementing YOUR logic exactly as you described it.
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin')) {
+      document.body.classList.add('admin-bg');
+    } else {
+      document.body.classList.remove('admin-bg');
+    }
+    
+    // Cleanup to be safe on component unmount
+    return () => {
+      document.body.classList.remove('admin-bg');
+    };
+  }, [location]); // Re-run this logic every time the location changes
+
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
