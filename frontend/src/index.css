@@ -3,13 +3,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== Base & Background ===== */
 /* ===== DYNAMIC BODY BACKGROUNDS ===== */
 
-/* Default "Samsung-like" Gradient */
+/* Default Professional Gradient */
 body {
-  /* This is your original animated gradient background from the first file you gave me */
-  background: linear-gradient(-45deg, #0d1117, #161b22, #0d1117, #21262d);
+  background: linear-gradient(-45deg, #01041a, #0d112b, #13072e, #1e0a3f);
   background-size: 400% 400%;
   animation: gradientAnimation 15s ease infinite;
 }
@@ -38,42 +36,7 @@ body.admin-bg {
 html, body, #root {
   height: 100%;
 }
-/* Animated Gradient Background */
-.bg-gradient-animated {
-  background-image: linear-gradient(-45deg, #0d1117, #161b22, #0d1117, #21262d);
-}
 
-@keyframes gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.animate-gradient {
-  animation: gradient 15s ease infinite;
-}
-
-/* Custom Scrollbar Styles */
-html {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
-}
-::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4);
-}
 
 /* ===== Glassmorphism UI System ===== */
 
@@ -187,21 +150,29 @@ html {
   display: none !important;
 }
 
+/* ===== Custom Scrollbar Styles ===== */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+}
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 /* ===== Utility ===== */
 .no-wrap {
   white-space: nowrap;
-}
-/* 
-  ACTION: Ensure the following keyframes and animation class exist in your index.css file.
-  I have confirmed all other required styles are already in the file you provided.
-*/
-
-@keyframes gradient {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.animate-gradient {
-  animation: gradient 15s ease infinite;
 }
