@@ -8,7 +8,11 @@ const AppLayout = () => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen w-full bg-[#0d1117] flex">
+    // THIS IS THE DEFINITIVE FIX.
+    // The incorrect `bg-[#0d1117]` has been REMOVED.
+    // The gradient classes are now on the root flex container, making the background visible everywhere.
+    <div className="min-h-screen w-full bg-gradient-animated bg-[length:400%_400%] animate-gradient flex">
+      
       {/* --- Desktop Sidebar (Permanent) --- */}
       <div className="hidden lg:block flex-shrink-0">
         <Sidebar />
@@ -28,7 +32,7 @@ const AppLayout = () => {
       )}
 
       {/* --- Main Content Area --- */}
-      <div className="flex-1 flex flex-col overflow-x-hidden"> {/* Added overflow-x-hidden to prevent horizontal scroll issues from content */}
+      <div className="flex-1 flex flex-col overflow-x-hidden">
         {/* Mobile Header with Hamburger Menu */}
         <header className="lg:hidden p-4 flex items-center flex-shrink-0">
           <button onClick={() => setIsMobileNavOpen(true)} className="p-2 text-white">
@@ -36,8 +40,8 @@ const AppLayout = () => {
           </button>
         </header>
         
-        {/* THIS IS THE FIX: The gradient background is now correctly applied to the main content area that holds the Outlet */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 bg-gradient-animated bg-[length:400%_400%] animate-gradient">
+        {/* The <main> tag is now transparent and simply holds the page content with padding. The gradient from the parent div shows through. */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
       </div>
