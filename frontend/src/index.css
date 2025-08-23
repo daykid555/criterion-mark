@@ -158,3 +158,17 @@ html {
 .no-wrap {
   white-space: nowrap;
 }
+/* 
+  ACTION: Ensure the following keyframes and animation class exist in your index.css file.
+  I have confirmed all other required styles are already in the file you provided.
+*/
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  animation: gradient 15s ease infinite;
+}
