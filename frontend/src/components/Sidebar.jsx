@@ -2,7 +2,10 @@
 import { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck, FiShoppingBag } from 'react-icons/fi';
+import { 
+  FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck, FiShoppingBag, 
+  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle 
+} from 'react-icons/fi';
 
 const Logo = () => (
   <Link to="/" className="flex flex-col items-center pb-6 -space-y-1">
@@ -38,29 +41,42 @@ const SidebarLink = ({ icon, text, to, action }) => {
   );
 };
 
-// --- Navigation Links Configuration ---
+// --- New, Centralized Navigation Links Configuration ---
 const navConfig = {
   ADMIN: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/admin/dashboard' },
-    { icon: <FiUsers size={20} />, text: 'User Management', to: '/admin/users' }, // Placeholder as per design
-    { icon: <FiMap size={20} />, text: 'Map View', to: '/admin/map' },
+    { icon: <FiCheckSquare size={20} />, text: 'Approval Queue', to: '/admin/approval-queue' },
+    { icon: <FiUserPlus size={20} />, text: 'Pending Registrations', to: '/admin/registrations' },
+    { icon: <FiUsers size={20} />, text: 'Manage Users', to: '/admin/users' },
+    { icon: <FiMap size={20} />, text: 'Scan Map', to: '/admin/map' },
+    { icon: <FiClock size={20} />, text: 'Action History', to: '/admin/history' },
+    { icon: <FiSettings size={20} />, text: 'System Settings', to: '/admin/settings' },
   ],
   MANUFACTURER: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/manufacturer/dashboard' },
+    { icon: <FiPlusCircle size={20} />, text: 'Request New Batch', to: '/manufacturer/request-batch' },
+    { icon: <FiPackage size={20} />, text: 'Batch History', to: '/manufacturer/batch-history' },
   ],
   DVA: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/dva/dashboard' },
+    { icon: <FiCheckSquare size={20} />, text: 'Approval Queue', to: '/dva/approval-queue' },
+    { icon: <FiClock size={20} />, text: 'Action History', to: '/dva/history' },
   ],
   PRINTING: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/printing/dashboard' },
+    { icon: <FiPrinter size={20} />, text: 'Active Print Queue', to: '/printing/queue' },
+    { icon: <FiClock size={20} />, text: 'Completed History', to: '/printing/history' },
   ],
   LOGISTICS: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/logistics/dashboard' },
+    { icon: <FiTruck size={20} />, text: 'Active Shipments', to: '/logistics/active' },
+    { icon: <FiClock size={20} />, text: 'Delivery History', to: '/logistics/history' },
   ],
   SKINCARE_BRAND: [
       { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/skincare/dashboard' },
+      { icon: <FiPlusCircle size={20} />, text: 'Add New Product', to: '/skincare/add-product' },
+      { icon: <FiFileText size={20} />, text: 'Product History', to: '/skincare/history' },
   ],
-  // Add other roles here as needed
 };
 
 export default function Sidebar({ closeMobileNav = () => {} }) {

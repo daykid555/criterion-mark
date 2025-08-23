@@ -1,110 +1,40 @@
 // frontend/src/pages/SkincareDashboard.jsx
-import React, { useState, useEffect } from 'react';
-import apiClient from '../api';
+import { FiFileText, FiPlusCircle } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
 
-const AddProductForm = ({ onSuccess }) => {
-  const [productName, setProductName] = useState('');
-  const [ingredients, setIngredients] = useState('');
-  const [skinReactions, setSkinReactions] = useState('');
-  const [nafdacNumber, setNafdacNumber] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-    try {
-      await apiClient.post('/api/skincare/products', { productName, ingredients, skinReactions, nafdacNumber });
-      setProductName(''); setIngredients(''); setSkinReactions(''); setNafdacNumber('');
-      onSuccess(); // Refresh the product list
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to add product.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="text-2xl font-bold text-white">Add New Product</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <input type="text" placeholder="Product Name*" value={productName} onChange={(e) => setProductName(e.target.value)} className="w-full glass-input px-3 py-2" required />
-        <input type="text" placeholder="NAFDAC Number (Optional)" value={nafdacNumber} onChange={(e) => setNafdacNumber(e.target.value)} className="w-full glass-input px-3 py-2" />
+const StatCard = ({ title, value, icon }) => (
+  <div className="glass-panel p-6 rounded-lg">
+    <div className="flex items-start justify-between">
+      <div>
+        <p className="text-sm font-medium text-white/70">{title}</p>
+        <p className="text-3xl font-bold text-white">{value}</p>
       </div>
-      <textarea placeholder="Ingredients (comma separated)*" value={ingredients} onChange={(e) => setIngredients(e.target.value)} className="w-full glass-input px-3 py-2 min-h-[80px]" required />
-      <textarea placeholder="Potential Skin Reactions (Optional)" value={skinReactions} onChange={(e) => setSkinReactions(e.target.value)} className="w-full glass-input px-3 py-2 min-h-[80px]" />
-      {error && <p className="text-red-400 text-xs text-center">{error}</p>}
-      <button type="submit" disabled={isLoading} className="w-full md:w-auto glass-button py-2 px-6 rounded-lg font-bold">
-        {isLoading ? 'Adding...' : 'Add Product'}
-      </button>
-    </form>
-  );
-};
-
-const ProductHistoryTable = ({ products }) => (
-  <div className="overflow-x-auto">
-    <table className="w-full text-left text-white min-w-[600px]">
-      <thead className="border-b border-white/20 text-sm text-white/70">
-        <tr>
-          <th className="p-4">Product Name</th>
-          <th className="p-4">Unique Code</th>
-          <th className="p-4">NAFDAC No.</th>
-          <th className="p-4">Date Added</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-white/10">
-        {products.map(product => (
-          <tr key={product.id}>
-            <td className="p-4 font-semibold">{product.productName}</td>
-            <td className="p-4 font-mono text-cyan-300">{product.uniqueCode}</td>
-            <td className="p-4">{product.nafdacNumber || 'N/A'}</td>
-            <td className="p-4 text-white/70">{new Date(product.createdAt).toLocaleDateString()}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+      <div className="bg-white/10 p-3 rounded-md">{icon}</div>
+    </div>
   </div>
 );
 
 function SkincareDashboard() {
-  const [activeTab, setActiveTab] = useState('add');
-  const [products, setProducts] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  
-  const fetchProducts = async () => {
-    setIsLoading(true);
-    try {
-      const response = await apiClient.get('/api/skincare/products');
-      setProducts(response.data);
-    } catch (err) {
-      setError('Failed to load your products.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchProducts(); }, []);
-
   return (
     <div>
-      <h1 className="text-3xl sm:text-4xl font-bold text-white mb-4">Skincare Brand Dashboard</h1>
-      <div className="flex border-b border-white/20 mb-8">
-        <button onClick={() => setActiveTab('add')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'add' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Add Product</button>
-        <button onClick={() => setActiveTab('history')} className={`py-2 px-4 text-lg font-medium ${activeTab === 'history' ? 'text-white border-b-2 border-white' : 'text-white/60'}`}>Product History</button>
+      <div className="flex flex-col sm:flex-row justify-between items-start mb-8">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg">Skincare Brand Dashboard</h1>
+        <Link to="/skincare/add-product" className="glass-button font-bold py-2 px-5 rounded-lg mt-4 sm:mt-0">
+          Add New Product
+        </Link>
       </div>
-      
-      {activeTab === 'add' && <div className="glass-panel p-6 sm:p-8 mb-8"><AddProductForm onSuccess={fetchProducts} /></div>}
-      
-      {activeTab === 'history' && (
-        <div className="glass-panel p-1 sm:p-2">
-          <h2 className="text-2xl font-bold text-white p-4">Your Products</h2>
-          {isLoading && <p className="text-center py-10 text-white/70">Loading...</p>}
-          {error && <p className="text-center py-10 text-red-400">{error}</p>}
-          {!isLoading && !error && (products.length === 0 ? <p className="text-center py-10 text-white/70">No products added yet.</p> : <ProductHistoryTable products={products} />)}
-        </div>
-      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <StatCard title="Total Products Registered" value="18" icon={<FiFileText size={24} className="text-white/80" />} />
+        <StatCard title="Products Added This Month" value="4" icon={<FiPlusCircle size={24} className="text-white/80" />} />
+      </div>
+
+       <div className="glass-panel p-6 rounded-lg mt-8">
+        <h2 className="text-xl font-bold text-white mb-4">Welcome</h2>
+        <p className="text-white/80">
+          Manage your product portfolio by adding new products or viewing your complete product history via the sidebar navigation.
+        </p>
+      </div>
     </div>
   );
 }
