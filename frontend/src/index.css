@@ -7,14 +7,14 @@
 
 /* Default "Beautifully Red" Gradient */
 body {
-  background: linear-gradient(-45deg, #4c0a0a, #7f1d1d, #b91c1c, #f87171);
+  background: linear-gradient(-45deg, #6e0e0a, #9b2c2c, #c53030, #f56565);
   background-size: 400% 400%;
   animation: gradientAnimation 15s ease infinite;
 }
 
-/* Admin Portal "Black and Gold" Gradient Override */
+/* Admin Portal "Regal Red" Gradient Override */
 body.admin-bg {
-  background: linear-gradient(135deg, #000000, #4a4a4a, #b8860b, #daa520);
+  background: linear-gradient(135deg, #420606, #5c0c0c, #9b2c2c, #7f1d1d);
   background-size: 400% 400%;
   animation: adminGradientAnimation 15s ease infinite;
 }
@@ -37,12 +37,17 @@ html, body, #root {
   height: 100%;
 }
 
+/* ===== FIX FOR DROPDOWN TEXT VISIBILITY ===== */
+select option {
+  color: black;
+}
+
 
 /* ===== Glassmorphism UI System ===== */
 
 /* Main Panel Style */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.15); 
+  background: rgba(255, 255, 255, 0.1); 
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
   border-radius: 1rem;
@@ -53,16 +58,16 @@ html, body, #root {
 /* Input Field with "Shiny Dust" Animation */
 .glass-input {
   position: relative;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 0.5rem;
   color: white; 
   transition: background 0.3s ease, border-color 0.3s ease;
   overflow: hidden;
 }
 .glass-input:focus {
-  background: rgba(255, 255, 255, 0.3);
-  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.6);
   outline: none;
 }
 .glass-input::placeholder {
@@ -92,20 +97,20 @@ html, body, #root {
 .glass-button, .glass-button-sm {
   position: relative;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: white; 
   font-weight: 600;
   transition: background 0.3s ease;
   backdrop-filter: blur(5px);
 }
 .glass-button:hover, .glass-button-sm:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.25);
 }
 .glass-button::before, .glass-button-sm::before {
   content: '';
   position: absolute; top: 0; left: -200%; width: 150%; height: 100%;
-  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.8) 50%, transparent 80%);
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.6) 50%, transparent 80%);
   transform: skewX(-30deg);
   transition: left 1s ease-in-out;
 }
