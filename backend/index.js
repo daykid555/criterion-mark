@@ -1193,6 +1193,7 @@ app.get('/api/skincare/verify/:code', async (req, res) => {
         res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
     }
 });
+// backend/index.js - PART 5 of 5
 
 // --- PUBLIC VERIFICATION ROUTE ---
 app.get('/api/verify/:code', async (req, res) => {
@@ -1291,7 +1292,7 @@ app.get('/api/verify/:code', async (req, res) => {
       data: finalQrCodeDetails,
     });
 
-  } catch (error) {
+  } catch (error) { // THIS IS THE CORRECTED SYNTAX
     console.error('Error verifying code:', error);
     res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
   }
@@ -1423,5 +1424,3 @@ app.post('/api/auth/register', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
-
-/
