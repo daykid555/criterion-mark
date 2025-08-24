@@ -1,5 +1,4 @@
-// backend/index.js
-// actually complete code
+// backend/index.js -
 
 import express from 'express';
 import cors from 'cors';
@@ -133,6 +132,7 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
         res.status(500).json({ error: 'Failed to confirm receipt.' });
     }
 });
+
 
 // --- DVA ROUTES ---
 app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
@@ -771,7 +771,7 @@ app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']),
       include: {
         manufacturer: { select: { companyName: true } },
       },
-      // FIX: Changed orderBy to use a reliable, non-empty field (id) to prevent crashes
+      // CORRECTED: Sort by a reliable field to prevent crashes.
       orderBy: { id: 'desc' },
     });
     res.status(200).json(completedBatches);
@@ -936,7 +936,7 @@ app.get('/api/logistics/in-transit', authenticateToken, authorizeRole(['LOGISTIC
 app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
-        // FIX: Removed the non-existent 'pickup_notes' field to prevent crash
+        // CORRECTED: Removed the non-existent 'pickup_notes' field.
         const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
         if (!batch) return res.status(404).json({ error: 'Batch not found.' });
         if (batch.status !== 'PRINTING_COMPLETE') {
@@ -1009,7 +1009,7 @@ app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']
     const deliveredBatches = await prisma.batch.findMany({
       where: { status: 'DELIVERED' },
       include: { manufacturer: { select: { companyName: true } } },
-      // FIX: Changed orderBy to use a reliable, non-empty field (id) to prevent crashes
+      // CORRECTED: Sort by a reliable field to prevent crashes.
       orderBy: { id: 'desc' },
     });
     res.status(200).json(deliveredBatches);
@@ -1291,8 +1291,7 @@ app.get('/api/verify/:code', async (req, res) => {
       data: finalQrCodeDetails,
     });
 
-  } catch (error)
-{
+  } catch (error) {
     console.error('Error verifying code:', error);
     res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
   }
@@ -1319,7 +1318,7 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(403).json({ error: 'Your account has not been approved by an administrator yet.' });
     }
 
-    const payload = { userId: user.id, role: user.role };
+    const payload = { userId: user.id, role: user.role, email: user.email };
     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
     
     res.status(200).json({
@@ -1424,3 +1423,5 @@ app.post('/api/auth/register', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+/
