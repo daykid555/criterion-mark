@@ -31,34 +31,35 @@ import SystemSettingsPage from './pages/SystemSettingsPage.jsx';
 import AdminMapPage from './pages/AdminMapPage.jsx';
 import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
 
-// Other Pages
+// --- IMPORTING ALL OTHER PORTAL PAGES ---
+import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
+import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
+import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
+import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
+import SkincareAddProductPage from './pages/SkincareAddProductPage.jsx';
+import SkincareHistoryPage from './pages/SkincareHistoryPage.jsx';
+import PrintingQueuePage from './pages/PrintingQueuePage.jsx';
+import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
 import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
+import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
+import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
 
-// This is a new, simplified Public Layout wrapper
-const PublicLayout = () => (
-  <>
-    <Navbar />
-    <main>
-      <Outlet />
-    </main>
-  </>
-);
+
+// --- ROUTING LOGIC ---
+const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
 
 function App() {
   const { user, isAuthenticated, isLoading } = useContext(AuthContext);
   const location = useLocation();
 
   useEffect(() => {
-    // This logic MUST remain to handle the admin background theme
     document.body.classList.toggle('admin-bg', isAuthenticated && location.pathname.startsWith('/admin'));
   }, [location, isAuthenticated]);
 
-  // While the auth context is loading, render nothing to prevent flashes of incorrect content
   if (isLoading) {
     return null; 
   }
 
-  // Helper to redirect logged-in users away from the login page
   const getDashboardPath = (role) => {
     const paths = {
       ADMIN: '/admin/dashboard',
@@ -75,7 +76,6 @@ function App() {
     <Routes>
       {isAuthenticated ? (
         // --- ALL PROTECTED ROUTES ---
-        // If the user is authenticated, these are the only possible routes.
         <Route path="/" element={<AppLayout />}>
           {/* Dashboards */}
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -94,15 +94,34 @@ function App() {
           <Route path="/admin/map" element={<AdminMapPage />} />
           <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
 
-          {/* Other Routes */}
+          {/* --- ADDING ALL THE MISSING ROUTES FOR OTHER PORTALS --- */}
+
+          {/* Manufacturer Routes */}
+          <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
+          <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
+
+          {/* DVA Routes */}
+          <Route path="/dva/approval-queue" element={<DvaApprovalQueuePage />} />
+          <Route path="/dva/history" element={<DvaHistoryPage />} />
+          
+          {/* Skincare Routes */}
+          <Route path="/skincare/add-product" element={<SkincareAddProductPage />} />
+          <Route path="/skincare/history" element={<SkincareHistoryPage />} />
+
+          {/* Printing Routes */}
+          <Route path="/printing/queue" element={<PrintingQueuePage />} />
+          <Route path="/printing/history" element={<PrintingHistoryPage />} />
           <Route path="/printing/batch/:id" element={<PrintingBatchPage />} />
+
+          {/* Logistics Routes */}
+          <Route path="/logistics/active" element={<LogisticsActiveShipmentsPage />} />
+          <Route path="/logistics/history" element={<LogisticsHistoryPage />} />
           
           {/* Redirect any other path to the user's correct dashboard */}
           <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
         </Route>
       ) : (
         // --- ALL PUBLIC ROUTES ---
-        // If the user is NOT authenticated, these are the only possible routes.
         <>
           <Route path="/" element={<HomePage />} />
           <Route element={<PublicLayout />}>
@@ -110,7 +129,6 @@ function App() {
             <Route path="/register" element={<RegistrationPage />} />
             <Route path="/verify" element={<VerificationPage />} />
           </Route>
-          {/* Any other path redirects to the login page */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </>
       )}
