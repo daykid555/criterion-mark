@@ -1194,101 +1194,114 @@ app.get('/api/skincare/verify/:code', async (req, res) => {
 });
 
 // --- PUBLIC VERIFICATION ROUTE ---
+// --- PUBLIC VERIFICATION ROUTE ---
 app.get('/api/verify/:code', async (req, res) => {
-  try {
-    const { code } = req.params;
+    try {
+        const { code } = req.params;
 
-    const qrCode = await prisma.qRCode.findUnique({
-      where: { code: code },
-      include: {
-        batch: {
-          include: {
-            manufacturer: { select: { companyName: true } },
-          },
-        },
-        scanRecords: {
-          orderBy: { scannedAt: 'asc' },
-          include: { scanner: { select: { companyName: true, role: true } } }
+        const qrCode = await prisma.qRCode.findUnique({
+            where: { code: code },
+            include: {
+                batch: {
+                    include: {
+                        manufacturer: { select: { companyName: true } },
+                    },
+                },
+            },
+        });
+
+        if (!qrCode) {
+            return res.status(404).json({
+                status: 'error',
+                message: 'This code is invalid. The product is likely counterfeit.',
+            });
         }
-      },
-    });
 
-    if (!qrCode) {
-      return res.status(404).json({
-        status: 'error',
-        message: 'This code is invalid. The product is likely counterfeit.',
-      });
-    }
+        // --- CRITICAL LOGIC: CHECK QR CODE STATUS ---
+        // If the code has already been marked as 'USED' by a customer, reject the scan.
+        if (qrCode.status === 'USED') {
+            const firstScan = await prisma.scanRecord.findFirst({
+                where: { qrCodeId: qrCode.id, scannedByRole: 'CUSTOMER' },
+                orderBy: { scannedAt: 'asc' },
+            });
 
-    const ip = req.ip;
-    let locationData = {
-      ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
-    };
-
-    const useLocation = req.headers['x-use-location'] === 'true';
-
-    if (useLocation && process.env.IPINFO_API_KEY) {
-        try {
-            const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
-            const { city, region, country, loc } = geoResponse.data;
-            
-            locationData.city = city;
-            locationData.region = region;
-            locationData.country = country;
-
-            if (loc) {
-                const [lat, lon] = loc.split(',');
-                locationData.latitude = parseFloat(lat);
-                locationData.longitude = parseFloat(lon);
-            }
-        } catch (geoError) {
-            console.error('IPinfo lookup failed:', geoError.message);
+            return res.status(409).json({ // HTTP 409 Conflict is the correct code for this state
+                status: 'error',
+                message: 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.',
+                firstScanDetails: {
+                        scannedAt: firstScan?.scannedAt,
+                        location: firstScan ? `${firstScan.city || 'Unknown City'}, ${firstScan.country || 'Unknown Country'}` : 'Not available'
+                },
+                data: qrCode,
+            });
         }
-    }
+
+        // --- If the code is UNUSED, proceed with the first-time verification ---
+        const ip = req.ip;
+        let locationData = {
+            ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
+        };
+
+        const useLocation = req.headers['x-use-location'] === 'true';
+
+        if (useLocation && process.env.IPINFO_API_KEY) {
+                try {
+                        const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
+                        const { city, region, country, loc } = geoResponse.data;
+                        locationData.city = city;
+                        locationData.region = region;
+                        locationData.country = country;
+                        if (loc) {
+                                const [lat, lon] = loc.split(',');
+                                locationData.latitude = parseFloat(lat);
+                                locationData.longitude = parseFloat(lon);
+                        }
+                } catch (geoError) {
+                        console.error('IPinfo lookup failed:', geoError.message);
+                }
+        }
     
-    // Log the new scan BEFORE fetching the full history for the response
-    await prisma.scanRecord.create({
-      data: {
-        qrCodeId: qrCode.id,
-        scannedByRole: 'CUSTOMER',
-        ipAddress: locationData.ipAddress,
-        city: locationData.city,
-        region: locationData.region,
-        country: locationData.country,
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-      },
-    });
+        // --- ATOMIC TRANSACTION: Log the scan AND update the QR status ---
+        // This ensures both operations succeed or neither do.
+        const [scanLog, updatedQrCode] = await prisma.$transaction([
+            prisma.scanRecord.create({
+                data: {
+                    qrCodeId: qrCode.id,
+                    scannedByRole: 'CUSTOMER',
+                    ipAddress: locationData.ipAddress,
+                    city: locationData.city,
+                    region: locationData.region,
+                    country: locationData.country,
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                },
+            }),
+            prisma.qRCode.update({
+                where: { id: qrCode.id },
+                data: { status: 'USED' }, // Mark the code as USED to prevent re-verification
+            })
+        ]);
     
-    // Now, get the fresh, complete list of scan records including the one we just added
-    const updatedQrCodeDetails = await prisma.qRCode.findUnique({
-      where: { id: qrCode.id },
-      include: {
-        batch: { include: { manufacturer: { select: { companyName: true } } } },
-        scanRecords: {
-          orderBy: { scannedAt: 'asc' },
-        }
-      },
-    });
+        // Get the fresh, complete details for the successful response
+        const finalQrCodeDetails = await prisma.qRCode.findUnique({
+            where: { id: qrCode.id },
+            include: {
+                batch: { include: { manufacturer: { select: { companyName: true } } } },
+                scanRecords: { orderBy: { scannedAt: 'asc' } }
+            },
+        });
 
-    const responsePayload = {
-      status: 'success',
-      message: 'Product Verified Successfully!',
-      data: updatedQrCodeDetails,
-    };
+        res.status(200).json({
+            status: 'success',
+            message: 'Product Verified Successfully! This is the first verification.',
+            data: finalQrCodeDetails,
+        });
 
-    // --- MODIFIED LOGIC FOR MULTI-SCAN WARNING ---
-    if (updatedQrCodeDetails.scanRecords && updatedQrCodeDetails.scanRecords.length > 5) {
-        responsePayload.warning = 'This genuine product has been scanned multiple times. If you are not the first-time buyer at a pharmacy, please exercise caution.';
+    } catch (error)
+{
+        console.error('Error verifying code:', error);
+        res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
     }
-    // --- END OF MODIFICATION ---
-
-    res.status(200).json(responsePayload);
-
-  } catch (error) {
-    console.error('Error verifying code:', error);
-    res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
-  }
 });
 
 // --- AUTHENTICATION ROUTES ---
