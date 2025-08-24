@@ -1,35 +1,30 @@
 // frontend/src/pages/PrintingDashboard.jsx
-import { FiPrinter, FiCheckCircle } from 'react-icons/fi';
-import { Link } from 'react-router-dom';
-
-const StatCard = ({ title, value, icon, linkTo }) => (
-  <Link to={linkTo} className="glass-panel p-6 rounded-lg flex items-start justify-between hover:bg-white/10 transition-colors">
-    <div>
-      <p className="text-sm font-medium text-white/70">{title}</p>
-      <p className="text-3xl font-bold text-white">{value}</p>
-    </div>
-    <div className="bg-white/10 p-3 rounded-md">{icon}</div>
-  </Link>
-);
+import React, { useContext } from 'react';
+import { AuthContext } from '../context/AuthContext';
 
 function PrintingDashboard() {
-  return (
-    <div>
-      <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 drop-shadow-lg">Printing Dashboard</h1>
+  const { user } = useContext(AuthContext);
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <StatCard title="Batches in Print Queue" value="7" icon={<FiPrinter size={24} className="text-white/80" />} linkTo="/printing/queue" />
-        <StatCard title="Jobs Completed Today" value="14" icon={<FiCheckCircle size={24} className="text-white/80" />} linkTo="/printing/history" />
-      </div>
+  // Use the printing company's name from the auth context.
+  const companyName = user?.companyName || 'Printing Portal';
+
+  return (
+    // Flex container to center the content panel vertically and horizontally
+    <div className="flex items-center justify-center h-full p-4">
       
-      <div className="glass-panel p-6 rounded-lg mt-8">
-        <h2 className="text-xl font-bold text-white mb-4">Get Started</h2>
-        <p className="text-white/80 mb-4">
-          View all active jobs assigned to you in the print queue.
+      {/* The content panel with a maximum width for better layout control */}
+      <div className="glass-panel w-full max-w-4xl p-8 sm:p-12 text-center">
+        
+        {/* Simple, non-animated title displaying the user's company name */}
+        <h1 className="text-4xl sm:text-5xl font-bold text-white drop-shadow-lg">
+          {companyName}
+        </h1>
+
+        {/* Informational text for the upcoming chat feature */}
+        <p className="text-white/70 mt-6 max-w-md mx-auto">
+          Welcome. This space will host the secure communication channel for printing operations. Chat functionality is pending implementation.
         </p>
-        <Link to="/printing/queue" className="glass-button font-bold py-2 px-5 rounded-lg">
-          View Active Queue
-        </Link>
+
       </div>
     </div>
   );
