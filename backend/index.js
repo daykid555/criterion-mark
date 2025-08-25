@@ -980,13 +980,17 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
         if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
             return res.status(400).json({ error: 'This batch is not awaiting finalization.' });
         }
-        
+
         if (!batch.delivery_confirmation_code) {
             console.error(`Attempt to finalize Batch #${batchId} failed because no code was generated for it.`);
             return res.status(500).json({ error: 'Server error: Cannot find a confirmation code for this batch.' });
         }
-        
-        if (String(batch.delivery_confirmation_code).trim() !== String(confirmation_code).trim()) {
+
+        // Robust comparison and debug logging
+        const dbCode = String(batch.delivery_confirmation_code).trim();
+        const inputCode = String(confirmation_code).trim();
+        if (dbCode !== inputCode) {
+            console.error(`Confirmation code mismatch for Batch #${batchId}: expected '${dbCode}', got '${inputCode}'`);
             return res.status(400).json({ error: 'Invalid confirmation code.' });
         }
 
@@ -997,7 +1001,7 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
                 delivered_at: new Date() 
             },
         });
-        
+
         res.status(200).json(updatedBatch);
 
     } catch (error) {
