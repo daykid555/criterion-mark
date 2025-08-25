@@ -1,5 +1,4 @@
-// backend/index.js - RESTORED TO CORRECT LOGIC
-
+// backend/index.js - DEFINITIVE FIX
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -92,9 +91,6 @@ app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACT
         res.status(500).json({ error: 'Failed to fetch batches.' });
     }
 });
-
-// --- THIS IS THE CORRECTED LOGIC, AS PER YOUR REQUIREMENT ---
-// This route is called by the MANUFACTURER. It generates the code.
 app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -110,12 +106,10 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
             return res.status(404).json({ error: 'Batch not found or you do not have permission.' });
         }
         
-        // This check is now correct based on your workflow.
         if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
             return res.status(400).json({ error: `Batch status is '${batch.status}', not awaiting confirmation.` });
         }
 
-        // Generate the code as you originally intended.
         const confirmationCode = generateSixDigitCode();
         
         await prisma.batch.update({
@@ -126,7 +120,6 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
             }
         });
 
-        // Return the code to the MANUFACTURER's frontend.
         res.status(200).json({
             message: 'Receipt confirmed successfully. Please provide the code to the delivery personnel.',
             confirmationCode: confirmationCode
@@ -173,7 +166,7 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']
             data: {
                 status: 'PENDING_ADMIN_APPROVAL',
                 dva_approved_at: new Date(),
-                rejection_reason: null, // Clear any previous rejection reason
+                rejection_reason: null, 
             },
         });
         res.status(200).json(updatedBatch);
@@ -182,7 +175,6 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']
         res.status(500).json({ error: 'Failed to approve batch.' });
     }
 });
-
 app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -199,7 +191,7 @@ app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole(['DVA'])
             data: {
                 status: 'DVA_REJECTED',
                 rejection_reason: reason,
-                dva_approved_at: new Date(), // Still record the time of action
+                dva_approved_at: new Date(), 
             },
         });
         res.status(200).json(updatedBatch);
@@ -208,7 +200,6 @@ app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole(['DVA'])
         res.status(500).json({ error: 'Failed to reject batch.' });
     }
 });
-
 app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
     try {
         const processedBatches = await prisma.batch.findMany({
@@ -293,7 +284,6 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole(['ADM
         res.status(500).json({ error: 'Failed to approve batch and generate codes.' });
     }
 });
-
 app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -698,7 +688,6 @@ app.post('/api/admin/system-reset', authenticateToken, authorizeRole(['ADMIN']),
 });
 
 // --- PRINTING PORTAL ROUTES ---
-
 app.get('/api/printing/pending', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
   try {
     const pendingBatches = await prisma.batch.findMany({
@@ -716,7 +705,6 @@ app.get('/api/printing/pending', authenticateToken, authorizeRole(['PRINTING']),
     res.status(500).json({ error: 'Failed to fetch batches.' });
   }
 });
-
 app.get('/api/printing/in-progress', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const inProgressBatches = await prisma.batch.findMany({
@@ -730,7 +718,6 @@ app.get('/api/printing/in-progress', authenticateToken, authorizeRole(['PRINTING
         res.status(500).json({ error: 'Failed to fetch in-progress batches.' });
     }
 });
-
 app.put('/api/printing/batches/:id/start', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -747,7 +734,6 @@ app.put('/api/printing/batches/:id/start', authenticateToken, authorizeRole(['PR
         res.status(500).json({ error: 'Failed to update batch status.' });
     }
 });
-
 app.put('/api/printing/batches/:id/complete', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -764,7 +750,6 @@ app.put('/api/printing/batches/:id/complete', authenticateToken, authorizeRole([
         res.status(500).json({ error: 'Failed to update batch status.' });
     }
 });
-
 app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
   try {
     const completedBatches = await prisma.batch.findMany({
@@ -784,7 +769,6 @@ app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']),
     res.status(500).json({ error: 'Failed to fetch history.' });
   }
 });
-
 app.get('/api/printing/batches/:id', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -812,7 +796,6 @@ app.get('/api/printing/batches/:id', authenticateToken, authorizeRole(['PRINTING
         res.status(500).json({ error: 'Failed to fetch batch details.' });
     }
 });
-
 app.get('/api/printing/seal/:code', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { code } = req.params;
@@ -856,7 +839,6 @@ app.get('/api/printing/seal/:code', authenticateToken, authorizeRole(['PRINTING'
         res.status(500).json({ error: 'Failed to generate seal image.' });
     }
 });
-
 app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole(['PRINTING']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -900,7 +882,6 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole(['PRINT
 });
 
 // --- LOGISTICS PORTAL ROUTES ---
-
 app.get('/api/logistics/pending-pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
   try {
     const readyBatches = await prisma.batch.findMany({
@@ -918,7 +899,6 @@ app.get('/api/logistics/pending-pickup', authenticateToken, authorizeRole(['LOGI
     res.status(500).json({ error: 'Failed to fetch batches.' });
   }
 });
-
 app.get('/api/logistics/in-transit', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const inTransitBatches = await prisma.batch.findMany({
@@ -936,7 +916,6 @@ app.get('/api/logistics/in-transit', authenticateToken, authorizeRole(['LOGISTIC
         res.status(500).json({ error: 'Failed to fetch in-transit batches.' });
     }
 });
-
 app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -955,9 +934,6 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
         res.status(500).json({ error: 'Failed to update batch.' });
     }
 });
-
-// --- THIS IS THE CORRECTED LOGIC ---
-// This route now ONLY changes the status. It does NOT generate a code.
 app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -981,34 +957,52 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
     }
 });
 
+// --- THIS IS THE CORRECTED AND ROBUST FINALIZE ROUTE ---
 app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
         const { confirmation_code } = req.body;
 
-        if (!confirmation_code) {
-            return res.status(400).json({ error: 'Confirmation code is required.' });
+        if (!confirmation_code || typeof confirmation_code !== 'string' || confirmation_code.length !== 6) {
+            return res.status(400).json({ error: 'A valid 6-digit confirmation code is required.' });
         }
 
-        const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
-        if (!batch) return res.status(404).json({ error: 'Batch not found.' });
+        const batchId = parseInt(id, 10);
+        if (isNaN(batchId)) {
+            return res.status(400).json({ error: 'Invalid Batch ID.' });
+        }
+
+        const batch = await prisma.batch.findUnique({ where: { id: batchId } });
+        if (!batch) {
+            return res.status(404).json({ error: 'Batch not found.' });
+        }
 
         if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
-            return res.status(400).json({ error: 'Batch is not awaiting finalization.' });
+            return res.status(400).json({ error: 'This batch is not awaiting finalization.' });
         }
         
-        if (batch.delivery_confirmation_code !== confirmation_code) {
+        if (!batch.delivery_confirmation_code) {
+            console.error(`Attempt to finalize Batch #${batchId} failed because no code was generated for it.`);
+            return res.status(500).json({ error: 'Server error: Cannot find a confirmation code for this batch.' });
+        }
+        
+        if (String(batch.delivery_confirmation_code).trim() !== String(confirmation_code).trim()) {
             return res.status(400).json({ error: 'Invalid confirmation code.' });
         }
 
         const updatedBatch = await prisma.batch.update({
-            where: { id: parseInt(id, 10) },
-            data: { status: 'DELIVERED', delivered_at: new Date() },
+            where: { id: batchId },
+            data: { 
+                status: 'DELIVERED', 
+                delivered_at: new Date() 
+            },
         });
+        
         res.status(200).json(updatedBatch);
+
     } catch (error) {
-        console.error('Error finalizing delivery:', error);
-        res.status(500).json({ error: 'Failed to finalize delivery.' });
+        console.error(`CRITICAL: Error finalizing delivery for Batch ID #${req.params.id}:`, error);
+        res.status(500).json({ error: 'Failed to finalize delivery due to a server error.' });
     }
 });
 
@@ -1026,7 +1020,6 @@ app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']
 });
 
 // --- VALIDATOR ROUTES ---
-
 app.get('/api/validator/pending-batches', authenticateToken, authorizeRole(['VALIDATOR']), async (req, res) => {
     try {
         const pendingBatches = await prisma.batch.findMany({
@@ -1044,7 +1037,6 @@ app.get('/api/validator/pending-batches', authenticateToken, authorizeRole(['VAL
         res.status(500).json({ error: 'Failed to fetch batches.' });
     }
 });
-
 app.post('/api/validator/scan', authenticateToken, authorizeRole(['VALIDATOR']), async (req, res) => {
     const { qrCode, batchId } = req.body;
     const validatorId = req.user.userId;
@@ -1058,7 +1050,6 @@ app.post('/api/validator/scan', authenticateToken, authorizeRole(['VALIDATOR']),
             where: { code: qrCode },
         });
 
-        // --- Validation Checks ---
         if (!codeRecord) {
             return res.status(404).json({ status: 'error', message: `Code ${qrCode} not found in database.` });
         }
@@ -1069,7 +1060,6 @@ app.post('/api/validator/scan', authenticateToken, authorizeRole(['VALIDATOR']),
             return res.status(409).json({ status: 'error', message: `Code ${qrCode} has already been scanned (Status: ${codeRecord.status}).` });
         }
 
-        // --- Success Path ---
         const [updatedCode, validationRecord] = await prisma.$transaction([
             prisma.qRCode.update({
                 where: { id: codeRecord.id },
@@ -1093,7 +1083,6 @@ app.post('/api/validator/scan', authenticateToken, authorizeRole(['VALIDATOR']),
 });
 
 // --- SKINCARE BRAND PORTAL ROUTES ---
-
 const getSkincareBrand = async (req, res, next) => {
     const userId = req.user.userId;
     
@@ -1115,7 +1104,6 @@ const getSkincareBrand = async (req, res, next) => {
     req.brand = skincareBrand;
     next();
 };
-
 app.get('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_BRAND']), getSkincareBrand, async (req, res) => {
     try {
         const products = await prisma.skincareProduct.findMany({
@@ -1127,7 +1115,6 @@ app.get('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_BR
         res.status(500).json({ error: 'Failed to fetch skincare products.' });
     }
 });
-
 app.post('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_BRAND']), getSkincareBrand, async (req, res) => {
     try {
         const { productName, ingredients, skinReactions, nafdacNumber } = req.body;
@@ -1154,7 +1141,6 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_B
 });
 
 // --- PUBLIC SKINCARE VERIFICATION ROUTE ---
-
 app.get('/api/skincare/verify/:code', async (req, res) => {
     try {
         const { code } = req.params;
@@ -1200,7 +1186,6 @@ app.get('/api/skincare/verify/:code', async (req, res) => {
         res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
     }
 });
-// backend/index.js - PART 5 of 5
 
 // --- PUBLIC VERIFICATION ROUTE ---
 app.get('/api/verify/:code', async (req, res) => {
@@ -1306,7 +1291,6 @@ app.get('/api/verify/:code', async (req, res) => {
 });
 
 // --- AUTHENTICATION ROUTES ---
-
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -1344,7 +1328,6 @@ app.post('/api/auth/login', async (req, res) => {
     res.status(500).json({ error: 'An internal server error occurred.' });
   }
 });
-
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, role, companyName, companyRegNumber, fullName } = req.body;
