@@ -1,4 +1,4 @@
-// backend/index.js -
+// backend/index.js - CORRECTED
 
 import express from 'express';
 import cors from 'cors';
@@ -93,6 +93,7 @@ app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACT
     }
 });
 
+// CORRECTED: This route is now only for record-keeping of quantity after delivery is complete.
 app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -108,23 +109,20 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
             return res.status(404).json({ error: 'Batch not found or you do not have permission.' });
         }
         
-        if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
-            return res.status(400).json({ error: `Batch status is '${batch.status}', not awaiting confirmation.` });
+        // Logic Correction: Only allow confirmation on a delivered batch.
+        if (batch.status !== 'DELIVERED') {
+            return res.status(400).json({ error: `You can only confirm receipt for batches with status 'DELIVERED'. Current status is '${batch.status}'.` });
         }
-
-        const confirmationCode = generateSixDigitCode();
         
         await prisma.batch.update({
             where: { id: parseInt(id, 10) },
             data: {
                 manufacturer_received_quantity: parseInt(received_quantity, 10),
-                delivery_confirmation_code: confirmationCode,
             }
         });
 
         res.status(200).json({
-            message: 'Receipt confirmed successfully. Please provide the code to the delivery personnel.',
-            confirmationCode: confirmationCode
+            message: 'Received quantity has been recorded successfully.'
         });
 
     } catch (error) {
@@ -771,7 +769,6 @@ app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']),
       include: {
         manufacturer: { select: { companyName: true } },
       },
-      // CORRECTED: Sort by a reliable field to prevent crashes.
       orderBy: { id: 'desc' },
     });
     res.status(200).json(completedBatches);
@@ -936,7 +933,6 @@ app.get('/api/logistics/in-transit', authenticateToken, authorizeRole(['LOGISTIC
 app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
-        // CORRECTED: Removed the non-existent 'pickup_notes' field.
         const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
         if (!batch) return res.status(404).json({ error: 'Batch not found.' });
         if (batch.status !== 'PRINTING_COMPLETE') {
@@ -953,6 +949,7 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
     }
 });
 
+// CORRECTED: This route now generates, saves, and returns the confirmation code.
 app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -962,11 +959,23 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
         if (batch.status !== 'IN_TRANSIT') {
              return res.status(400).json({ error: `Batch status is '${batch.status}', expected 'IN_TRANSIT'.` });
         }
+        
+        const confirmationCode = generateSixDigitCode();
+        
         const updatedBatch = await prisma.batch.update({
             where: { id: parseInt(id, 10) },
-            data: { status: 'PENDING_MANUFACTURER_CONFIRMATION', delivery_notes: delivery_notes || null },
+            data: { 
+                status: 'PENDING_MANUFACTURER_CONFIRMATION', 
+                delivery_notes: delivery_notes || null,
+                delivery_confirmation_code: confirmationCode,
+            },
         });
-        res.status(200).json(updatedBatch);
+        
+        res.status(200).json({
+            message: 'Batch marked as delivered. Provide the following code to the manufacturer for confirmation.',
+            confirmationCode: confirmationCode,
+            batch: updatedBatch
+        });
     } catch (error) {
         console.error('Error marking batch as delivered:', error);
         res.status(500).json({ error: 'Failed to update batch.' });
@@ -1009,7 +1018,6 @@ app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']
     const deliveredBatches = await prisma.batch.findMany({
       where: { status: 'DELIVERED' },
       include: { manufacturer: { select: { companyName: true } } },
-      // CORRECTED: Sort by a reliable field to prevent crashes.
       orderBy: { id: 'desc' },
     });
     res.status(200).json(deliveredBatches);
