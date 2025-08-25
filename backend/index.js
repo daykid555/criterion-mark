@@ -958,6 +958,7 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
 });
 
 // --- THIS IS THE CORRECTED AND ROBUST FINALIZE ROUTE ---
+// --- THIS IS THE CORRECTED AND ROBUST FINALIZE ROUTE ---
 app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -986,7 +987,6 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
             return res.status(500).json({ error: 'Server error: Cannot find a confirmation code for this batch.' });
         }
 
-        // Robust comparison and debug logging
         const dbCode = String(batch.delivery_confirmation_code).trim();
         const inputCode = String(confirmation_code).trim();
         if (dbCode !== inputCode) {
@@ -994,10 +994,12 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
             return res.status(400).json({ error: 'Invalid confirmation code.' });
         }
 
+        // --- THE DEFINITIVE FIX ---
+        // Changed status from 'DELIVERED' to 'DELIVERED_TO_MANUFACTURER' to match the new schema.prisma
         const updatedBatch = await prisma.batch.update({
             where: { id: batchId },
             data: { 
-                status: 'DELIVERED', 
+                status: 'DELIVERED_TO_MANUFACTURER', 
                 delivered_at: new Date() 
             },
         });
