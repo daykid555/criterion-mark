@@ -1013,16 +1013,18 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
 });
 
 app.get('/api/logistics/history', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
-  try {
-    const deliveredBatches = await prisma.batch.findMany({
-      where: { status: 'DELIVERED' },
-      include: { manufacturer: { select: { companyName: true } } },
-      orderBy: { id: 'desc' },
-    });
-    res.status(200).json(deliveredBatches);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch logistics history.' });
-  }
+    try {
+        const deliveredBatches = await prisma.batch.findMany({
+            where: { status: 'DELIVERED' },
+            include: { manufacturer: { select: { companyName: true } } },
+            // CORRECTED: Sort by the actual delivery timestamp in descending order.
+            orderBy: { delivered_at: 'desc' },
+        });
+        res.status(200).json(deliveredBatches);
+    } catch (error) {
+        console.error('Error fetching logistics history:', error);
+        res.status(500).json({ error: 'Failed to fetch logistics history.' });
+    }
 });
 
 // --- VALIDATOR ROUTES ---
