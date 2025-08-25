@@ -58,116 +58,117 @@ app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), asy
             return res.status(400).json({ error: 'All fields are required.' });
         }
         const manufacturerId = req.user.userId;
-        const newBatch = await prisma.batch.create({
-            data: {
-                drugName: drugName,
-                quantity: parseInt(quantity, 10),
-                expirationDate: new Date(expirationDate),
-                nafdacNumber: nafdacNumber,
-                manufacturerId: manufacturerId,
-            },
-        });
-        console.log('Successfully created batch:', newBatch);
-        res.status(201).json(newBatch);
-    } catch (error) {
-        console.error('Error creating batch:', error);
-        res.status(500).json({ error: 'Failed to create batch.' });
-    }
-});
-app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
-    try {
-        const manufacturerId = req.user.userId;
-        const batches = await prisma.batch.findMany({
-            where: {
-                manufacturerId: manufacturerId,
-            },
-            orderBy: {
-                createdAt: 'desc',
-            },
-        });
-        res.status(200).json(batches);
-    } catch (error) {
-        console.error('Error fetching manufacturer batches:', error);
-        res.status(500).json({ error: 'Failed to fetch batches.' });
-    }
-});
-app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { received_quantity } = req.body;
+        // --- PUBLIC VERIFICATION ROUTE ---
+        app.get('/api/verify/:code', async (req, res) => {
+            try {
+                const { code } = req.params;
 
-        if (received_quantity === undefined || received_quantity === null || isNaN(parseInt(received_quantity))) {
-            return res.status(400).json({ error: 'A valid received quantity is required.' });
-        }
-
-        const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
-
-        if (!batch || batch.manufacturerId !== req.user.userId) {
-            return res.status(404).json({ error: 'Batch not found or you do not have permission.' });
-        }
-        
-        if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
-            return res.status(400).json({ error: `Batch status is '${batch.status}', not awaiting confirmation.` });
-        }
-
-        const confirmationCode = generateSixDigitCode();
-        
-        await prisma.batch.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                manufacturer_received_quantity: parseInt(received_quantity, 10),
-                delivery_confirmation_code: confirmationCode,
-            }
-        });
-
-        res.status(200).json({
-            message: 'Receipt confirmed successfully. Please provide the code to the delivery personnel.',
-            confirmationCode: confirmationCode
-        });
-
-    } catch (error) {
-        console.error('Error confirming batch receipt:', error);
-        res.status(500).json({ error: 'Failed to confirm receipt.' });
-    }
-});
-
-
-// --- DVA ROUTES ---
-app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
-    try {
-        const pendingBatches = await prisma.batch.findMany({
-            where: {
-                status: 'PENDING_DVA_APPROVAL',
-            },
-            include: {
-                manufacturer: {
-                    select: {
-                        companyName: true,
+                const qrCode = await prisma.qRCode.findUnique({
+                    where: { code: code },
+                    include: {
+                        batch: {
+                            include: {
+                                manufacturer: { select: { companyName: true } },
+                            },
+                        },
                     },
-                },
-            },
-            orderBy: {
-                createdAt: 'asc',
-            },
-        });
-        res.status(200).json(pendingBatches);
-    } catch (error) {
-        console.error('Error fetching DVA pending batches:', error);
-        res.status(500).json({ error: 'Failed to fetch pending batches.' });
-    }
-});
-app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
-    try {
-        const { id } = req.params;
-        const updatedBatch = await prisma.batch.update({
-            where: {
-                id: parseInt(id, 10),
-            },
-            data: {
-                status: 'PENDING_ADMIN_APPROVAL',
-                dva_approved_at: new Date(),
-                rejection_reason: null, 
-            },
+                });
+
+                if (!qrCode) {
+                    return res.status(404).json({
+                        status: 'error',
+                        message: 'This code is invalid. The product is likely counterfeit.',
+                    });
+                }
+
+                // --- REVERTED TO USE 'USED' STATUS, WHICH IS NOW CORRECT ---
+                if (qrCode.status === 'USED') {
+                    const firstScan = await prisma.scanRecord.findFirst({
+                        where: { qrCodeId: qrCode.id, scannedByRole: 'CUSTOMER' },
+                        orderBy: { scannedAt: 'asc' },
+                    });
+
+                    return res.status(409).json({
+                        status: 'error',
+                        message: 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.',
+                        firstScanDetails: {
+                                scannedAt: firstScan?.scannedAt,
+                                location: firstScan ? `${firstScan.city || 'Unknown City'}, ${firstScan.country || 'Unknown Country'}` : 'Not available'
+                        },
+                        data: qrCode,
+                    });
+                }
+
+                // This logic ensures only unused or validator-scanned codes can be verified by customers.
+                 if (qrCode.status !== 'UNUSED' && qrCode.status !== 'VALIDATED') {
+                        return res.status(409).json({
+                                status: 'error',
+                                message: `This code is in an invalid state (${qrCode.status}) and cannot be verified at this time.`
+                        });
+                }
+
+                const ip = req.ip;
+                let locationData = {
+                    ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
+                };
+
+                const useLocation = req.headers['x-use-location'] === 'true';
+
+                if (useLocation && process.env.IPINFO_API_KEY) {
+                        try {
+                                const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
+                                const { city, region, country, loc } = geoResponse.data;
+                                locationData.city = city;
+                                locationData.region = region;
+                                locationData.country = country;
+                                if (loc) {
+                                        const [lat, lon] = loc.split(',');
+                                        locationData.latitude = parseFloat(lat);
+                                        locationData.longitude = parseFloat(lon);
+                                }
+                        } catch (geoError) {
+                                console.error('IPinfo lookup failed:', geoError.message);
+                        }
+                }
+    
+                const [scanLog, updatedQrCode] = await prisma.$transaction([
+                    prisma.scanRecord.create({
+                        data: {
+                            qrCodeId: qrCode.id,
+                            scannedByRole: 'CUSTOMER',
+                            ipAddress: locationData.ipAddress,
+                            city: locationData.city,
+                            region: locationData.region,
+                            country: locationData.country,
+                            latitude: locationData.latitude,
+                            longitude: locationData.longitude,
+                        },
+                    }),
+                    prisma.qRCode.update({
+                        where: { id: qrCode.id },
+                        // --- REVERTED TO USE 'USED' STATUS, WHICH IS NOW CORRECT ---
+                        data: { status: 'USED' },
+                    })
+                ]);
+    
+                const finalQrCodeDetails = await prisma.qRCode.findUnique({
+                    where: { id: qrCode.id },
+                    include: {
+                        batch: { include: { manufacturer: { select: { companyName: true } } } },
+                        scanRecords: { orderBy: { scannedAt: 'asc' } }
+                    },
+                });
+
+                res.status(200).json({
+                    status: 'success',
+                    message: 'Product Verified Successfully! This is the first verification.',
+                    data: finalQrCodeDetails,
+                });
+
+            } catch (error) { 
+                console.error('Error verifying code:', error);
+                res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
+            }
         });
         res.status(200).json(updatedBatch);
     } catch (error) {
