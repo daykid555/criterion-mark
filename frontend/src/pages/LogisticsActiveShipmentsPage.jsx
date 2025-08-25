@@ -1,42 +1,17 @@
-// frontend/src/pages/LogisticsActiveShipmentsPage.jsx - CORRECTED
+// frontend/src/pages/LogisticsActiveShipmentsPage.jsx - REVERTED
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 
 const STATUS_STYLES = {
   PRINTING_COMPLETE: 'bg-green-200 text-green-800 pulse-attention-soft',
-  IN_TRANSIT: 'bg-cyan-200 text-cyan-800',
+  IN_TRANSIT: 'bg-cyan-200 text-cyan-800 animate-pulse',
   PENDING_MANUFACTURER_CONFIRMATION: 'bg-orange-200 text-orange-800 animate-pulse',
 };
 
-
-// --- NEW: MODAL TO DISPLAY THE GENERATED CONFIRMATION CODE ---
-const ConfirmationCodeModal = ({ code, batch, onClose }) => {
-    if (!batch || !code) return null;
-
-    return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-            <div className="glass-panel p-8 rounded-lg max-w-md w-full text-white text-center">
-                <h2 className="text-2xl font-bold mb-2">Confirmation Code Generated</h2>
-                <p className="text-white/70 mb-4">Provide this code to the Manufacturer to finalize the delivery for Batch #{batch.id}.</p>
-                <div className="bg-black/40 p-4 rounded-lg my-6">
-                    <p className="text-5xl font-mono tracking-widest text-cyan-300">{code}</p>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="w-full py-3 rounded-lg bg-white/10 hover:bg-white/20"
-                >
-                    Close
-                </button>
-            </div>
-        </div>
-    );
-};
-
-
-// --- EXISTING MODAL FOR FINALIZING DELIVERY (Unchanged) ---
+// --- MODAL FOR FINALIZING DELIVERY (Defined outside the main component) ---
 const FinalizeModal = ({ batch, onClose, onSubmit, isSubmitting, error }) => {
     const [code, setCode] = useState('');
-    if (!batch) return null;
+    if (!batch) return null; // Safety check
 
     return (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
@@ -65,8 +40,8 @@ const FinalizeModal = ({ batch, onClose, onSubmit, isSubmitting, error }) => {
     );
 };
 
-// --- DYNAMIC JOBS TABLE (Unchanged) ---
-const LogisticsJobsTable = ({ jobs, handleAction, title, isSubmitting }) => {
+// --- DYNAMIC JOBS TABLE (Defined outside the main component) ---
+const LogisticsJobsTable = ({ jobs, handleAction, title }) => {
     return (
         <div className="mb-8">
             <h2 className="text-xl font-bold text-white mb-4 px-2">{title}</h2>
@@ -80,8 +55,8 @@ const LogisticsJobsTable = ({ jobs, handleAction, title, isSubmitting }) => {
                                 <td className="p-4 font-mono">#{job.id}</td><td className="p-4 font-semibold">{job.drugName}</td><td className="p-4">{job.manufacturer.companyName}</td><td className="p-4">{job.quantity.toLocaleString()}</td>
                                 <td className="p-4"><span className={`whitespace-nowrap px-2 py-1 rounded-full text-xs font-bold ${STATUS_STYLES[job.status] || ''}`}>{job.status.replace(/_/g, ' ')}</span></td>
                                 <td className="p-4 text-center">
-                                    {job.status === 'PRINTING_COMPLETE' && <button onClick={() => handleAction('pickup', job)} disabled={isSubmitting} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md disabled:opacity-50">Mark Picked Up</button>}
-                                    {job.status === 'IN_TRANSIT' && <button onClick={() => handleAction('deliver', job)} disabled={isSubmitting} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-cyan-500/30 disabled:opacity-50">Mark Delivered</button>}
+                                    {job.status === 'PRINTING_COMPLETE' && <button onClick={() => handleAction('pickup', job)} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md">Mark Picked Up</button>}
+                                    {job.status === 'IN_TRANSIT' && <button onClick={() => handleAction('deliver', job)} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-cyan-500/30">Mark Delivered</button>}
                                     {job.status === 'PENDING_MANUFACTURER_CONFIRMATION' && <button onClick={() => handleAction('finalize', job)} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-orange-500/30">Finalize Delivery</button>}
                                 </td>
                             </tr>
@@ -99,17 +74,10 @@ function LogisticsActiveShipmentsPage() {
     const [inTransitJobs, setInTransitJobs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    
-    // State for the Finalize modal
-    const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
-    const [modalError, setModalError] = useState('');
-    
-    // State for the NEW Confirmation Code modal
-    const [isCodeModalOpen, setIsCodeModalOpen] = useState(false);
-    const [confirmationCode, setConfirmationCode] = useState('');
-
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentBatch, setCurrentBatch] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [modalError, setModalError] = useState('');
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -132,49 +100,27 @@ function LogisticsActiveShipmentsPage() {
 
     const handleAction = async (action, batch) => {
         setError('');
-        
-        // Finalize action opens the submission modal
         if (action === 'finalize') {
             setCurrentBatch(batch);
-            setIsFinalizeModalOpen(true);
+            setIsModalOpen(true);
+            return;
+        }
+        
+        const confirmationMessage = action === 'pickup' ? 
+            `Are you sure you want to mark Batch #${batch.id} as 'Picked Up'? This will notify the manufacturer.` :
+            `Are you sure you want to mark Batch #${batch.id} as 'Delivered'? The manufacturer will need to provide a confirmation code.`;
+
+        if (!window.confirm(confirmationMessage)) {
             return;
         }
 
-        setIsSubmitting(true);
-
-        if (action === 'pickup') {
-            if (window.confirm(`Are you sure you want to mark Batch #${batch.id} as 'Picked Up'?`)) {
-                 try {
-                    await apiClient.put(`/api/logistics/batches/${batch.id}/pickup`, {});
-                    fetchData();
-                } catch (err) {
-                    setError(err.response?.data?.error || `Failed to update batch #${batch.id}.`);
-                }
-            }
+        try {
+            await apiClient.put(`/api/logistics/batches/${batch.id}/${action}`, {});
+            fetchData();
+        } catch (err) {
+            const errorMessage = err.response?.data?.error || `Failed to update batch #${batch.id}. Please try again.`;
+            setError(errorMessage);
         }
-
-        // --- CORRECTED LOGIC FOR 'DELIVER' ACTION ---
-        if (action === 'deliver') {
-            try {
-                // Call the API which now returns the confirmation code
-                const response = await apiClient.put(`/api/logistics/batches/${batch.id}/deliver`, {});
-                
-                if (response.data && response.data.confirmationCode) {
-                    // Capture the code and open the NEW modal to display it
-                    setConfirmationCode(response.data.confirmationCode);
-                    setCurrentBatch(batch);
-                    setIsCodeModalOpen(true);
-                    fetchData(); // Refresh the list in the background
-                } else {
-                    setError('Error: Did not receive a confirmation code from the server.');
-                }
-            } catch (err) {
-                const errorMessage = err.response?.data?.error || `Failed to mark batch #${batch.id} as delivered.`;
-                setError(errorMessage);
-            }
-        }
-        
-        setIsSubmitting(false);
     };
 
     const handleFinalizeSubmit = async (batchId, code) => {
@@ -182,7 +128,7 @@ function LogisticsActiveShipmentsPage() {
         setModalError('');
         try {
             await apiClient.post(`/api/logistics/batches/${batchId}/finalize`, { confirmation_code: code });
-            setIsFinalizeModalOpen(false);
+            setIsModalOpen(false);
             setCurrentBatch(null);
             fetchData();
         } catch(err) {
@@ -193,34 +139,22 @@ function LogisticsActiveShipmentsPage() {
         }
     };
 
-    // Close handler for the NEW code display modal
-    const closeCodeModal = () => {
-        setIsCodeModalOpen(false);
-        setCurrentBatch(null);
-        setConfirmationCode('');
-    };
-
-    // Close handler for the existing finalize modal
-    const closeFinalizeModal = () => {
-        setIsFinalizeModalOpen(false);
+    const closeModal = () => {
+        setIsModalOpen(false);
         setCurrentBatch(null);
         setModalError('');
     };
 
     return (
         <div className="p-4 sm:p-6 lg:p-8">
-            {isCodeModalOpen && <ConfirmationCodeModal code={confirmationCode} batch={currentBatch} onClose={closeCodeModal} />}
-            {isFinalizeModalOpen && <FinalizeModal batch={currentBatch} onClose={closeFinalizeModal} onSubmit={handleFinalizeSubmit} isSubmitting={isSubmitting} error={modalError} />}
-            
+            {isModalOpen && <FinalizeModal batch={currentBatch} onClose={closeModal} onSubmit={handleFinalizeSubmit} isSubmitting={isSubmitting} error={modalError} />}
             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-8 drop-shadow-lg">Active Shipments</h1>
-            
             {error && <p className="text-center p-4 text-red-400 bg-red-500/10 rounded-lg mb-4">{error}</p>}
-            
             <div className="glass-panel p-1 sm:p-2">
                 {isLoading ? <p className="text-center p-8 text-white/70">Loading jobs...</p> : (
                     <div>
-                        <LogisticsJobsTable jobs={queueJobs} handleAction={handleAction} title="Pickup Queue" isSubmitting={isSubmitting} />
-                        <LogisticsJobsTable jobs={inTransitJobs} handleAction={handleAction} title="In Transit" isSubmitting={isSubmitting} />
+                        <LogisticsJobsTable jobs={queueJobs} handleAction={handleAction} title="Pickup Queue" />
+                        <LogisticsJobsTable jobs={inTransitJobs} handleAction={handleAction} title="In Transit" />
                     </div>
                 )}
             </div>

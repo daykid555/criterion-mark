@@ -1,4 +1,4 @@
-// backend/index.js - CORRECTED
+// backend/index.js - RESTORED TO CORRECT LOGIC
 
 import express from 'express';
 import cors from 'cors';
@@ -93,7 +93,8 @@ app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACT
     }
 });
 
-// CORRECTED: This route is now only for record-keeping of quantity after delivery is complete.
+// --- THIS IS THE CORRECTED LOGIC, AS PER YOUR REQUIREMENT ---
+// This route is called by the MANUFACTURER. It generates the code.
 app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -109,20 +110,26 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
             return res.status(404).json({ error: 'Batch not found or you do not have permission.' });
         }
         
-        // Logic Correction: Only allow confirmation on a delivered batch.
-        if (batch.status !== 'DELIVERED') {
-            return res.status(400).json({ error: `You can only confirm receipt for batches with status 'DELIVERED'. Current status is '${batch.status}'.` });
+        // This check is now correct based on your workflow.
+        if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
+            return res.status(400).json({ error: `Batch status is '${batch.status}', not awaiting confirmation.` });
         }
+
+        // Generate the code as you originally intended.
+        const confirmationCode = generateSixDigitCode();
         
         await prisma.batch.update({
             where: { id: parseInt(id, 10) },
             data: {
                 manufacturer_received_quantity: parseInt(received_quantity, 10),
+                delivery_confirmation_code: confirmationCode,
             }
         });
 
+        // Return the code to the MANUFACTURER's frontend.
         res.status(200).json({
-            message: 'Received quantity has been recorded successfully.'
+            message: 'Receipt confirmed successfully. Please provide the code to the delivery personnel.',
+            confirmationCode: confirmationCode
         });
 
     } catch (error) {
@@ -949,7 +956,8 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
     }
 });
 
-// CORRECTED: This route now generates, saves, and returns the confirmation code.
+// --- THIS IS THE CORRECTED LOGIC ---
+// This route now ONLY changes the status. It does NOT generate a code.
 app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
@@ -959,23 +967,14 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
         if (batch.status !== 'IN_TRANSIT') {
              return res.status(400).json({ error: `Batch status is '${batch.status}', expected 'IN_TRANSIT'.` });
         }
-        
-        const confirmationCode = generateSixDigitCode();
-        
         const updatedBatch = await prisma.batch.update({
             where: { id: parseInt(id, 10) },
             data: { 
                 status: 'PENDING_MANUFACTURER_CONFIRMATION', 
-                delivery_notes: delivery_notes || null,
-                delivery_confirmation_code: confirmationCode,
+                delivery_notes: delivery_notes || null 
             },
         });
-        
-        res.status(200).json({
-            message: 'Batch marked as delivered. Provide the following code to the manufacturer for confirmation.',
-            confirmationCode: confirmationCode,
-            batch: updatedBatch
-        });
+        res.status(200).json(updatedBatch);
     } catch (error) {
         console.error('Error marking batch as delivered:', error);
         res.status(500).json({ error: 'Failed to update batch.' });
@@ -1300,7 +1299,7 @@ app.get('/api/verify/:code', async (req, res) => {
       data: finalQrCodeDetails,
     });
 
-  } catch (error) { // THIS IS THE CORRECTED SYNTAX
+  } catch (error) { 
     console.error('Error verifying code:', error);
     res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
   }
