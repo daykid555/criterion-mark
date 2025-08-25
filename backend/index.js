@@ -1296,8 +1296,16 @@ app.get('/api/verify/:code', async (req, res) => {
     });
 
   } catch (error) { 
-    console.error('Error verifying code:', error);
-    res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
+    // THIS IS THE CRITICAL FIX: DETAILED ERROR LOGGING
+    console.error('--- CRITICAL VERIFICATION ERROR ---');
+    console.error(`Error verifying code: ${req.params.code}`);
+    console.error('Full Error Object:', error); // This will show the exact Prisma error
+    res.status(500).json({ 
+        status: 'error', 
+        message: 'An internal server error occurred. Please ensure the QR code is from a genuine product. If the issue persists, contact the pharmacy.',
+        // Also sending a more specific error code for debugging if it's a Prisma-known error
+        errorCode: error.code || 'UNKNOWN' 
+    });
   }
 });
 
