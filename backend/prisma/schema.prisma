@@ -54,6 +54,7 @@ enum QRCodeStatus {
   VERIFIED_ONCE
   FLAGGED
   INVALID_STATE
+  USED
 }
 
 enum ShipmentStatus {
