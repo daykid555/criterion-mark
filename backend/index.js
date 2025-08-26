@@ -1,4 +1,4 @@
-// backend/index.js - DEFINITIVE FIX
+// backend/index.js - DEFINITIVE FIX V2
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -162,6 +162,41 @@ app.get('/api/verify/:code', async (req, res) => {
 
 
 // --- MANUFACTURER ROUTES ---
+app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
+    try {
+        const manufacturerId = req.user.userId;
+        const batches = await prisma.batch.findMany({
+            where: { manufacturerId: manufacturerId },
+            orderBy: { createdAt: 'desc' },
+        });
+        res.status(200).json(batches);
+    } catch (error) {
+        console.error('Error fetching manufacturer batches:', error);
+        res.status(500).json({ error: 'Failed to fetch batches.' });
+    }
+});
+
+app.get('/api/manufacturer/batches/:id', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
+    try {
+        const manufacturerId = req.user.userId;
+        const batchId = parseInt(req.params.id, 10);
+        const batch = await prisma.batch.findFirst({
+            where: { 
+                id: batchId,
+                manufacturerId: manufacturerId 
+            },
+        });
+        if (!batch) {
+            return res.status(404).json({ error: 'Batch not found or you do not have permission to view it.' });
+        }
+        res.status(200).json(batch);
+    } catch (error) {
+        console.error('Error fetching single manufacturer batch:', error);
+        res.status(500).json({ error: 'Failed to fetch batch details.' });
+    }
+});
+
+
 app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
         const { drugName, quantity, expirationDate, nafdacNumber } = req.body;
@@ -170,7 +205,6 @@ app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), asy
         }
         const manufacturerId = req.user.userId;
 
-        // **FIX**: Added the actual code to create the batch
         const newBatch = await prisma.batch.create({
             data: {
                 manufacturerId: manufacturerId,
@@ -189,9 +223,46 @@ app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), asy
     }
 });
 
-// --- DVA (Drug Verification Agency) ROUTES ---
+app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
+    try {
+        const batchId = parseInt(req.params.id, 10);
+        const manufacturerId = req.user.userId;
 
-// **FIX**: Created the correct, working "approve" route that was missing
+        const batch = await prisma.batch.findFirst({
+            where: { id: batchId, manufacturerId: manufacturerId }
+        });
+
+        if (!batch) {
+            return res.status(404).json({ error: 'Batch not found or you do not have permission to modify it.' });
+        }
+        
+        if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
+            return res.status(400).json({ error: 'This batch is not awaiting your confirmation.' });
+        }
+
+        const sixDigitCode = generateSixDigitCode();
+        
+        const updatedBatch = await prisma.batch.update({
+            where: { id: batchId },
+            data: { 
+                delivery_confirmation_code: sixDigitCode,
+            },
+        });
+        
+        res.status(200).json({
+            message: 'Confirmation code generated. Please provide this code to the logistics agent.',
+            confirmationCode: sixDigitCode,
+            batch: updatedBatch
+        });
+
+    } catch (error) {
+        console.error('Error confirming delivery:', error);
+        res.status(500).json({ error: 'Failed to confirm delivery.' });
+    }
+});
+
+
+// --- DVA (Drug Verification Agency) ROUTES ---
 app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
     try {
         const batchId = parseInt(req.params.id, 10);
@@ -199,7 +270,7 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']
         const updatedBatch = await prisma.batch.update({
             where: { id: batchId },
             data: {
-                status: 'PENDING_ADMIN_APPROVAL', // Next step in the workflow
+                status: 'PENDING_ADMIN_APPROVAL',
                 dva_approved_at: new Date(),
              },
         });
@@ -1174,7 +1245,7 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_B
             },
         });
         res.status(201).json(newProduct);
-    } catch (error) {
+    } catch (error).
         console.error("Error creating skincare product:", error);
         res.status(500).json({ error: 'Failed to create skincare product.' });
     }
