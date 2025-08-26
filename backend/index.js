@@ -1,4 +1,4 @@
-// backend/index.js - DEFINITIVE FIX V4
+// backend/index.js - DEFINITIVE FIX V5 (Addressing potential 500 error)
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -51,7 +51,6 @@ app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark AP
 
 
 // --- PUBLIC VERIFICATION ROUTE ---
-// --- REWRITTEN PUBLIC VERIFICATION ROUTE WITH SCAN LOGGING ---
 app.get('/api/verify/:code', async (req, res) => {
     try {
         const { code } = req.params;
@@ -109,7 +108,7 @@ app.get('/api/verify/:code', async (req, res) => {
                 if (isFirstScan) {
                     scanOutcome = 'SUCCESS';
                     message = 'Product Verified Successfully! This is the first verification.';
-                    qrCodeRecord.status = 'USED'; // Temporarily update for response context
+                    qrCodeRecord.status = 'USED';
                 } else {
                     scanOutcome = 'DUPLICATE';
                     message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
@@ -1097,9 +1096,14 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
 app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
+        // Ensure delivery_notes is handled safely, defaulting to null if not provided or empty
         const { delivery_notes } = req.body;
+        const safeDeliveryNotes = (delivery_notes && typeof delivery_notes === 'string' && delivery_notes.trim() !== '') ? delivery_notes.trim() : null;
+
         const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
-        if (!batch) return res.status(404).json({ error: 'Batch not found.' });
+        if (!batch) {
+            return res.status(404).json({ error: 'Batch not found.' });
+        }
         if (batch.status !== 'IN_TRANSIT') {
              return res.status(400).json({ error: `Batch status is '${batch.status}', expected 'IN_TRANSIT'.` });
         }
@@ -1107,7 +1111,7 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
             where: { id: parseInt(id, 10) },
             data: {
                 status: 'PENDING_MANUFACTURER_CONFIRMATION',
-                delivery_notes: delivery_notes || null
+                delivery_notes: safeDeliveryNotes // Use the safely processed notes
             },
         });
         res.status(200).json(updatedBatch);
