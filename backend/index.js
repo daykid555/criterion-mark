@@ -50,6 +50,9 @@ const generateSixDigitCode = () => {
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
 
+// File: backend/index.js
+// ... (previous routes) ...
+
 // --- PUBLIC VERIFICATION ROUTE ---
 // --- REWRITTEN PUBLIC VERIFICATION ROUTE WITH SCAN LOGGING ---
 app.get('/api/verify/:code', async (req, res) => {
@@ -77,7 +80,7 @@ app.get('/api/verify/:code', async (req, res) => {
 
         let scanOutcome = 'FAILURE';
         let message = 'This code is invalid. The product is likely counterfeit.';
-        let qrCodeStatus = qrCodeRecord ? qrCodeRecord.status : 'NOT_FOUND'; // For logging purposes
+        // No need to declare qrCodeStatus here as it's not used in the final logic before response
 
         let locationData = {
             ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
@@ -114,21 +117,19 @@ app.get('/api/verify/:code', async (req, res) => {
                 if (isFirstScan) {
                     scanOutcome = 'SUCCESS';
                     message = 'Product Verified Successfully! This is the first verification.';
-                    qrCodeStatus = 'USED'; // Update status as it's now used
+                    // Update status only if scan is successful and code is unused
+                    qrCodeRecord.status = 'USED'; // Temporarily update for response context
                 } else {
-                    // This case should ideally not happen if 'USED' status is applied correctly after the first scan
                     scanOutcome = 'DUPLICATE';
                     message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
                 }
             } else if (qrCodeRecord.status === 'USED') {
                 scanOutcome = 'DUPLICATE';
                 message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
-                // Keep the existing status 'USED'
             } else {
                 // Handle other statuses like FLAGGED, INVALID_STATE, SEALED, etc.
                 scanOutcome = 'FAILURE';
                 message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified at this time.`;
-                // Keep the existing status
             }
 
             if (firstScan) {
@@ -157,7 +158,11 @@ app.get('/api/verify/:code', async (req, res) => {
             });
 
             // Update QR code status only if it was 'UNUSED' and the scan was a success
-            if (qrCodeRecord && qrCodeRecord.status === 'UNUSED' && scanOutcome === 'SUCCESS') {
+            // This logic is now tied to the qrCodeRecord object itself reflecting the intended state change
+            if (qrCodeRecord && qrCodeRecord.status === 'USED' && scanOutcome === 'SUCCESS') {
+                 // The qrCodeRecord object itself was updated to 'USED' in the logic above,
+                 // so we use that state here to trigger the actual DB update.
+                 // If it was already 'USED' or another status, this block won't execute.
                 await tx.qRCode.update({
                     where: { id: qrCodeRecord.id },
                     data: {
@@ -166,20 +171,6 @@ app.get('/api/verify/:code', async (req, res) => {
                         firstVerificationTimestamp: new Date(),
                         firstVerificationIp: locationData.ipAddress,
                         firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null,
-                    },
-                });
-                // Fetch the updated record to send back
-                qrCodeRecord = await tx.qRCode.findUnique({
-                    where: { id: qrCodeRecord.id },
-                    include: {
-                        batch: {
-                            select: {
-                                drugName: true,
-                                manufacturer: { select: { companyName: true } },
-                                seal_background_url: true
-                            },
-                        },
-                        scanRecords: { orderBy: { scannedAt: 'asc' } },
                     },
                 });
             }
@@ -214,7 +205,7 @@ app.get('/api/verify/:code', async (req, res) => {
         console.error('Error verifying code:', error);
         res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
     }
-});
+}); 
 
 
 // --- MANUFACTURER ROUTES ---
