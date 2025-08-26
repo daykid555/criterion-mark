@@ -51,80 +51,101 @@ app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark AP
 
 
 // --- PUBLIC VERIFICATION ROUTE ---
+// --- REWRITTEN PUBLIC VERIFICATION ROUTE WITH SCAN LOGGING ---
 app.get('/api/verify/:code', async (req, res) => {
     try {
         const { code } = req.params;
+        const ip = req.ip;
+        const useLocation = req.headers['x-use-location'] === 'true';
 
-        const qrCode = await prisma.qRCode.findUnique({
+        let qrCodeRecord = await prisma.qRCode.findUnique({
             where: { code: code },
             include: {
                 batch: {
-                    include: {
+                    select: {
+                        drugName: true,
                         manufacturer: { select: { companyName: true } },
+                        seal_background_url: true // Include for potential seal generation
                     },
+                },
+                // Include scan records to check for duplicates and first scan
+                scanRecords: {
+                    orderBy: { scannedAt: 'asc' },
                 },
             },
         });
 
-        if (!qrCode) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'This code is invalid. The product is likely counterfeit.',
-            });
-        }
+        let scanOutcome = 'FAILURE';
+        let message = 'This code is invalid. The product is likely counterfeit.';
+        let qrCodeStatus = qrCodeRecord ? qrCodeRecord.status : 'NOT_FOUND'; // For logging purposes
 
-        if (qrCode.status === 'USED') {
-            const firstScan = await prisma.scanRecord.findFirst({
-                where: { qrCodeId: qrCode.id, scannedByRole: 'CUSTOMER' },
-                orderBy: { scannedAt: 'asc' },
-            });
-
-            return res.status(409).json({
-                status: 'error',
-                message: 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.',
-                firstScanDetails: {
-                        scannedAt: firstScan?.scannedAt,
-                        location: firstScan ? `${firstScan.city || 'Unknown City'}, ${firstScan.country || 'Unknown Country'}` : 'Not available'
-                },
-                data: qrCode,
-            });
-        }
-
-        if (qrCode.status !== 'UNUSED' && qrCode.status !== 'VALIDATED') {
-                return res.status(409).json({
-                        status: 'error',
-                        message: `This code is in an invalid state (${qrCode.status}) and cannot be verified at this time.`
-                });
-        }
-
-        const ip = req.ip;
         let locationData = {
             ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
         };
 
-        const useLocation = req.headers['x-use-location'] === 'true';
-
+        // Attempt to get location data if enabled and API key is available
         if (useLocation && process.env.IPINFO_API_KEY) {
-                try {
-                        const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
-                        const { city, region, country, loc } = geoResponse.data;
-                        locationData.city = city;
-                        locationData.region = region;
-                        locationData.country = country;
-                        if (loc) {
-                                const [lat, lon] = loc.split(',');
-                                locationData.latitude = parseFloat(lat);
-                                locationData.longitude = parseFloat(lon);
-                        }
-                } catch (geoError) {
-                        console.error('IPinfo lookup failed:', geoError.message);
+            try {
+                const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
+                const { city, region, country, loc } = geoResponse.data;
+                locationData.city = city;
+                locationData.region = region;
+                locationData.country = country;
+                if (loc) {
+                    const [lat, lon] = loc.split(',');
+                    locationData.latitude = parseFloat(lat);
+                    locationData.longitude = parseFloat(lon);
                 }
+            } catch (geoError) {
+                console.error('IPinfo lookup failed:', geoError.message);
+                // Continue without location data if lookup fails
+            }
         }
 
-        const [scanLog, updatedQrCode] = await prisma.$transaction([
-            prisma.scanRecord.create({
+        // Process scan based on QR code existence and status
+        if (!qrCodeRecord) {
+            scanOutcome = 'FAILURE';
+            message = 'This code is invalid. The product is likely counterfeit.';
+        } else {
+            const isFirstScan = qrCodeRecord.scanRecords.length === 0 || qrCodeRecord.scanRecords.every(sr => sr.scannedByRole !== 'CUSTOMER');
+            const firstScan = qrCodeRecord.scanRecords.find(sr => sr.scannedByRole === 'CUSTOMER');
+
+            if (qrCodeRecord.status === 'UNUSED') {
+                if (isFirstScan) {
+                    scanOutcome = 'SUCCESS';
+                    message = 'Product Verified Successfully! This is the first verification.';
+                    qrCodeStatus = 'USED'; // Update status as it's now used
+                } else {
+                    // This case should ideally not happen if 'USED' status is applied correctly after the first scan
+                    scanOutcome = 'DUPLICATE';
+                    message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
+                }
+            } else if (qrCodeRecord.status === 'USED') {
+                scanOutcome = 'DUPLICATE';
+                message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
+                // Keep the existing status 'USED'
+            } else {
+                // Handle other statuses like FLAGGED, INVALID_STATE, SEALED, etc.
+                scanOutcome = 'FAILURE';
+                message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified at this time.`;
+                // Keep the existing status
+            }
+
+            if (firstScan) {
+                locationData.firstScanDetails = {
+                    scannedAt: firstScan.scannedAt,
+                    location: firstScan.city && firstScan.country ? `${firstScan.city}, ${firstScan.country}` : 'Unknown Location',
+                };
+            }
+        }
+
+        // Transaction for creating scan record and potentially updating QR code status
+        await prisma.$transaction(async (tx) => {
+            await tx.scanRecord.create({
                 data: {
-                    qrCodeId: qrCode.id,
+                    qrCodeId: qrCodeRecord ? qrCodeRecord.id : null, // Link to QRCode if found
+                    scannedCode: code, // Always log the scanned code
+                    scanOutcome: scanOutcome,
                     scannedByRole: 'CUSTOMER',
                     ipAddress: locationData.ipAddress,
                     city: locationData.city,
@@ -133,26 +154,61 @@ app.get('/api/verify/:code', async (req, res) => {
                     latitude: locationData.latitude,
                     longitude: locationData.longitude,
                 },
-            }),
-            prisma.qRCode.update({
-                where: { id: qrCode.id },
-                data: { status: 'USED' },
-            })
-        ]);
+            });
 
-        const finalQrCodeDetails = await prisma.qRCode.findUnique({
-            where: { id: qrCode.id },
-            include: {
-                batch: { include: { manufacturer: { select: { companyName: true } } } },
-                scanRecords: { orderBy: { scannedAt: 'asc' } }
-            },
+            // Update QR code status only if it was 'UNUSED' and the scan was a success
+            if (qrCodeRecord && qrCodeRecord.status === 'UNUSED' && scanOutcome === 'SUCCESS') {
+                await tx.qRCode.update({
+                    where: { id: qrCodeRecord.id },
+                    data: {
+                        status: 'USED', // Mark as used
+                        // Store first verification details if available from this scan
+                        firstVerificationTimestamp: new Date(),
+                        firstVerificationIp: locationData.ipAddress,
+                        firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null,
+                    },
+                });
+                // Fetch the updated record to send back
+                qrCodeRecord = await tx.qRCode.findUnique({
+                    where: { id: qrCodeRecord.id },
+                    include: {
+                        batch: {
+                            select: {
+                                drugName: true,
+                                manufacturer: { select: { companyName: true } },
+                                seal_background_url: true
+                            },
+                        },
+                        scanRecords: { orderBy: { scannedAt: 'asc' } },
+                    },
+                });
+            }
         });
 
-        res.status(200).json({
-            status: 'success',
-            message: 'Product Verified Successfully! This is the first verification.',
-            data: finalQrCodeDetails,
-        });
+        // Send response
+        if (scanOutcome === 'SUCCESS') {
+            res.status(200).json({
+                status: 'success',
+                message: message,
+                data: qrCodeRecord, // Send the full details of the verified product
+            });
+        } else {
+            // For DUPLICATE or FAILURE, return appropriate status and message
+            // If it was a DUPLICATE, we still return the product data for context
+            if (scanOutcome === 'DUPLICATE') {
+                res.status(409).json({
+                    status: 'error',
+                    message: message,
+                    firstScanDetails: locationData.firstScanDetails,
+                    data: qrCodeRecord, // Send product details for context
+                });
+            } else { // FAILURE
+                res.status(404).json({ // Or 400 for invalid state, 404 if code not found
+                    status: 'error',
+                    message: message,
+                });
+            }
+        }
 
     } catch (error) {
         console.error('Error verifying code:', error);
@@ -327,6 +383,33 @@ app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (re
     } catch (error) {
         console.error('Error fetching DVA history:', error);
         res.status(500).json({ error: 'Failed to fetch DVA history.' });
+        }
+    });
+
+    // --- DEFINITIVE FIX FOR DVA PENDING BATCHES ---
+    app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
+        try {
+            const pendingBatches = await prisma.batch.findMany({
+                where: {
+                    status: 'PENDING_DVA_APPROVAL',
+                },
+                include: {
+                    manufacturer: {
+                        select: {
+                            companyName: true,
+                        },
+                    },
+                },
+                orderBy: {
+                    createdAt: 'asc',
+                },
+            });
+            res.status(200).json(pendingBatches);
+        } catch (error) {
+            console.error('Error fetching DVA pending batches:', error);
+            res.status(500).json({ error: 'Failed to fetch pending batches.' });
+        }
+    });
     }
 });
 
@@ -861,7 +944,7 @@ app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']),
     const completedBatches = await prisma.batch.findMany({
       where: {
         status: {
-          in: ['PRINTING_COMPLETE', 'IN_TRANSIT', 'PENDING_MANUFACTURER_CONFIRMATION', 'DELIVERED']
+          in: ['PRINTING_COMPLETE', 'IN_TRANSIT', 'PENDING_MANUFACTURER_CONFIRMATION', 'DELIVERED_TO_MANUFACTURER'] // CORRECTED STATUS
         }
       },
       include: {
