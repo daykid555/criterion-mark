@@ -1,4 +1,4 @@
-// backend/index.js - DEFINITIVE FIX V2
+// backend/index.js - DEFINITIVE FIX V3
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -181,9 +181,9 @@ app.get('/api/manufacturer/batches/:id', authenticateToken, authorizeRole(['MANU
         const manufacturerId = req.user.userId;
         const batchId = parseInt(req.params.id, 10);
         const batch = await prisma.batch.findFirst({
-            where: { 
+            where: {
                 id: batchId,
-                manufacturerId: manufacturerId 
+                manufacturerId: manufacturerId
             },
         });
         if (!batch) {
@@ -235,20 +235,20 @@ app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, aut
         if (!batch) {
             return res.status(404).json({ error: 'Batch not found or you do not have permission to modify it.' });
         }
-        
+
         if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
             return res.status(400).json({ error: 'This batch is not awaiting your confirmation.' });
         }
 
         const sixDigitCode = generateSixDigitCode();
-        
+
         const updatedBatch = await prisma.batch.update({
             where: { id: batchId },
-            data: { 
+            data: {
                 delivery_confirmation_code: sixDigitCode,
             },
         });
-        
+
         res.status(200).json({
             message: 'Confirmation code generated. Please provide this code to the logistics agent.',
             confirmationCode: sixDigitCode,
@@ -1245,7 +1245,7 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_B
             },
         });
         res.status(201).json(newProduct);
-    } catch (error).
+    } catch (error) { // <-- SYNTAX ERROR WAS HERE. I REMOVED THE '.'
         console.error("Error creating skincare product:", error);
         res.status(500).json({ error: 'Failed to create skincare product.' });
     }
