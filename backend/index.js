@@ -1,4 +1,4 @@
-// backend/index.js - DEFINITIVE FIX V3
+// backend/index.js - DEFINITIVE FIX V4
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -36,7 +36,7 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 const storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
+    cloudinary:cloudinary,
     params: { folder: 'criterion-mark-seals', allowed_formats: ['jpeg', 'png', 'jpg'], public_id: (req, file) => `batch-${req.params.id}-${Date.now()}` },
 });
 const upload = multer({ storage: storage });
@@ -49,9 +49,6 @@ const generateSixDigitCode = () => {
 // --- ROUTES ---
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
-
-// File: backend/index.js
-// ... (previous routes) ...
 
 // --- PUBLIC VERIFICATION ROUTE ---
 // --- REWRITTEN PUBLIC VERIFICATION ROUTE WITH SCAN LOGGING ---
@@ -68,10 +65,9 @@ app.get('/api/verify/:code', async (req, res) => {
                     select: {
                         drugName: true,
                         manufacturer: { select: { companyName: true } },
-                        seal_background_url: true // Include for potential seal generation
+                        seal_background_url: true
                     },
                 },
-                // Include scan records to check for duplicates and first scan
                 scanRecords: {
                     orderBy: { scannedAt: 'asc' },
                 },
@@ -80,13 +76,11 @@ app.get('/api/verify/:code', async (req, res) => {
 
         let scanOutcome = 'FAILURE';
         let message = 'This code is invalid. The product is likely counterfeit.';
-        // No need to declare qrCodeStatus here as it's not used in the final logic before response
 
         let locationData = {
             ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
         };
 
-        // Attempt to get location data if enabled and API key is available
         if (useLocation && process.env.IPINFO_API_KEY) {
             try {
                 const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
@@ -101,11 +95,9 @@ app.get('/api/verify/:code', async (req, res) => {
                 }
             } catch (geoError) {
                 console.error('IPinfo lookup failed:', geoError.message);
-                // Continue without location data if lookup fails
             }
         }
 
-        // Process scan based on QR code existence and status
         if (!qrCodeRecord) {
             scanOutcome = 'FAILURE';
             message = 'This code is invalid. The product is likely counterfeit.';
@@ -117,7 +109,6 @@ app.get('/api/verify/:code', async (req, res) => {
                 if (isFirstScan) {
                     scanOutcome = 'SUCCESS';
                     message = 'Product Verified Successfully! This is the first verification.';
-                    // Update status only if scan is successful and code is unused
                     qrCodeRecord.status = 'USED'; // Temporarily update for response context
                 } else {
                     scanOutcome = 'DUPLICATE';
@@ -127,7 +118,6 @@ app.get('/api/verify/:code', async (req, res) => {
                 scanOutcome = 'DUPLICATE';
                 message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
             } else {
-                // Handle other statuses like FLAGGED, INVALID_STATE, SEALED, etc.
                 scanOutcome = 'FAILURE';
                 message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified at this time.`;
             }
@@ -140,12 +130,11 @@ app.get('/api/verify/:code', async (req, res) => {
             }
         }
 
-        // Transaction for creating scan record and potentially updating QR code status
         await prisma.$transaction(async (tx) => {
             await tx.scanRecord.create({
                 data: {
-                    qrCodeId: qrCodeRecord ? qrCodeRecord.id : null, // Link to QRCode if found
-                    scannedCode: code, // Always log the scanned code
+                    qrCodeId: qrCodeRecord ? qrCodeRecord.id : null,
+                    scannedCode: code,
                     scanOutcome: scanOutcome,
                     scannedByRole: 'CUSTOMER',
                     ipAddress: locationData.ipAddress,
@@ -157,17 +146,11 @@ app.get('/api/verify/:code', async (req, res) => {
                 },
             });
 
-            // Update QR code status only if it was 'UNUSED' and the scan was a success
-            // This logic is now tied to the qrCodeRecord object itself reflecting the intended state change
             if (qrCodeRecord && qrCodeRecord.status === 'USED' && scanOutcome === 'SUCCESS') {
-                 // The qrCodeRecord object itself was updated to 'USED' in the logic above,
-                 // so we use that state here to trigger the actual DB update.
-                 // If it was already 'USED' or another status, this block won't execute.
                 await tx.qRCode.update({
                     where: { id: qrCodeRecord.id },
                     data: {
-                        status: 'USED', // Mark as used
-                        // Store first verification details if available from this scan
+                        status: 'USED',
                         firstVerificationTimestamp: new Date(),
                         firstVerificationIp: locationData.ipAddress,
                         firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null,
@@ -176,25 +159,22 @@ app.get('/api/verify/:code', async (req, res) => {
             }
         });
 
-        // Send response
         if (scanOutcome === 'SUCCESS') {
             res.status(200).json({
                 status: 'success',
                 message: message,
-                data: qrCodeRecord, // Send the full details of the verified product
+                data: qrCodeRecord,
             });
         } else {
-            // For DUPLICATE or FAILURE, return appropriate status and message
-            // If it was a DUPLICATE, we still return the product data for context
             if (scanOutcome === 'DUPLICATE') {
                 res.status(409).json({
                     status: 'error',
                     message: message,
                     firstScanDetails: locationData.firstScanDetails,
-                    data: qrCodeRecord, // Send product details for context
+                    data: qrCodeRecord,
                 });
             } else { // FAILURE
-                res.status(404).json({ // Or 400 for invalid state, 404 if code not found
+                res.status(404).json({
                     status: 'error',
                     message: message,
                 });
@@ -205,7 +185,7 @@ app.get('/api/verify/:code', async (req, res) => {
         console.error('Error verifying code:', error);
         res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
     }
-}); 
+});
 
 
 // --- MANUFACTURER ROUTES ---
@@ -310,6 +290,29 @@ app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, aut
 
 
 // --- DVA (Drug Verification Agency) ROUTES ---
+app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
+    try {
+        const pendingBatches = await prisma.batch.findMany({
+            where: {
+                status: 'PENDING_DVA_APPROVAL',
+            },
+            include: {
+                manufacturer: {
+                    select: {
+                        companyName: true,
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'asc',
+            },
+        });
+        res.status(200).json(pendingBatches);
+    } catch (error) {
+        console.error('Error fetching DVA pending batches:', error);
+        res.status(500).json({ error: 'Failed to fetch pending batches.' });
+    }
+});
 app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
     try {
         const batchId = parseInt(req.params.id, 10);
@@ -374,33 +377,6 @@ app.get('/api/dva/history', authenticateToken, authorizeRole(['DVA']), async (re
     } catch (error) {
         console.error('Error fetching DVA history:', error);
         res.status(500).json({ error: 'Failed to fetch DVA history.' });
-        }
-    });
-
-    // --- DEFINITIVE FIX FOR DVA PENDING BATCHES ---
-    app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
-        try {
-            const pendingBatches = await prisma.batch.findMany({
-                where: {
-                    status: 'PENDING_DVA_APPROVAL',
-                },
-                include: {
-                    manufacturer: {
-                        select: {
-                            companyName: true,
-                        },
-                    },
-                },
-                orderBy: {
-                    createdAt: 'asc',
-                },
-            });
-            res.status(200).json(pendingBatches);
-        } catch (error) {
-            console.error('Error fetching DVA pending batches:', error);
-            res.status(500).json({ error: 'Failed to fetch pending batches.' });
-        }
-    });
     }
 });
 
@@ -572,6 +548,10 @@ app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole(['
         res.attachment(zipFileName);
         const archive = archiver('zip', {
             zlib: { level: 9 },
+        });
+        archive.on('error', function(err) {
+            console.error('Archive stream error:', err);
+            res.end();
         });
         archive.pipe(res);
         for (const qr of batch.qrCodes) {
@@ -935,7 +915,7 @@ app.get('/api/printing/history', authenticateToken, authorizeRole(['PRINTING']),
     const completedBatches = await prisma.batch.findMany({
       where: {
         status: {
-          in: ['PRINTING_COMPLETE', 'IN_TRANSIT', 'PENDING_MANUFACTURER_CONFIRMATION', 'DELIVERED_TO_MANUFACTURER'] // CORRECTED STATUS
+          in: ['PRINTING_COMPLETE', 'IN_TRANSIT', 'PENDING_MANUFACTURER_CONFIRMATION', 'DELIVERED_TO_MANUFACTURER']
         }
       },
       include: {
@@ -1319,7 +1299,7 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole(['SKINCARE_B
             },
         });
         res.status(201).json(newProduct);
-    } catch (error) { // <-- SYNTAX ERROR WAS HERE. I REMOVED THE '.'
+    } catch (error) {
         console.error("Error creating skincare product:", error);
         res.status(500).json({ error: 'Failed to create skincare product.' });
     }
