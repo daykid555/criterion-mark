@@ -170,6 +170,11 @@ app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), asy
                 res.status(500).json({ status: 'error', message: 'An internal server error occurred.' });
             }
         });
+        // FIX: Assign the result of the update to updatedBatch before using it
+        const updatedBatch = await prisma.batch.update({
+            where: { id: batchId },
+            data: { status: 'APPROVED' },
+        });
         res.status(200).json(updatedBatch);
     } catch (error) {
         console.error('Error approving batch:', error);
