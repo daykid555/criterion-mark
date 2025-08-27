@@ -81,7 +81,8 @@ model User {
   approvedAt       DateTime?
 
   batches               Batch[]
-  scanRecords           ScanRecord[] // ADDED BACK: This is the opposite relation for ScanRecord.scanner
+  // Correctly defined opposite relation for ScanRecord.scanner
+  scanRecords           ScanRecord[]
   skincareBrand         SkincareBrand?
   manufacturerShipments Shipment[]         @relation("ManufacturerShipments")
   distributorShipments  Shipment[]         @relation("DistributorShipments")
@@ -105,19 +106,22 @@ model Batch {
   qrCodes                        QRCode[]
   dva_approved_at                DateTime?
   admin_approved_at              DateTime?
-  print_started_at               DateTime? // Re-added to prevent data loss
+  print_started_at               DateTime?
   print_completed_at             DateTime?
-  picked_up_at                   DateTime? // Re-added to prevent data loss
+  picked_up_at                   DateTime?
   delivered_at                   DateTime?
   rejection_reason               String?
   shipmentItems                  ShipmentItem[]
   validationRecords              ValidationRecord[]
-  delivery_confirmation_code     String?            @default("") // Re-added to prevent data loss
-  manufacturer_received_quantity Int? // Re-added to prevent data loss
-  seal_background_url            String? // Re-added to prevent data loss
+  delivery_confirmation_code     String?            @default("")
+  manufacturer_received_quantity Int?
+  seal_background_url            String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Explicitly marked as nullable
+  delivery_notes String?
 }
 
 model QRCode {
@@ -144,20 +148,21 @@ model QRCode {
 
 model ScanRecord {
   id            Int      @id @default(autoincrement())
-  qrCodeId      Int? // CHANGE: Made optional to allow logging of scans for unknown codes
-  qrCode        QRCode?  @relation(fields: [qrCodeId], references: [id]) // CHANGE: Made optional
-  scannedCode   String // ADD: Stores the actual text scanned, even if it doesn't match a QRCode
-  scanOutcome   String // ADD: 'SUCCESS', 'FAILURE', or 'DUPLICATE'
+  qrCodeId      Int?
+  qrCode        QRCode?  @relation(fields: [qrCodeId], references: [id])
+  scannedCode   String
+  scanOutcome   String
   scannedAt     DateTime @default(now())
   scannedByRole Role
   scannerId     Int?
+  // Correctly defined opposite relation to User
   scanner       User?    @relation(fields: [scannerId], references: [id])
   ipAddress     String?
   city          String?
   region        String?
   country       String?
-  latitude      Float? // Re-added to prevent data loss
-  longitude     Float? // Re-added to prevent data loss
+  latitude      Float?
+  longitude     Float?
 }
 
 model ValidationRecord {
