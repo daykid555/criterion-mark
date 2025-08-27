@@ -1,4 +1,4 @@
-// backend/index.js - FINAL CORRECTED VERSION (with added vigilance)
+// backend/index.js - FINAL CORRECTED VERSION (EMPHASIZING THE LOGISTICS ROUTE)
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -51,7 +51,6 @@ app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark AP
 
 
 // --- PUBLIC VERIFICATION ROUTE ---
-// --- REWRITTEN PUBLIC VERIFICATION ROUTE WITH SCAN LOGGING AND CORRECTED LOGIC ---
 app.get('/api/verify/:code', async (req, res) => {
     try {
         const { code } = req.params;
@@ -81,7 +80,6 @@ app.get('/api/verify/:code', async (req, res) => {
             ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null,
         };
 
-        // Attempt to get location data if enabled and API key is available
         if (useLocation && process.env.IPINFO_API_KEY) {
             try {
                 const geoResponse = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
@@ -96,11 +94,9 @@ app.get('/api/verify/:code', async (req, res) => {
                 }
             } catch (geoError) {
                 console.error('IPinfo lookup failed:', geoError.message);
-                // Continue without location data if lookup fails
             }
         }
 
-        // Process scan based on QR code existence and status
         if (!qrCodeRecord) {
             scanOutcome = 'FAILURE';
             message = 'This code is invalid. The product is likely counterfeit.';
@@ -121,7 +117,6 @@ app.get('/api/verify/:code', async (req, res) => {
                 scanOutcome = 'DUPLICATE';
                 message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
             } else {
-                // Handle other statuses like FLAGGED, INVALID_STATE, SEALED, etc.
                 scanOutcome = 'FAILURE';
                 message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified at this time.`;
             }
@@ -134,12 +129,11 @@ app.get('/api/verify/:code', async (req, res) => {
             }
         }
 
-        // Transaction for creating scan record and potentially updating QR code status
         await prisma.$transaction(async (tx) => {
             await tx.scanRecord.create({
                 data: {
-                    qrCodeId: qrCodeRecord ? qrCodeRecord.id : null, // Link to QRCode if found
-                    scannedCode: code, // Always log the scanned code
+                    qrCodeId: qrCodeRecord ? qrCodeRecord.id : null,
+                    scannedCode: code,
                     scanOutcome: scanOutcome,
                     scannedByRole: 'CUSTOMER',
                     ipAddress: locationData.ipAddress,
@@ -151,13 +145,11 @@ app.get('/api/verify/:code', async (req, res) => {
                 },
             });
 
-            // Update QR code status only if it was 'UNUSED' and the scan was a success
             if (qrCodeRecord && qrCodeRecord.status === 'USED' && scanOutcome === 'SUCCESS') {
                 await tx.qRCode.update({
                     where: { id: qrCodeRecord.id },
                     data: {
-                        status: 'USED', // Mark as used
-                        // Store first verification details if available from this scan
+                        status: 'USED',
                         firstVerificationTimestamp: new Date(),
                         firstVerificationIp: locationData.ipAddress,
                         firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null,
@@ -166,24 +158,22 @@ app.get('/api/verify/:code', async (req, res) => {
             }
         });
 
-        // Send response
         if (scanOutcome === 'SUCCESS') {
             res.status(200).json({
                 status: 'success',
                 message: message,
-                data: qrCodeRecord, // Send the full details of the verified product
+                data: qrCodeRecord,
             });
         } else {
-            // For DUPLICATE or FAILURE, return appropriate status and message
             if (scanOutcome === 'DUPLICATE') {
                 res.status(409).json({
                     status: 'error',
                     message: message,
                     firstScanDetails: locationData.firstScanDetails,
-                    data: qrCodeRecord, // Send product details for context
+                    data: qrCodeRecord,
                 });
             } else { // FAILURE
-                res.status(404).json({ // Or 400 for invalid state, 404 if code not found
+                res.status(404).json({
                     status: 'error',
                     message: message,
                 });
@@ -259,7 +249,7 @@ app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), asy
     }
 });
 
-// *** CORRECTED ROUTE PATH ***
+// *** ENSURED CORRECT ROUTE PATH ***
 app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
         const batchId = parseInt(req.params.id, 10);
@@ -1107,7 +1097,6 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
 app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
-        // Ensure delivery_notes is handled safely, defaulting to null if not provided or empty
         const { delivery_notes } = req.body;
         const safeDeliveryNotes = (delivery_notes && typeof delivery_notes === 'string' && delivery_notes.trim() !== '') ? delivery_notes.trim() : null;
 
@@ -1122,7 +1111,7 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
             where: { id: parseInt(id, 10) },
             data: {
                 status: 'PENDING_MANUFACTURER_CONFIRMATION',
-                delivery_notes: safeDeliveryNotes // Use the safely processed notes
+                delivery_notes: safeDeliveryNotes
             },
         });
         res.status(200).json(updatedBatch);
