@@ -1546,6 +1546,9 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // --- START THE SERVER ---
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+// Make sure your server listens on the port provided by Render's environment
+const port = process.env.PORT || 5001; // Use process.env.PORT
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+  // This log is important: it confirms which port your Node.js app is using internally.
 });
