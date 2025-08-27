@@ -291,7 +291,7 @@ app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, aut
 });
 
 // --- ADDED THE MISSING CONFIRM-RECEIPT ROUTE ---
-app.put('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
+app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
         const batchId = parseInt(req.params.id, 10);
         const manufacturerId = req.user.userId;
