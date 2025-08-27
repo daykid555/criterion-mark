@@ -89,9 +89,14 @@ app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), asy
 
 app.get('/api/manufacturer/batches', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
+        const manufacturerId = req.user.userId;
         const batches = await prisma.batch.findMany({
-            where: { manufacturerId: req.user.userId },
-            orderBy: { createdAt: 'desc' },
+            where: {
+                manufacturerId: manufacturerId,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
         });
         res.status(200).json(batches);
     } catch (error) {
@@ -303,9 +308,11 @@ app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole(['ADMI
     try {
         const { id } = req.params;
         const { reason } = req.body;
+
         if (!reason) {
             return res.status(400).json({ error: 'Rejection reason is required.' });
         }
+
         const updatedBatch = await prisma.batch.update({
             where: {
                 id: parseInt(id, 10),
@@ -657,7 +664,7 @@ app.put('/api/admin/users/:id/toggle-activation', authenticateToken, authorizeRo
 
 app.post('/api/admin/system-reset', authenticateToken, authorizeRole(['ADMIN']), async (req, res) => {
     // This is a dangerous operation and is best handled via a separate, secure script.
-    res.status(510).json({ message: "System reset via API is disabled for security." });
+    res.status(501).json({ message: "System reset via API is disabled for security." });
 });
 // backend/index.js
 // actually complete code (Part 3 of 5)
