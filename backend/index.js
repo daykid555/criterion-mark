@@ -249,6 +249,8 @@ app.post('/api/batches', authenticateToken, authorizeRole(['MANUFACTURER']), asy
     }
 });
 
+// ... other routes ...
+
 // *** ENSURED CORRECT ROUTE PATH ***
 app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
@@ -288,6 +290,64 @@ app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, aut
     }
 });
 
+// --- ADDED THE MISSING CONFIRM-RECEIPT ROUTE ---
+app.put('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
+    try {
+        const batchId = parseInt(req.params.id, 10);
+        const manufacturerId = req.user.userId;
+        const { quantityReceived } = req.body; // Assuming quantityReceived is sent in the body
+
+        if (quantityReceived === undefined || quantityReceived === null) {
+            return res.status(400).json({ error: 'Quantity received is required.' });
+        }
+
+        const batch = await prisma.batch.findFirst({
+            where: {
+                id: batchId,
+                manufacturerId: manufacturerId
+            }
+        });
+
+        if (!batch) {
+            return res.status(404).json({ error: 'Batch not found or you do not have permission to confirm receipt.' });
+        }
+
+        if (batch.status !== 'PENDING_MANUFACTURER_CONFIRMATION') {
+            return res.status(400).json({ error: `This batch is not in the expected status ('PENDING_MANUFACTURER_CONFIRMATION'). Current status: ${batch.status}` });
+        }
+
+        // Ensure quantityReceived is a valid number and not negative
+        const safeQuantityReceived = parseInt(quantityReceived, 10);
+        if (isNaN(safeQuantityReceived) || safeQuantityReceived < 0) {
+            return res.status(400).json({ error: 'Invalid quantity received. Must be a non-negative number.' });
+        }
+
+        // Optional: Add a check if safeQuantityReceived exceeds the original quantity, though the previous logic might handle this.
+        // if (safeQuantityReceived > batch.quantity) {
+        //     return res.status(400).json({ error: 'Quantity received cannot exceed the original batch quantity.' });
+        // }
+
+        const updatedBatch = await prisma.batch.update({
+            where: { id: batchId },
+            data: {
+                manufacturer_received_quantity: safeQuantityReceived,
+                status: 'DELIVERED_TO_MANUFACTURER' // Moving to the next stage
+            },
+        });
+
+        res.status(200).json({
+            message: 'Batch receipt confirmed successfully.',
+            batch: updatedBatch
+        });
+
+    } catch (error) {
+        console.error('Error confirming receipt:', error);
+        res.status(500).json({ error: 'Failed to confirm batch receipt.' });
+    }
+});
+
+
+// ... rest of the file ...
 
 // --- DVA (Drug Verification Agency) ROUTES ---
 app.get('/api/dva/pending-batches', authenticateToken, authorizeRole(['DVA']), async (req, res) => {
@@ -1094,11 +1154,19 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole(['
         res.status(500).json({ error: 'Failed to update batch.' });
     }
 });
+
 app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole(['LOGISTICS']), async (req, res) => {
     try {
         const { id } = req.params;
         const { delivery_notes } = req.body;
-        const safeDeliveryNotes = (delivery_notes && typeof delivery_notes === 'string' && delivery_notes.trim() !== '') ? delivery_notes.trim() : null;
+
+        // --- SAFE HANDLING OF delivery_notes ---
+        // Check if delivery_notes is provided, is a string, and is not just whitespace.
+        // If so, trim it. Otherwise, set it to null.
+        const safeDeliveryNotes = (delivery_notes && typeof delivery_notes === 'string' && delivery_notes.trim() !== '')
+            ? delivery_notes.trim()
+            : null;
+        // --- END SAFE HANDLING ---
 
         const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
         if (!batch) {
@@ -1111,7 +1179,7 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
             where: { id: parseInt(id, 10) },
             data: {
                 status: 'PENDING_MANUFACTURER_CONFIRMATION',
-                delivery_notes: safeDeliveryNotes
+                delivery_notes: safeDeliveryNotes // Use the safely handled notes here
             },
         });
         res.status(200).json(updatedBatch);
