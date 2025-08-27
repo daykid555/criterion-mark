@@ -25,7 +25,17 @@ const PORT = process.env.PORT || 5001;
 
 // --- MIDDLEWARE SETUP ---
 const allowedOrigins = ['http://localhost:5173', 'https://criterion-mark.vercel.app'];
-app.use(cors({ origin: (origin, callback) => { if (!origin || allowedOrigins.includes(origin)) { callback(null, true); } else { callback(new Error('Not allowed by CORS')); } } }));
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Use-Location'], // Explicitly allow custom headers
+}));
 app.use(express.json());
 app.set('trust proxy', true); // Important for accurate IP detection with proxies
 
