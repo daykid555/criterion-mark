@@ -293,18 +293,11 @@ app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, aut
 // --- ADDED THE MISSING CONFIRM-RECEIPT ROUTE ---
 app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole(['MANUFACTURER']), async (req, res) => {
     try {
-        // --- DEBUGGING LOGS ---
-        console.log(`[${new Date().toISOString()}] Received POST to /api/manufacturer/batches/${req.params.id}/confirm-receipt`);
-        console.log('Request Headers:', JSON.stringify(req.headers, null, 2));
-        console.log('Request Body:', JSON.stringify(req.body, null, 2));
-        // --- END DEBUGGING ---
-
         const batchId = parseInt(req.params.id, 10);
         const manufacturerId = req.user.userId;
-        const { quantityReceived } = req.body; // Assuming quantityReceived is sent in the body
+        const { received_quantity: quantityReceived } = req.body; // FIX: Accept 'received_quantity' from frontend
 
         if (quantityReceived === undefined || quantityReceived === null) {
-            console.error('Validation Failed: quantityReceived is missing or null in the request body.');
             return res.status(400).json({ error: 'Quantity received is required.' });
         }
 
