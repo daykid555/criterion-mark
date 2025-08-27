@@ -1548,20 +1548,23 @@ app.post('/api/auth/register', async (req, res) => {
 // ... (previous imports and configurations) ...
 
 // --- START THE SERVER ---
-// Use the PORT from Render's environment. If it's not set (e.g., locally), default to 5001.
+// Get the port from Render's environment variable.
+// For local development, we'll provide a default.
 const port = process.env.PORT;
 
 if (!port) {
-  console.error('PORT environment variable is not set. Defaulting to 5001 for local development.');
-  // This fallback is primarily for local testing if .env doesn't have PORT
-  // On Render, process.env.PORT MUST be set.
-  app.listen(5001, () => {
-    console.log('Server is running on http://localhost:5001');
+  // This block should ideally ONLY run for local development.
+  // If it runs on Render, it means process.env.PORT is NOT being set by Render.
+  console.error('PORT environment variable is not set by Render. Falling back to default port 5001 for local testing.');
+  // Use a default port for local development.
+  const defaultPort = 5001;
+  app.listen(defaultPort, () => {
+    console.log(`Server running locally on http://localhost:${defaultPort}. Ensure Render sets process.env.PORT.`);
   });
 } else {
+  // This is the block that MUST execute on Render.
+  // It means Render has provided a PORT.
   app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-    // This log is important: it confirms which port your Node.js app is using internally,
-    // as provided by Render.
+    console.log(`Server is running on http://localhost:${port} (Render's assigned port)`);
   });
 }
