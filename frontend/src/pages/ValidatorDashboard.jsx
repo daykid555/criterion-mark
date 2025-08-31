@@ -1,5 +1,5 @@
-// frontend/src/pages/ValidatorDashboard.jsx
-// --- COMPLETELY REBUILT & FIXED ---
+// frontend/src/pages/ValidatorDashboardPage.jsx
+// --- FINAL CORRECTED VERSION ---
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -8,8 +8,8 @@ import { CheckCircleIcon, XCircleIcon, DocumentMagnifyingGlassIcon, ShieldExclam
 
 const qrcodeRegionId = "validator-qr-reader";
 
-// --- New, Integrated Scan Feedback for Scanner View ---
-const ScannerFeedback = ({ feedback }) => {
+// --- Toast-style Feedback Component ---
+const ScanFeedback = ({ feedback }) => {
     if (!feedback.message) return null;
 
     let bgColor, Icon;
@@ -29,17 +29,17 @@ const ScannerFeedback = ({ feedback }) => {
     }
 
     return (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
-            <div className={`flex flex-col items-center justify-center p-8 rounded-lg text-white shadow-2xl ${bgColor}`}>
-                <Icon className="w-16 h-16 mb-4" />
-                <p className="font-bold text-lg">{feedback.type.toUpperCase()}</p>
-                <p>{feedback.message}</p>
+        <div className={`fixed bottom-5 right-5 z-50 p-4 rounded-lg text-white shadow-2xl flex items-center transition-opacity duration-300 ${bgColor}`}>
+            <Icon className="w-8 h-8 mr-3" />
+            <div>
+                <p className="font-bold text-sm">{feedback.type.toUpperCase()}</p>
+                <p className="text-xs">{feedback.message}</p>
             </div>
         </div>
     );
 };
 
-
+// --- Main Page Component ---
 function ValidatorDashboardPage() {
     const [mode, setMode] = useState('select_batch');
     const [batches, setBatches] = useState([]);
@@ -48,10 +48,8 @@ function ValidatorDashboardPage() {
     const [error, setError] = useState('');
     const [feedback, setFeedback] = useState({ type: '', message: '' });
     const [scanStats, setScanStats] = useState({ success: 0, error: 0 });
-    
-    // --- NEW STATE MANAGEMENT ---
-    const [scannedCodes, setScannedCodes] = useState(new Set()); // Tracks codes in this session
-    const [isPaused, setIsPaused] = useState(false); // Pauses scanner after a scan
+    const [scannedCodes, setScannedCodes] = useState(new Set());
+    const [isPaused, setIsPaused] = useState(false);
     
     const scannerRef = useRef(null);
     const feedbackTimerRef = useRef(null);
@@ -69,25 +67,21 @@ function ValidatorDashboardPage() {
             });
     }, []);
     
-    // Cleanup scanner on component unmount
+    // Cleanup scanner when the component unmounts or mode changes
     useEffect(() => {
         return () => {
             if (scannerRef.current && scannerRef.current.isScanning) {
                 scannerRef.current.stop().catch(err => console.error("Cleanup failed:", err));
             }
         };
-    }, []);
+    }, [mode]);
 
-    // --- NEW AUDIO UTILITY ---
     const playAudio = (sound) => {
-        try {
-            new Audio(`/sounds/${sound}.mp3`).play();
-        } catch (e) {
-            console.warn("Could not play audio feedback.", e);
-        }
+        try { new Audio(`/sounds/${sound}.mp3`).play(); } 
+        catch (e) { console.warn("Could not play audio feedback.", e); }
     };
 
-    const showFeedback = (type, message, duration = 1500) => {
+    const showFeedback = (type, message, duration = 2000) => {
         if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
         setFeedback({ type, message });
         feedbackTimerRef.current = setTimeout(() => {
@@ -95,21 +89,19 @@ function ValidatorDashboardPage() {
         }, duration);
     };
     
-    const handleScanSuccess = async (decodedText) => {
-        if (isPaused) return; // Ignore scans if paused
+    const handleScan = async (decodedText) => {
+        if (isPaused) return;
 
-        setIsPaused(true); // Pause immediately
+        setIsPaused(true);
         const code = decodedText.split('/').pop();
 
-        // --- NEW: Check for duplicates in this session ---
         if (scannedCodes.has(code)) {
             playAudio('duplicate');
-            showFeedback('info', `Code ${code} already scanned.`);
-            setTimeout(() => setIsPaused(false), 1500); // Unpause
+            showFeedback('info', `Already scanned: ${code}`);
+            setTimeout(() => setIsPaused(false), 1500);
             return;
         }
 
-        // Add to session's scanned codes
         setScannedCodes(prev => new Set(prev).add(code));
 
         try {
@@ -126,90 +118,71 @@ function ValidatorDashboardPage() {
             showFeedback('error', errorMessage);
             setScanStats(prev => ({ ...prev, error: prev.error + 1 }));
         } finally {
-            setTimeout(() => setIsPaused(false), 1500); // Unpause after 1.5s
+            setTimeout(() => setIsPaused(false), 1500);
         }
     };
     
     const startScannerForBatch = (batch) => {
         setSelectedBatch(batch);
         setMode('scanning');
-        setScannedCodes(new Set()); // Reset session codes
+        setScannedCodes(new Set());
+        setError('');
 
         setTimeout(() => {
-            if (!document.getElementById(qrcodeRegionId)) return;
-            const html5QrCode = new Html5Qrcode(qrcodeRegionId);
-            scannerRef.current = html5QrCode;
+            const qrScanner = new Html5Qrcode(qrcodeRegionId);
+            scannerRef.current = qrScanner;
             
-            html5QrCode.start(
+            qrScanner.start(
                 { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
-                handleScanSuccess,
-                (errorMessage) => {} // Optional error callback, we handle errors in success callback
+                handleScan,
+                (errorMessage) => {}
             ).catch(err => {
-                setError("CAMERA ERROR: Please grant camera permissions and refresh the page.");
+                setError("CAMERA ERROR: Please grant camera permissions and refresh.");
                 setMode('select_batch');
             });
         }, 100);
     };
 
     const stopScannerAndExit = () => {
-        if (scannerRef.current && scannerRef.current.isScanning) {
-            scannerRef.current.stop()
-                .finally(() => {
-                    setMode('select_batch');
-                    setSelectedBatch(null);
-                    setScanStats({ success: 0, error: 0 });
-                    setScannedCodes(new Set());
-                });
-        } else {
-             setMode('select_batch');
-             setSelectedBatch(null);
-             setScanStats({ success: 0, error: 0 });
-             setScannedCodes(new Set());
-        }
+        setMode('select_batch');
+        setSelectedBatch(null);
+        setScanStats({ success: 0, error: 0 });
+        setScannedCodes(new Set());
     };
 
     if (loading) return <p className="text-center text-white">Loading batches...</p>;
-    
-    // --- FULL SCREEN SCANNER UI (REDESIGNED) ---
-    if (mode === 'scanning') {
+
+    // --- SCANNING VIEW (Styled like VerificationPage.jsx) ---
+    if (mode === 'scanning' && selectedBatch) {
         return (
-            <div className="fixed inset-0 z-50 bg-black text-white">
-                {/* The div for the scanner video stream */}
-                <div id={qrcodeRegionId} className="w-full h-full object-cover"></div>
-
-                {/* Viewfinder Overlay */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-[300px] h-[300px] border-4 border-white/50 rounded-2xl shadow-lg" />
-                </div>
-                
-                {/* Top Information Bar */}
-                <div className="absolute top-0 left-0 w-full p-4 bg-gradient-to-b from-black/80 to-transparent">
-                    <p className="text-sm font-light opacity-80">Validating Batch #{selectedBatch.id}</p>
-                    <h1 className="text-xl font-bold">{selectedBatch.manufacturer.companyName} - {selectedBatch.drugName}</h1>
-                    <div className="flex gap-6 mt-2 text-lg">
-                        <span className="text-green-400 font-bold">Success: {scanStats.success}</span>
-                        <span className="text-red-400 font-bold">Errors: {scanStats.error}</span>
+            <div className="w-full max-w-md mx-auto">
+                <div className="glass-panel p-6 sm:p-8 space-y-4">
+                    <div>
+                        <p className="text-sm font-light text-white/70">Validating Batch #{selectedBatch.id}</p>
+                        <h1 className="text-2xl font-bold text-white leading-tight">{selectedBatch.manufacturer.companyName} - {selectedBatch.drugName}</h1>
                     </div>
-                </div>
+                    
+                    <div className="w-full rounded-2xl overflow-hidden bg-black shadow-lg aspect-square relative">
+                        <div id={qrcodeRegionId}></div>
+                    </div>
 
-                {/* Bottom Control Button */}
-                <div className="absolute bottom-0 left-0 w-full p-6 flex justify-center">
-                    <button 
-                        onClick={stopScannerAndExit} 
-                        className="bg-red-600/80 backdrop-blur-sm hover:bg-red-500 transition-colors py-3 px-8 rounded-lg font-bold text-lg shadow-2xl"
-                    >
+                    <div className="flex justify-around items-center pt-2">
+                        <span className="text-green-400 font-bold text-xl">Success: {scanStats.success}</span>
+                        <span className="text-red-400 font-bold text-xl">Errors: {scanStats.error}</span>
+                    </div>
+                    
+                    <button onClick={stopScannerAndExit} className="w-full glass-button mt-4 py-3 rounded-lg font-bold text-lg">
                         End Session
                     </button>
+                    {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>}
                 </div>
-                
-                {/* Feedback Overlay */}
-                <ScannerFeedback feedback={feedback} />
+                <ScanFeedback feedback={feedback} />
             </div>
         );
     }
     
-    // --- Batch Selection UI (UNCHANGED) ---
+    // --- BATCH SELECTION VIEW ---
     return (
         <div className="bg-gray-800/50 p-6 rounded-lg">
             <h1 className="text-2xl font-bold text-white mb-6 flex items-center">
