@@ -23,7 +23,6 @@ import DvaDashboard from './pages/DvaDashboard.jsx';
 import PrintingDashboard from './pages/PrintingDashboard.jsx';
 import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
-import ValidatorDashboardPage from './pages/ValidatorDashboard.jsx';
 
 // Admin Pages
 import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
@@ -71,7 +70,6 @@ function App() {
       PRINTING: '/printing/dashboard',
       LOGISTICS: '/logistics/dashboard',
       SKINCARE_BRAND: '/skincare/dashboard',
-      VALIDATOR: '/validator/dashboard',
     };
     return paths[role] || '/login';
   };
@@ -87,7 +85,6 @@ function App() {
           <Route path="/printing/dashboard" element={<PrintingDashboard />} />
           <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
           <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
-          <Route path="/validator/dashboard" element={<ValidatorDashboardPage />} />
           
           {/* Admin Routes */}
           <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
