@@ -22,8 +22,7 @@ import PrintingDashboard from './pages/PrintingDashboard.jsx';
 import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
 // --- Validator Dashboard Import ---
-import ValidatorDashboard from './pages/ValidatorDashboard.jsx'; // Make sure this is imported
-
+import ValidatorDashboardPage from './pages/ValidatorDashboardPage.jsx';
 // Admin Pages
 import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
 import AdminRegistrationQueuePage from './pages/AdminRegistrationQueuePage.jsx';
@@ -87,8 +86,7 @@ function App() {
           <Route path="/printing/dashboard" element={<PrintingDashboard />} />
           <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
           <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
-          <Route path="/validator/dashboard" element={<ValidatorDashboard />} /> {/* FIX: Added Validator Dashboard route */}
-          
+          <Route path="/validator/dashboard" element={<ValidatorDashboardPage />} />            
           {/* Admin Routes */}
           <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
           <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
