@@ -1,5 +1,5 @@
 // frontend/src/pages/ValidatorDashboardPage.jsx
-// --- DEFINITIVE, CORRECTED VERSION ---
+// --- FINAL ATTEMPT - FOCUSED & CORRECTED ---
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -8,20 +8,16 @@ import { CheckCircleIcon, XCircleIcon, DocumentMagnifyingGlassIcon, ShieldExclam
 
 const qrcodeRegionId = "validator-qr-reader";
 
-// --- Toast-style Feedback Component ---
+// --- Toast-style Feedback Component (UNCHANGED) ---
 const ScanFeedback = ({ feedback }) => {
     if (!feedback.message) return null;
 
     let bgColor, Icon;
     switch (feedback.type) {
-        case 'success':
-            bgColor = 'bg-green-500'; Icon = CheckCircleIcon; break;
-        case 'error':
-            bgColor = 'bg-red-500'; Icon = XCircleIcon; break;
-        default: // 'info' for duplicates/already scanned
-            bgColor = 'bg-blue-500'; Icon = ShieldExclamationIcon; break;
+        case 'success': bgColor = 'bg-green-500'; Icon = CheckCircleIcon; break;
+        case 'error': bgColor = 'bg-red-500'; Icon = XCircleIcon; break;
+        default: bgColor = 'bg-blue-500'; Icon = ShieldExclamationIcon; break;
     }
-
     return (
         <div className={`fixed bottom-5 right-5 z-50 p-4 rounded-lg text-white shadow-2xl flex items-center`}>
             <div className={`absolute inset-0 ${bgColor} opacity-90 rounded-lg`}></div>
@@ -59,23 +55,20 @@ function ValidatorDashboardPage() {
     }, []);
     
     useEffect(() => {
-        // This function ensures the scanner is stopped when we leave the scanning mode.
         const stopScanner = () => {
             if (scannerRef.current && scannerRef.current.isScanning) {
-                scannerRef.current.stop().catch(err => console.error("Failed to stop scanner on cleanup:", err));
+                scannerRef.current.stop().catch(err => { /* Ignore cleanup errors */ });
                 scannerRef.current = null;
             }
         };
-        if (mode !== 'scanning') {
-            stopScanner();
-        }
+        if (mode !== 'scanning') stopScanner();
         return () => stopScanner();
     }, [mode]);
 
     const playAudio = (sound) => {
-        console.log(`Attempting to play sound: ${sound}`); // For debugging
+        console.log(`[AUDIO DEBUG] Attempting to play sound: /sounds/${sound}.mp3`);
         try { new Audio(`/sounds/${sound}.mp3`).play(); } 
-        catch (e) { console.error("Audio playback failed:", e); }
+        catch (e) { console.error(`[AUDIO DEBUG] Playback failed for ${sound}.mp3:`, e); }
     };
 
     const showFeedback = (type, message, duration = 2500) => {
@@ -92,7 +85,7 @@ function ValidatorDashboardPage() {
 
         if (scannedCodes.has(code)) {
             playAudio('duplicate');
-            showFeedback('info', `Already scanned in this session.`);
+            showFeedback('info', `Already scanned`);
             setTimeout(() => setIsPaused(false), 1500);
             return;
         }
@@ -105,22 +98,17 @@ function ValidatorDashboardPage() {
             setScanStats(prev => ({ ...prev, success: prev.success + 1 }));
         } catch (err) {
             const errorMessage = err.response?.data?.message || 'Verification failed.';
-            // --- INTELLIGENT ERROR HANDLING ---
-            if (err.response && err.response.status === 409) {
-                // This is a code that has already been processed (e.g., status is VALIDATED or USED).
-                // It's not a "hard error," it's an "info" case.
-                setScannedCodes(prev => new Set(prev).add(code)); // Add to session so we don't hit the API again
+            if (err.response?.status === 409) {
+                setScannedCodes(prev => new Set(prev).add(code));
                 playAudio('duplicate');
-                showFeedback('info', errorMessage); // Show the specific reason from the backend
-                // DO NOT increment the error counter for this case.
+                showFeedback('info', errorMessage);
             } else {
-                // This is a true error (e.g., code not found, server error).
                 playAudio('error');
                 showFeedback('error', errorMessage);
                 setScanStats(prev => ({ ...prev, error: prev.error + 1 }));
             }
         } finally {
-            setTimeout(() => setIsPaused(false), 1500); // Unpause after processing
+            setTimeout(() => setIsPaused(false), 1500);
         }
     };
     
@@ -131,36 +119,29 @@ function ValidatorDashboardPage() {
         setError('');
         setMode('scanning');
 
-        // Delay to allow UI to render the div
         setTimeout(() => {
-            if (!document.getElementById(qrcodeRegionId)) {
-                console.error("QR Code reader element not found in DOM.");
-                setError("Could not initialize camera. Please try again.");
-                setMode('select_batch');
-                return;
-            }
-            const qrScanner = new Html5Qrcode(qrcodeRegionId, { formatsToSupport: [0] }); // 0 = QR_CODE
+            if (!document.getElementById(qrcodeRegionId)) return;
+            const qrScanner = new Html5Qrcode(qrcodeRegionId);
             scannerRef.current = qrScanner;
             
+            // --- FIX: NO qrbox, NO viewfinder, PLAIN CAMERA ---
             qrScanner.start(
                 { facingMode: "environment" },
-                { fps: 5, qrbox: (viewfinderWidth, viewfinderHeight) => ({ width: viewfinderWidth * 0.7, height: viewfinderHeight * 0.7 }) },
+                { fps: 5 },
                 handleScan,
-                (errorMessage) => { /* Ignore continuous errors */ }
+                (errorMessage) => {}
             ).catch(err => {
-                setError("CAMERA ERROR: Please grant camera permissions and refresh the page.");
+                setError("CAMERA ERROR: Please grant camera permissions and refresh.");
                 setMode('select_batch');
             });
         }, 200);
     };
 
-    const stopScannerAndExit = () => {
-        setMode('select_batch');
-    };
+    const stopScannerAndExit = () => setMode('select_batch');
 
-    if (loading) return <p className="text-center text-white">Loading batches...</p>;
+    if (loading) return <p className="text-center text-white">Loading...</p>;
 
-    // --- SCANNING VIEW (UI FIXED) ---
+    // --- SCANNING VIEW ---
     if (mode === 'scanning' && selectedBatch) {
         return (
             <div className="w-full max-w-lg mx-auto">
@@ -170,19 +151,15 @@ function ValidatorDashboardPage() {
                         <h1 className="text-2xl font-bold text-white leading-tight">{selectedBatch.manufacturer.companyName} - {selectedBatch.drugName}</h1>
                     </div>
                     
-                    {/* --- UI FIX: NO MORE BLACK BOX --- */}
-                    <div className="w-full rounded-2xl overflow-hidden shadow-lg relative aspect-square">
-                        <div id={qrcodeRegionId} className="w-full h-full" />
-                    </div>
+                    {/* --- FIX: NO BORDERS, PLAIN CAMERA CONTAINER --- */}
+                    <div className="w-full rounded-2xl overflow-hidden shadow-lg aspect-square" id={qrcodeRegionId} />
 
                     <div className="flex justify-around items-center pt-2">
                         <span className="text-green-400 font-bold text-xl">Success: {scanStats.success}</span>
                         <span className="text-red-400 font-bold text-xl">Errors: {scanStats.error}</span>
                     </div>
                     
-                    <button onClick={stopScannerAndExit} className="w-full glass-button mt-4 py-3 rounded-lg font-bold text-lg">
-                        End Session
-                    </button>
+                    <button onClick={stopScannerAndExit} className="w-full glass-button mt-4 py-3 rounded-lg font-bold text-lg">End Session</button>
                     {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>}
                 </div>
                 <ScanFeedback feedback={feedback} />
@@ -190,7 +167,7 @@ function ValidatorDashboardPage() {
         );
     }
     
-    // --- BATCH SELECTION VIEW ---
+    // --- BATCH SELECTION VIEW (FIX: REVERTED TO ORIGINAL STATE) ---
     return (
         <div className="bg-gray-800/50 p-6 rounded-lg max-w-lg mx-auto">
             <h1 className="text-2xl font-bold text-white mb-6 flex items-center">
