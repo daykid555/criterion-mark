@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
-import { CheckCircleIcon, XCircleIcon, DocumentMagnifyingGlassIcon, ShieldExclamationIcon } from '@heroicons/react/24/solid';
+import { CheckCircleIcon, XCircleIcon, ShieldExclamationIcon } from '@heroicons/react/24/solid';
 
 const qrcodeRegionId = "validator-qr-reader";
 
@@ -11,7 +11,7 @@ const ScanFeedback = ({ feedback }) => {
     switch (feedback.type) {
         case 'success': bgColor = 'bg-green-500'; Icon = CheckCircleIcon; break;
         case 'error': bgColor = 'bg-red-500'; Icon = XCircleIcon; break;
-        case 'info': bgColor = 'bg-blue-500'; Icon = ShieldExclamationIcon; break;
+        case 'duplicate': bgColor = 'bg-blue-500'; Icon = ShieldExclamationIcon; break;
         default: bgColor = 'bg-blue-500'; Icon = ShieldExclamationIcon; break;
     }
     return (
@@ -28,27 +28,6 @@ const ScanFeedback = ({ feedback }) => {
     );
 };
 
-// Remove html5-qrcode viewfinder overlays
-const removeViewfinder = () => {
-    setTimeout(() => {
-        const region = document.getElementById(qrcodeRegionId);
-        if (region) {
-            // Remove all children except video
-            Array.from(region.children).forEach(child => {
-                if (child.tagName !== 'VIDEO') child.style.display = 'none';
-            });
-            const video = region.querySelector('video');
-            if (video) {
-                video.style.width = '100%';
-                video.style.height = '100%';
-                video.style.objectFit = 'cover';
-                video.style.borderRadius = '1rem';
-                video.style.background = 'transparent';
-            }
-        }
-    }, 500);
-};
-
 function ValidatorDashboardPage() {
     const [mode, setMode] = useState('select_batch');
     const [batches, setBatches] = useState([]);
@@ -56,9 +35,11 @@ function ValidatorDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [feedback, setFeedback] = useState({ type: '', message: '' });
-    const [scanStats, setScanStats] = useState({ success: 0, error: 0 });
+    const [sessionStats, setSessionStats] = useState({});
+    const [currentStats, setCurrentStats] = useState({ success: 0, error: 0, duplicate: 0 });
     const [scannedCodes, setScannedCodes] = useState(new Set());
     const scannerRef = useRef(null);
+    const lastScanRef = useRef('');
     const feedbackTimerRef = useRef(null);
 
     useEffect(() => {
@@ -84,21 +65,22 @@ function ValidatorDashboardPage() {
         catch (e) { /* Audio error ignored */ }
     };
 
-    const showFeedback = (type, message, duration = 2500) => {
+    const showFeedback = (type, message, duration = 2000) => {
         if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
         setFeedback({ type, message });
         feedbackTimerRef.current = setTimeout(() => setFeedback({ type: '', message: '' }), duration);
     };
 
+    // Debounce logic: prevent scanning same code twice in a row
     const handleScan = async (decodedText) => {
-        if (!scannerRef.current) return;
-        scannerRef.current.pause(true);
-
         const code = decodedText.split('/').pop();
+        if (code === lastScanRef.current) return; // Ignore if same code as last scan
+        lastScanRef.current = code;
+
         if (scannedCodes.has(code)) {
             playAudio('duplicate');
-            showFeedback('info', `Already scanned`);
-            setTimeout(() => scannerRef.current.resume(), 1500);
+            showFeedback('duplicate', `Already scanned`);
+            setCurrentStats(stats => ({ ...stats, duplicate: stats.duplicate + 1 }));
             return;
         }
 
@@ -107,26 +89,25 @@ function ValidatorDashboardPage() {
             setScannedCodes(prev => new Set(prev).add(code));
             playAudio('success');
             showFeedback('success', response.data.message);
-            setScanStats(prev => ({ ...prev, success: prev.success + 1 }));
+            setCurrentStats(stats => ({ ...stats, success: stats.success + 1 }));
         } catch (err) {
             const errorMessage = err.response?.data?.message || 'Verification failed.';
             if (err.response?.status === 409) {
                 setScannedCodes(prev => new Set(prev).add(code));
                 playAudio('duplicate');
-                showFeedback('info', errorMessage);
+                showFeedback('duplicate', errorMessage);
+                setCurrentStats(stats => ({ ...stats, duplicate: stats.duplicate + 1 }));
             } else {
                 playAudio('error');
                 showFeedback('error', errorMessage);
-                setScanStats(prev => ({ ...prev, error: prev.error + 1 }));
+                setCurrentStats(stats => ({ ...stats, error: stats.error + 1 }));
             }
-        } finally {
-            setTimeout(() => scannerRef.current.resume(), 1500);
         }
     };
 
     const startScannerForBatch = (batch) => {
         setSelectedBatch(batch);
-        setScanStats({ success: 0, error: 0 });
+        setCurrentStats({ success: 0, error: 0, duplicate: 0 });
         setScannedCodes(new Set());
         setError('');
         setMode('scanning');
@@ -136,10 +117,28 @@ function ValidatorDashboardPage() {
             scannerRef.current = qrScanner;
             qrScanner.start(
                 { facingMode: "environment" },
-                { fps: 5 },
+                { fps: 10 },
                 handleScan,
                 () => {}
-            ).then(removeViewfinder)
+            ).then(() => {
+                // Remove overlays, style video
+                setTimeout(() => {
+                    const region = document.getElementById(qrcodeRegionId);
+                    if (region) {
+                        Array.from(region.children).forEach(child => {
+                            if (child.tagName !== 'VIDEO') child.style.display = 'none';
+                        });
+                        const video = region.querySelector('video');
+                        if (video) {
+                            video.style.width = '100%';
+                            video.style.height = '100%';
+                            video.style.objectFit = 'cover';
+                            video.style.borderRadius = '1rem';
+                            video.style.background = 'transparent';
+                        }
+                    }
+                }, 500);
+            })
             .catch(() => {
                 setError("CAMERA ERROR: Please grant camera permissions and refresh.");
                 setMode('select_batch');
@@ -147,24 +146,32 @@ function ValidatorDashboardPage() {
         }, 200);
     };
 
-    const stopScannerAndExit = () => setMode('select_batch');
+    const stopScannerAndExit = () => {
+        setMode('select_batch');
+        setSessionStats(prev => ({
+            ...prev,
+            [selectedBatch.id]: { ...currentStats }
+        }));
+        setSelectedBatch(null);
+    };
 
     if (loading) return <p className="text-center text-white">Loading...</p>;
 
     if (mode === 'scanning' && selectedBatch) {
         return (
-            <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gradient-animated bg-[length:400%_400%] animate-gradient">
-                <div className="glass-panel p-6 sm:p-8 space-y-4 w-full max-w-md mx-auto">
+            <div className="flex items-center justify-center min-h-screen bg-gray-100">
+                <div className="glass-panel p-6 space-y-4 w-full max-w-xl mx-auto">
                     <div>
-                        <p className="text-sm font-light text-white/70">Validating Batch #{selectedBatch.id}</p>
-                        <h1 className="text-2xl font-bold text-white leading-tight">{selectedBatch.manufacturer.companyName} - {selectedBatch.drugName}</h1>
+                        <p className="text-sm font-light text-gray-500">Validating Batch #{selectedBatch.id}</p>
+                        <h1 className="text-2xl font-bold text-gray-900 leading-tight">{selectedBatch.manufacturer.companyName} - {selectedBatch.drugName}</h1>
                     </div>
-                    <div className="w-full rounded-2xl overflow-hidden bg-black shadow-lg aspect-square relative">
+                    <div className="w-full rounded-2xl overflow-hidden aspect-square" style={{ background: '#222' }}>
                         <div id={qrcodeRegionId} style={{ width: '100%', height: '100%' }}></div>
                     </div>
                     <div className="flex justify-around items-center pt-2">
-                        <span className="text-green-400 font-bold text-xl">Success: {scanStats.success}</span>
-                        <span className="text-red-400 font-bold text-xl">Errors: {scanStats.error}</span>
+                        <span className="text-green-600 font-bold text-xl">Success: {currentStats.success}</span>
+                        <span className="text-red-600 font-bold text-xl">Errors: {currentStats.error}</span>
+                        <span className="text-blue-600 font-bold text-xl">Duplicate: {currentStats.duplicate}</span>
                     </div>
                     <button onClick={stopScannerAndExit} className="w-full glass-button mt-4 py-3 rounded-lg font-bold text-lg">End Session</button>
                     {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>}
@@ -174,13 +181,13 @@ function ValidatorDashboardPage() {
         );
     }
 
-    // Batch selection UI matches VerificationPage style
+    // Batch selection UI styled like admin/DVA portal, with session stats
     return (
-        <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gradient-animated bg-[length:400%_400%] animate-gradient">
-            <div className="glass-panel p-8 space-y-6 w-full max-w-md mx-auto">
-                <div className="text-center text-white">
-                    <h1 className="text-3xl font-bold">Select Batch for Validation</h1>
-                    <p className="opacity-80 mt-2">Choose a batch below to begin scanning and validating products.</p>
+        <div className="flex items-center justify-center min-h-screen bg-gray-100">
+            <div className="glass-panel p-8 space-y-6 w-full max-w-xl mx-auto">
+                <div className="text-center">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Batch Validation</h1>
+                    <p className="text-gray-500 mb-4">Select a batch to begin scanning and validating products.</p>
                 </div>
                 <div className="space-y-3">
                     {error && <p className="text-center text-red-400 mb-4">{error}</p>}
@@ -188,8 +195,15 @@ function ValidatorDashboardPage() {
                         batches.map(batch => (
                             <div key={batch.id} className="glass-panel p-4 rounded-lg flex justify-between items-center">
                                 <div>
-                                    <p className="font-bold text-white">Batch #{batch.id} - {batch.drugName}</p>
-                                    <p className="text-sm text-gray-400">{batch.manufacturer.companyName}</p>
+                                    <p className="font-bold text-gray-900">Batch #{batch.id} - {batch.drugName}</p>
+                                    <p className="text-sm text-gray-500">{batch.manufacturer.companyName}</p>
+                                    {sessionStats[batch.id] && (
+                                        <div className="mt-2 text-xs text-gray-700">
+                                            <span className="mr-4">Success: <span className="font-bold text-green-600">{sessionStats[batch.id].success}</span></span>
+                                            <span className="mr-4">Errors: <span className="font-bold text-red-600">{sessionStats[batch.id].error}</span></span>
+                                            <span>Duplicate: <span className="font-bold text-blue-600">{sessionStats[batch.id].duplicate}</span></span>
+                                        </div>
+                                    )}
                                 </div>
                                 <button onClick={() => startScannerForBatch(batch)} className="glass-button-sm py-2 px-4 text-sm rounded-lg">
                                     Start Scanning
