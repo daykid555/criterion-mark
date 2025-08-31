@@ -39,7 +39,6 @@ function ValidatorDashboardPage() {
     const [currentStats, setCurrentStats] = useState({ success: 0, error: 0, duplicate: 0 });
     const [scannedCodes, setScannedCodes] = useState(new Set());
     const scannerRef = useRef(null);
-    const lastScanRef = useRef('');
     const feedbackTimerRef = useRef(null);
 
     useEffect(() => {
@@ -71,11 +70,9 @@ function ValidatorDashboardPage() {
         feedbackTimerRef.current = setTimeout(() => setFeedback({ type: '', message: '' }), duration);
     };
 
-    // Debounce logic: prevent scanning same code twice in a row
+    // Continuous scanning: only ignore codes already scanned in this session
     const handleScan = async (decodedText) => {
         const code = decodedText.split('/').pop();
-        if (code === lastScanRef.current) return; // Ignore if same code as last scan
-        lastScanRef.current = code;
 
         if (scannedCodes.has(code)) {
             playAudio('duplicate');
