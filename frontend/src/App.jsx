@@ -1,5 +1,5 @@
 // frontend/src/App.jsx
-// --- CORRECTED CODE ---
+// --- FINAL CORRECTED CODE ---
 
 import { useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -17,14 +17,13 @@ import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
 
 // Role Dashboards
-import AdminDashboard from './pages/AdminDashboardPage.jsx'; // Note: Assuming this file is named AdminDashboardPage.jsx based on your file tree
+import AdminDashboard from './pages/AdminDashboard.jsx'; // FIX: Corrected the filename from AdminDashboardPage.jsx
 import ManufacturerDashboard from './pages/ManufacturerDashboard.jsx';
 import DvaDashboard from './pages/DvaDashboard.jsx';
 import PrintingDashboard from './pages/PrintingDashboard.jsx';
 import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
-// --- Validator Dashboard Import (FIXED) ---
-import ValidatorDashboardPage from './pages/ValidatorDashboard.jsx'; // FIX: We import the component from the original file 'ValidatorDashboard.jsx'
+import ValidatorDashboardPage from './pages/ValidatorDashboard.jsx';
 
 // Admin Pages
 import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
@@ -35,7 +34,7 @@ import SystemSettingsPage from './pages/SystemSettingsPage.jsx';
 import AdminMapPage from './pages/AdminMapPage.jsx';
 import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
 
-// --- IMPORTING ALL OTHER PORTAL PAGES ---
+// Other Portal Pages
 import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
 import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
 import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
@@ -61,7 +60,7 @@ function App() {
   }, [location, isAuthenticated]);
 
   if (isLoading) {
-    return null; // Or a loading spinner component
+    return null;
   }
 
   const getDashboardPath = (role) => {
@@ -72,15 +71,14 @@ function App() {
       PRINTING: '/printing/dashboard',
       LOGISTICS: '/logistics/dashboard',
       SKINCARE_BRAND: '/skincare/dashboard',
-      VALIDATOR: '/validator/dashboard', 
+      VALIDATOR: '/validator/dashboard',
     };
-    return paths[role] || '/login'; // Fallback to login if role is unrecognized
+    return paths[role] || '/login';
   };
 
   return (
     <Routes>
       {isAuthenticated ? (
-        // --- ALL PROTECTED ROUTES ---
         <Route path="/" element={<AppLayout />}>
           {/* Dashboards */}
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -89,7 +87,7 @@ function App() {
           <Route path="/printing/dashboard" element={<PrintingDashboard />} />
           <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
           <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
-          <Route path="/validator/dashboard" element={<ValidatorDashboardPage />} /> {/* FIX: Use the imported component name */}
+          <Route path="/validator/dashboard" element={<ValidatorDashboardPage />} />
           
           {/* Admin Routes */}
           <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
@@ -121,11 +119,9 @@ function App() {
           <Route path="/logistics/active" element={<LogisticsActiveShipmentsPage />} />
           <Route path="/logistics/history" element={<LogisticsHistoryPage />} />
           
-          {/* Redirect any other path to the user's correct dashboard */}
           <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
         </Route>
       ) : (
-        // --- ALL PUBLIC ROUTES ---
         <>
           <Route path="/" element={<HomePage />} />
           <Route element={<PublicLayout />}>
