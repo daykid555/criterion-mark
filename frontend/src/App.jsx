@@ -1,4 +1,6 @@
 // frontend/src/App.jsx
+// --- CORRECTED CODE ---
+
 import { useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthContext } from './context/AuthContext';
@@ -15,14 +17,15 @@ import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
 
 // Role Dashboards
-import AdminDashboard from './pages/AdminDashboard.jsx';
+import AdminDashboard from './pages/AdminDashboardPage.jsx'; // Note: Assuming this file is named AdminDashboardPage.jsx based on your file tree
 import ManufacturerDashboard from './pages/ManufacturerDashboard.jsx';
 import DvaDashboard from './pages/DvaDashboard.jsx';
 import PrintingDashboard from './pages/PrintingDashboard.jsx';
 import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
-// --- Validator Dashboard Import ---
-import ValidatorDashboardPage from './pages/ValidatorDashboardPage.jsx';
+// --- Validator Dashboard Import (FIXED) ---
+import ValidatorDashboardPage from './pages/ValidatorDashboard.jsx'; // FIX: We import the component from the original file 'ValidatorDashboard.jsx'
+
 // Admin Pages
 import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
 import AdminRegistrationQueuePage from './pages/AdminRegistrationQueuePage.jsx';
@@ -69,7 +72,7 @@ function App() {
       PRINTING: '/printing/dashboard',
       LOGISTICS: '/logistics/dashboard',
       SKINCARE_BRAND: '/skincare/dashboard',
-      VALIDATOR: '/validator/dashboard', // FIX: Added Validator dashboard path
+      VALIDATOR: '/validator/dashboard', 
     };
     return paths[role] || '/login'; // Fallback to login if role is unrecognized
   };
@@ -86,7 +89,8 @@ function App() {
           <Route path="/printing/dashboard" element={<PrintingDashboard />} />
           <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
           <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
-          <Route path="/validator/dashboard" element={<ValidatorDashboardPage />} />            
+          <Route path="/validator/dashboard" element={<ValidatorDashboardPage />} /> {/* FIX: Use the imported component name */}
+          
           {/* Admin Routes */}
           <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
           <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
