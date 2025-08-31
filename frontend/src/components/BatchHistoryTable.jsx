@@ -15,7 +15,7 @@ const STATUS_STYLES = {
     DVA_REJECTED: 'bg-red-400/20 text-red-200 border border-red-400/30',
 };
 
-// --- MODAL TO DISPLAY THE CONFIRMATION CODE ---
+// --- MODAL TO DISPLAY THE GENERATED CONFIRMATION CODE ---
 const ConfirmationCodeDisplayModal = ({ batch, onClose }) => {
     const confirmationCode = batch?.delivery_confirmation_code; // Get the code from the batch prop
 
@@ -41,17 +41,18 @@ function BatchHistoryTable({ batches, onRefreshData }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null); // Stores the batch with the code
 
-  // --- MODIFIED FUNCTION: Fetch batch details to get the confirmation code ---
-  const handleViewConfirmationClick = async (batch) => {
+  // --- NEW FUNCTION: Trigger code generation and then display it ---
+  const handleGenerateConfirmationCode = async (batch) => {
     try {
-        // Fetch the specific batch details to get the delivery_confirmation_code
-        const response = await apiClient.get(`/api/manufacturer/batches/${batch.id}`);
-        setSelectedBatch(response.data); // Store the batch object that includes the code
+        // Call the backend endpoint to generate the confirmation code
+        const response = await apiClient.put(`/api/manufacturer/batches/${batch.id}/confirm-delivery`);
+        // The response from this endpoint contains the generated code in `response.data.confirmationCode`
+        setSelectedBatch({ ...batch, delivery_confirmation_code: response.data.confirmationCode }); // Update local state with the code
         setModalOpen(true);
+        onRefreshData(); // Refresh the list to potentially update the status if needed
     } catch (error) {
-        console.error("Failed to fetch batch details for confirmation code:", error);
-        // Optionally show an error message to the user
-        alert('Error fetching confirmation code. Please try again.');
+        console.error("Failed to generate confirmation code:", error);
+        alert('Error generating confirmation code. Please try again.');
     }
   };
 
@@ -110,15 +111,11 @@ function BatchHistoryTable({ batches, onRefreshData }) {
                       )}
                     </td>
                     <td className="p-4 text-center">
-                        {/* --- ACTION BUTTON --- */}
-                        {batch.status === 'PENDING_MANUFACTURER_CONFIRMATION' && batch.delivery_confirmation_code ? (
-                            <button onClick={() => handleViewConfirmationClick(batch)} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-orange-500/30">
-                                View Code
+                        {/* --- ACTION BUTTON LOGIC CORRECTED --- */}
+                        {batch.status === 'PENDING_MANUFACTURER_CONFIRMATION' ? (
+                            <button onClick={() => handleGenerateConfirmationCode(batch)} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-orange-500/30">
+                                Generate Code
                             </button>
-                        ) : batch.status === 'PENDING_MANUFACTURER_CONFIRMATION' && !batch.delivery_confirmation_code ? (
-                             <button className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-gray-500/30 cursor-not-allowed" disabled>
-                                 Awaiting Code...
-                             </button>
                         ) : (
                              <span className="text-xs text-white/50 italic">No action</span>
                         )}
