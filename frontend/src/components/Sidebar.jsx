@@ -1,10 +1,12 @@
 // frontend/src/components/Sidebar.jsx
+// --- MODIFIED CODE ---
+
 import { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { 
   FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck, FiShoppingBag, 
-  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle 
+  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle, FiCamera 
 } from 'react-icons/fi';
 
 const Logo = () => (
@@ -41,7 +43,6 @@ const SidebarLink = ({ icon, text, to, action }) => {
   );
 };
 
-// --- New, Centralized Navigation Links Configuration ---
 const navConfig = {
   ADMIN: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/admin/dashboard' },
@@ -76,6 +77,10 @@ const navConfig = {
       { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/skincare/dashboard' },
       { icon: <FiPlusCircle size={20} />, text: 'Add New Product', to: '/skincare/add-product' },
       { icon: <FiFileText size={20} />, text: 'Product History', to: '/skincare/history' },
+  ],
+  // --- FIX: Added navigation for the VALIDATOR role ---
+  VALIDATOR: [
+      { icon: <FiCamera size={20} />, text: 'Validation Scanner', to: '/validator/dashboard' },
   ],
 };
 

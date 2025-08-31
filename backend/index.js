@@ -151,7 +151,7 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     await prisma.$transaction(async (tx) => {
         await tx.scanRecord.create({
             data: {
-                qrCodeId: qrCodeRecord.id, // Safely use qrCodeRecord.id as it's guaranteed to exist here
+                qrCode: { connect: { id: qrCodeRecord.id } }, // <-- FIXED LINE
                 scannedCode: code,
                 scanOutcome: scanOutcome,
                 scannedByRole: Role.CUSTOMER,
