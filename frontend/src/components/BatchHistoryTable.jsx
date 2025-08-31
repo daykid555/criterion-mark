@@ -129,5 +129,4 @@ function BatchHistoryTable({ batches, onRefreshData }) {
     </>
   );
 }
-
 export default BatchHistoryTable;
