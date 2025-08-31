@@ -21,6 +21,8 @@ import DvaDashboard from './pages/DvaDashboard.jsx';
 import PrintingDashboard from './pages/PrintingDashboard.jsx';
 import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
+// --- Validator Dashboard Import ---
+import ValidatorDashboard from './pages/ValidatorDashboard.jsx'; // Make sure this is imported
 
 // Admin Pages
 import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
@@ -57,7 +59,7 @@ function App() {
   }, [location, isAuthenticated]);
 
   if (isLoading) {
-    return null; 
+    return null; // Or a loading spinner component
   }
 
   const getDashboardPath = (role) => {
@@ -68,8 +70,9 @@ function App() {
       PRINTING: '/printing/dashboard',
       LOGISTICS: '/logistics/dashboard',
       SKINCARE_BRAND: '/skincare/dashboard',
+      VALIDATOR: '/validator/dashboard', // FIX: Added Validator dashboard path
     };
-    return paths[role] || '/login';
+    return paths[role] || '/login'; // Fallback to login if role is unrecognized
   };
 
   return (
@@ -84,6 +87,7 @@ function App() {
           <Route path="/printing/dashboard" element={<PrintingDashboard />} />
           <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
           <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
+          <Route path="/validator/dashboard" element={<ValidatorDashboard />} /> {/* FIX: Added Validator Dashboard route */}
           
           {/* Admin Routes */}
           <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
@@ -93,8 +97,6 @@ function App() {
           <Route path="/admin/settings" element={<SystemSettingsPage />} />
           <Route path="/admin/map" element={<AdminMapPage />} />
           <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
-
-          {/* --- ADDING ALL THE MISSING ROUTES FOR OTHER PORTALS --- */}
 
           {/* Manufacturer Routes */}
           <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
