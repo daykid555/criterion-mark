@@ -72,6 +72,33 @@ function ValidatorDashboardPage() {
         return stopScanner;
     }, [mode]); // Rerunning on mode change ensures cleanup when switching views.
 
+    useEffect(() => {
+        if (mode === 'scanning' && selectedBatch) {
+            const qrScanner = new Html5Qrcode(qrcodeRegionId, { verbose: false });
+            scannerRef.current = qrScanner;
+            qrScanner.start(
+                { facingMode: "environment" },
+                { 
+                    fps: 10,
+                    // No qrbox is defined, so the library will not show a viewfinder or shaded region.
+                },
+                handleScan,
+                () => { /* error callback, ignored for continuous scanning */ }
+            ).then(() => {
+                const video = document.getElementById(qrcodeRegionId)?.querySelector('video');
+                if (video) {
+                    video.style.width = '100%';
+                    video.style.height = '100%';
+                    video.style.objectFit = 'cover';
+                }
+            }).catch((err) => {
+                console.error("Camera start error:", err);
+                setError("CAMERA ERROR: Please grant camera permissions and refresh.");
+                setMode('select_batch');
+            });
+        }
+    }, [mode, selectedBatch]);
+
     const playAudio = (sound) => {
         try { new Audio(`/sounds/${sound}.mp3`).play(); }
         catch (e) { /* Audio error ignored */ }
@@ -92,15 +119,15 @@ function ValidatorDashboardPage() {
         if (code === lastScannedCode.current && (now - lastScanTime.current < 1500)) {
             return;
         }
+        lastScannedCode.current = code;
+        lastScanTime.current = now;
 
         if (!snappedCodes.has(code)) {
-            lastScannedCode.current = code;
-            lastScanTime.current = now;
             playAudio('success'); // A quick "snap" sound
             setSnappedCodes(prev => new Set(prev).add(code));
         } else {
-            // Optional: give feedback that it's already in the batch
-            // playAudio('duplicate');
+            playAudio('duplicate');
+            showFeedback('duplicate', `Code already in batch`, 1000);
         }
     };
 
@@ -130,41 +157,19 @@ function ValidatorDashboardPage() {
         }
     };
 
+    const handleClearSnappedCodes = () => {
+        setSnappedCodes(new Set());
+        setValidationResults(null);
+        playAudio('error'); // Using error sound for a clear action
+        showFeedback('info', 'Cleared all captured codes.');
+    };
+
     const startScannerForBatch = (batch) => {
         setSelectedBatch(batch);
         setSnappedCodes(new Set());
         setValidationResults(null);
         setError('');
         setMode('scanning');
-        setTimeout(() => {
-            if (!document.getElementById(qrcodeRegionId)) {
-                console.error("QR Code region not found");
-                return;
-            }
-            const qrScanner = new Html5Qrcode(qrcodeRegionId, { verbose: false });
-            scannerRef.current = qrScanner;
-            qrScanner.start(
-                { facingMode: "environment" },
-                { 
-                    fps: 10,
-                    // No qrbox is defined, so the library will not show a viewfinder or shaded region.
-                },
-                handleScan,
-                () => { /* error callback, ignored for continuous scanning */ }
-            ).then(() => {
-                const video = document.getElementById(qrcodeRegionId)?.querySelector('video');
-                if (video) {
-                    video.style.width = '100%';
-                    video.style.height = '100%';
-                    video.style.objectFit = 'cover';
-                }
-            })
-            .catch((err) => {
-                console.error("Camera start error:", err);
-                setError("CAMERA ERROR: Please grant camera permissions and refresh.");
-                setMode('select_batch');
-            });
-        }, 200);
     };
 
     const stopScannerAndExit = () => {
@@ -197,9 +202,14 @@ function ValidatorDashboardPage() {
                         <p className="text-gray-500 text-sm">Codes Captured</p>
                     </div>
 
-                    <button onClick={handleBatchValidate} disabled={isProcessingValidation || snappedCodes.size === 0} className="w-full glass-button mt-2 py-3 rounded-lg font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        {isProcessingValidation ? 'Validating...' : `Validate ${snappedCodes.size} Captured Codes`}
-                    </button>
+                    <div className="flex items-center space-x-2 mt-2">
+                        <button onClick={handleBatchValidate} disabled={isProcessingValidation || snappedCodes.size === 0} className="flex-grow glass-button py-3 rounded-lg font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isProcessingValidation ? 'Validating...' : `Validate ${snappedCodes.size} Captured Codes`}
+                        </button>
+                        <button onClick={handleClearSnappedCodes} disabled={isProcessingValidation || snappedCodes.size === 0} className="w-1/4 glass-button-sm bg-gray-200 text-gray-700 py-3 rounded-lg font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                            Clear
+                        </button>
+                    </div>
 
                     {validationResults && (
                         <div className="flex justify-around items-center pt-2 border-t border-gray-200 mt-4">
@@ -218,32 +228,52 @@ function ValidatorDashboardPage() {
     }
 
     return (
-        <div className="glass-panel p-8 space-y-6 w-full max-w-xl mx-auto">
+        <div className="glass-panel p-8 space-y-6 w-full max-w-5xl mx-auto">
             <div className="text-center">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Batch Validation</h1>
                 <p className="text-gray-500 mb-4">Select a batch to begin scanning and validating products.</p>
             </div>
-            <div className="space-y-3">
+            <div className="overflow-x-auto">
                 {error && <p className="text-center text-red-400 mb-4">{error}</p>}
                 {batches.length > 0 ? (
-                    batches.map(batch => (
-                        <div key={batch.id} className="glass-panel p-4 rounded-lg flex justify-between items-center">
-                            <div>
-                                <p className="font-bold text-gray-900">Batch #{batch.id} - {batch.drugName}</p>
-                                <p className="text-sm text-gray-500">{batch.manufacturer.companyName}</p>
-                                {sessionStats[batch.id] && (
-                                    <div className="mt-2 text-xs text-gray-700">
-                                        <span className="mr-4">Success: <span className="font-bold text-green-600">{sessionStats[batch.id].success}</span></span>
-                                        <span className="mr-4">Errors: <span className="font-bold text-red-600">{sessionStats[batch.id].error}</span></span>
-                                        <span>Duplicate: <span className="font-bold text-blue-600">{sessionStats[batch.id].duplicate}</span></span>
-                                    </div>
-                                )}
-                            </div>
-                            <button onClick={() => startScannerForBatch(batch)} className="glass-button-sm py-2 px-4 text-sm rounded-lg">
-                                Start Scanning
-                            </button>
-                        </div>
-                    ))
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50/50">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Batch ID</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Drug Name</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manufacturer</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Session</th>
+                                <th scope="col" className="relative px-6 py-3">
+                                    <span className="sr-only">Action</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white/50 divide-y divide-gray-200">
+                            {batches.map(batch => (
+                                <tr key={batch.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{batch.id}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{batch.drugName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{batch.manufacturer.companyName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{batch.quantity}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {sessionStats[batch.id] ? (
+                                            <div className="flex items-center space-x-2">
+                                                <span title="Success" className="flex items-center text-green-600"><CheckCircleIcon className="w-4 h-4 mr-1" /> {sessionStats[batch.id].success}</span>
+                                                <span title="Errors" className="flex items-center text-red-600"><XCircleIcon className="w-4 h-4 mr-1" /> {sessionStats[batch.id].error}</span>
+                                                <span title="Duplicates" className="flex items-center text-blue-600"><ShieldExclamationIcon className="w-4 h-4 mr-1" /> {sessionStats[batch.id].duplicate}</span>
+                                            </div>
+                                        ) : 'N/A'}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <button onClick={() => startScannerForBatch(batch)} className="glass-button-sm py-2 px-4 text-sm rounded-lg">
+                                            Start Scanning
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 ) : (
                     <p className="text-center text-gray-400 py-8">No batches are currently awaiting validation.</p>
                 )}
