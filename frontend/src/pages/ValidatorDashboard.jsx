@@ -39,6 +39,8 @@ function ValidatorDashboardPage() {
     const [currentStats, setCurrentStats] = useState({ success: 0, error: 0, duplicate: 0 });
     const [scannedCodes, setScannedCodes] = useState(new Set());
     const scannerRef = useRef(null);
+    const isProcessingRef = useRef(false);
+    const resumeTimerRef = useRef(null);
     const feedbackTimerRef = useRef(null);
 
     useEffect(() => {
@@ -50,14 +52,23 @@ function ValidatorDashboardPage() {
 
     useEffect(() => {
         const stopScanner = () => {
-            if (scannerRef.current && scannerRef.current.isScanning) {
-                scannerRef.current.stop().catch(() => {});
+            if (scannerRef.current) {
+                if (scannerRef.current.isScanning) {
+                    scannerRef.current.stop().catch(err => {
+                        console.error("Error stopping scanner on cleanup:", err);
+                    });
+                }
                 scannerRef.current = null;
             }
+            if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+            if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
         };
-        if (mode !== 'scanning') stopScanner();
-        return () => stopScanner();
-    }, [mode]);
+
+        if (mode !== 'scanning') {
+            stopScanner();
+        }
+        return stopScanner;
+    }, [mode]); // Rerunning on mode change ensures cleanup when switching views.
 
     const playAudio = (sound) => {
         try { new Audio(`/sounds/${sound}.mp3`).play(); }
@@ -70,10 +81,20 @@ function ValidatorDashboardPage() {
         feedbackTimerRef.current = setTimeout(() => setFeedback({ type: '', message: '' }), duration);
     };
 
-    // Continuous scanning: only ignore codes already scanned in this session
     const handleScan = async (decodedText) => {
-        const code = decodedText.split('/').pop();
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
 
+        if (scannerRef.current) {
+            try {
+                scannerRef.current.pause(true);
+            } catch (e) {
+                console.error("Failed to pause scanner", e);
+            }
+        }
+
+        const code = decodedText.split('/').pop();
+        
         if (scannedCodes.has(code)) {
             playAudio('duplicate');
             showFeedback('duplicate', `Already scanned`);
@@ -100,6 +121,15 @@ function ValidatorDashboardPage() {
                 setCurrentStats(stats => ({ ...stats, error: stats.error + 1 }));
             }
         }
+
+        // Resume scanning after a 1.5s delay to prevent re-scans.
+        if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+        resumeTimerRef.current = setTimeout(() => {
+            if (scannerRef.current && scannerRef.current.getState() === 3 /* PAUSED */) {
+                scannerRef.current.resume().catch(err => console.error("Failed to resume scanner", err));
+            }
+            isProcessingRef.current = false;
+        }, 1500);
     };
 
     const startScannerForBatch = (batch) => {
@@ -109,34 +139,30 @@ function ValidatorDashboardPage() {
         setError('');
         setMode('scanning');
         setTimeout(() => {
-            if (!document.getElementById(qrcodeRegionId)) return;
-            const qrScanner = new Html5Qrcode(qrcodeRegionId);
+            if (!document.getElementById(qrcodeRegionId)) {
+                console.error("QR Code region not found");
+                return;
+            }
+            const qrScanner = new Html5Qrcode(qrcodeRegionId, { verbose: false });
             scannerRef.current = qrScanner;
             qrScanner.start(
                 { facingMode: "environment" },
-                { fps: 10 },
+                { 
+                    fps: 10,
+                    // No qrbox is defined, so the library will not show a viewfinder or shaded region.
+                },
                 handleScan,
-                () => {}
+                () => { /* error callback, ignored for continuous scanning */ }
             ).then(() => {
-                // Remove overlays, style video
-                setTimeout(() => {
-                    const region = document.getElementById(qrcodeRegionId);
-                    if (region) {
-                        Array.from(region.children).forEach(child => {
-                            if (child.tagName !== 'VIDEO') child.style.display = 'none';
-                        });
-                        const video = region.querySelector('video');
-                        if (video) {
-                            video.style.width = '100%';
-                            video.style.height = '100%';
-                            video.style.objectFit = 'cover';
-                            video.style.borderRadius = '1rem';
-                            video.style.background = 'transparent';
-                        }
-                    }
-                }, 500);
+                const video = document.getElementById(qrcodeRegionId)?.querySelector('video');
+                if (video) {
+                    video.style.width = '100%';
+                    video.style.height = '100%';
+                    video.style.objectFit = 'cover';
+                }
             })
-            .catch(() => {
+            .catch((err) => {
+                console.error("Camera start error:", err);
                 setError("CAMERA ERROR: Please grant camera permissions and refresh.");
                 setMode('select_batch');
             });
@@ -156,7 +182,7 @@ function ValidatorDashboardPage() {
 
     if (mode === 'scanning' && selectedBatch) {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-100">
+            <>
                 <div className="glass-panel p-6 space-y-4 w-full max-w-xl mx-auto">
                     <div>
                         <p className="text-sm font-light text-gray-500">Validating Batch #{selectedBatch.id}</p>
@@ -174,43 +200,40 @@ function ValidatorDashboardPage() {
                     {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>}
                 </div>
                 <ScanFeedback feedback={feedback} />
-            </div>
+            </>
         );
     }
 
-    // Batch selection UI styled like admin/DVA portal, with session stats
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <div className="glass-panel p-8 space-y-6 w-full max-w-xl mx-auto">
-                <div className="text-center">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Batch Validation</h1>
-                    <p className="text-gray-500 mb-4">Select a batch to begin scanning and validating products.</p>
-                </div>
-                <div className="space-y-3">
-                    {error && <p className="text-center text-red-400 mb-4">{error}</p>}
-                    {batches.length > 0 ? (
-                        batches.map(batch => (
-                            <div key={batch.id} className="glass-panel p-4 rounded-lg flex justify-between items-center">
-                                <div>
-                                    <p className="font-bold text-gray-900">Batch #{batch.id} - {batch.drugName}</p>
-                                    <p className="text-sm text-gray-500">{batch.manufacturer.companyName}</p>
-                                    {sessionStats[batch.id] && (
-                                        <div className="mt-2 text-xs text-gray-700">
-                                            <span className="mr-4">Success: <span className="font-bold text-green-600">{sessionStats[batch.id].success}</span></span>
-                                            <span className="mr-4">Errors: <span className="font-bold text-red-600">{sessionStats[batch.id].error}</span></span>
-                                            <span>Duplicate: <span className="font-bold text-blue-600">{sessionStats[batch.id].duplicate}</span></span>
-                                        </div>
-                                    )}
-                                </div>
-                                <button onClick={() => startScannerForBatch(batch)} className="glass-button-sm py-2 px-4 text-sm rounded-lg">
-                                    Start Scanning
-                                </button>
+        <div className="glass-panel p-8 space-y-6 w-full max-w-xl mx-auto">
+            <div className="text-center">
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Batch Validation</h1>
+                <p className="text-gray-500 mb-4">Select a batch to begin scanning and validating products.</p>
+            </div>
+            <div className="space-y-3">
+                {error && <p className="text-center text-red-400 mb-4">{error}</p>}
+                {batches.length > 0 ? (
+                    batches.map(batch => (
+                        <div key={batch.id} className="glass-panel p-4 rounded-lg flex justify-between items-center">
+                            <div>
+                                <p className="font-bold text-gray-900">Batch #{batch.id} - {batch.drugName}</p>
+                                <p className="text-sm text-gray-500">{batch.manufacturer.companyName}</p>
+                                {sessionStats[batch.id] && (
+                                    <div className="mt-2 text-xs text-gray-700">
+                                        <span className="mr-4">Success: <span className="font-bold text-green-600">{sessionStats[batch.id].success}</span></span>
+                                        <span className="mr-4">Errors: <span className="font-bold text-red-600">{sessionStats[batch.id].error}</span></span>
+                                        <span>Duplicate: <span className="font-bold text-blue-600">{sessionStats[batch.id].duplicate}</span></span>
+                                    </div>
+                                )}
                             </div>
-                        ))
-                    ) : (
-                        <p className="text-center text-gray-400 py-8">No batches are currently awaiting validation.</p>
-                    )}
-                </div>
+                            <button onClick={() => startScannerForBatch(batch)} className="glass-button-sm py-2 px-4 text-sm rounded-lg">
+                                Start Scanning
+                            </button>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-center text-gray-400 py-8">No batches are currently awaiting validation.</p>
+                )}
             </div>
         </div>
     );
