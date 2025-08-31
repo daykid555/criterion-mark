@@ -16,7 +16,6 @@ import axios from 'axios';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import { authenticateToken, authorizeRole } from './middleware.js';
-import validatorRoutes from './routes/validatorRoutes.js';
 import { Parser } from 'json2csv';
 
 dotenv.config();
@@ -61,7 +60,6 @@ const generateSixDigitCode = () => {
 
 // --- ROUTES ---
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
-app.use('/api/validator', validatorRoutes);
 
 // --- PUBLIC VERIFICATION ROUTE (REBUILT & FIXED) ---
 app.get('/api/verify/:code', asyncHandler(async (req, res) => {
@@ -112,11 +110,10 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     let message = 'This code is invalid or in a non-verifiable state.';
     let httpStatus = 400;
     
-    // --- CORE LOGIC FIX ---
-    // SUCCESS is now when status is VALIDATED.
+    // --- CORE LOGIC REVISED (NO VALIDATOR) ---
+    // SUCCESS is now when status is UNUSED.
     // USED is a DUPLICATE error.
-    // UNUSED is a "not yet ready" error.
-    if (qrCodeRecord.status === 'VALIDATED') {
+    if (qrCodeRecord.status === 'UNUSED') {
         scanOutcome = 'SUCCESS';
         message = 'Product Verified Successfully! This is the first verification.';
         httpStatus = 200;
@@ -124,10 +121,6 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         scanOutcome = 'DUPLICATE';
         message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
         httpStatus = 409;
-    } else if (qrCodeRecord.status === 'UNUSED') {
-        scanOutcome = 'NOT_VALIDATED';
-        message = 'This code has not been validated yet. Please try again later.';
-        httpStatus = 400;
     } else {
         scanOutcome = 'INVALID_STATE';
         message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified.`;
@@ -665,7 +658,7 @@ app.put('/api/printing/batches/:id/complete', authenticateToken, authorizeRole([
     const { id } = req.params;
     const updatedBatch = await prisma.batch.update({
         where: { id: parseInt(id, 10) },
-        data: { status: BatchStatus.VALIDATION_PENDING, print_completed_at: new Date() },
+        data: { status: BatchStatus.PRINTING_COMPLETE, print_completed_at: new Date() },
     });
     res.status(200).json(updatedBatch);
 }));
@@ -675,9 +668,7 @@ app.get('/api/printing/history', authenticateToken, authorizeRole([Role.PRINTING
     const completedBatches = await prisma.batch.findMany({
         where: {
             status: {
-                // FIX: Added VALIDATION_PENDING to ensure batches don't disappear from history
                 in: [
-                    BatchStatus.VALIDATION_PENDING,
                     BatchStatus.PRINTING_COMPLETE,
                     BatchStatus.IN_TRANSIT,
                     BatchStatus.PENDING_MANUFACTURER_CONFIRMATION,
@@ -1004,7 +995,6 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
         case Role.DVA:
         case Role.PRINTING:
         case Role.LOGISTICS:
-        case Role.VALIDATOR:
             if (!fullName) return res.status(400).json({ error: 'Full Name / Company Name is required.' });
             dataToCreate.companyName = fullName;
             dataToCreate.isActive = false;

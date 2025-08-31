@@ -5,7 +5,7 @@ import apiClient from '../api';
 import NodeBackground from '../components/NodeBackground';
 
 function RegistrationPage() {
-  const [role, setRole] = useState('MANUFACTURER');
+  const [role, setRole] = useState('CUSTOMER');
   const [fullName, setFullName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [companyRegNumber, setCompanyRegNumber] = useState('');
@@ -47,7 +47,6 @@ function RegistrationPage() {
       case 'DVA': return 'Create DVA Account';
       case 'PRINTING': return 'Create Printing Account';
       case 'LOGISTICS': return 'Create Logistics Account';
-      case 'VALIDATOR': return 'Create Validator Account'; // Added page title for Validator
       case 'CUSTOMER': return 'Create Customer Account';
       default: return 'Create an Account';
     }
@@ -65,13 +64,12 @@ function RegistrationPage() {
               <div>
                 <label htmlFor="role" className="block text-sm font-medium text-white/80">I am a...</label>
                 <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50">
-                  <option className="text-black" value="MANUFACTURER">Pharmaceutical Manufacturer</option>
-                  <option className="text-black" value="SKINCARE_BRAND">Skincare Brand</option>
                   <option className="text-black" value="CUSTOMER">Customer / User</option>
+                  <option className="text-black" value="SKINCARE_BRAND">Skincare Brand</option>
+                  <option className="text-black" value="MANUFACTURER">Pharmaceutical Manufacturer</option>
                   <option className="text-black" value="DVA">DVA (Regulatory Agency)</option>
                   <option className="text-black" value="PRINTING">Printing</option>
                   <option className="text-black" value="LOGISTICS">Logistics</option>
-                  <option className="text-black" value="VALIDATOR">Validator</option> {/* FIX: Added VALIDATOR role */}
                 </select>
               </div>
 

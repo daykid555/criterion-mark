@@ -21,7 +21,6 @@ enum Role {
   LOGISTICS
   LOGISTICS_DISTRIBUTOR
   PHARMACY
-  VALIDATOR
   SKINCARE_BRAND
 }
 
@@ -32,7 +31,6 @@ enum BatchStatus {
   DVA_REJECTED
   PENDING_PRINTING
   PRINTING_COMPLETE
-  VALIDATION_PENDING
   READY_FOR_SEALING
   READY_FOR_SHIPPING
 
@@ -49,7 +47,6 @@ enum BatchStatus {
 
 enum QRCodeStatus {
   UNUSED
-  VALIDATED
   SEALED
   VERIFIED_ONCE
   FLAGGED
@@ -90,7 +87,6 @@ model User {
   dispenseRecords       DispenseRecord[]
   reports               Report[]
   communications        Communication[]    @relation("AuthorCommunications")
-  validationRecords     ValidationRecord[]
   notifications         NotificationLog[]
 }
 
@@ -112,7 +108,6 @@ model Batch {
   delivered_at                   DateTime?
   rejection_reason               String?
   shipmentItems                  ShipmentItem[]
-  validationRecords              ValidationRecord[]
   delivery_confirmation_code     String?            @default("")
   manufacturer_received_quantity Int?
   seal_background_url            String?
@@ -132,7 +127,6 @@ model QRCode {
   batch            Batch             @relation(fields: [batchId], references: [id])
   scanRecords      ScanRecord[]
   dispenseRecord   DispenseRecord?
-  validationRecord ValidationRecord?
 
   isReinitiated      Boolean   @default(false)
   reinitiatedBy      Int?
@@ -163,17 +157,6 @@ model ScanRecord {
   country       String?
   latitude      Float?
   longitude     Float?
-}
-
-model ValidationRecord {
-  id          Int      @id @default(autoincrement())
-  qrCodeId    Int      @unique
-  qrCode      QRCode   @relation(fields: [qrCodeId], references: [id])
-  batchId     Int
-  batch       Batch    @relation(fields: [batchId], references: [id])
-  validatorId Int
-  validator   User     @relation(fields: [validatorId], references: [id])
-  validatedAt DateTime @default(now())
 }
 
 model NotificationLog {

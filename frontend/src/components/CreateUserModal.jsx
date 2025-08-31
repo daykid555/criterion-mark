@@ -34,12 +34,12 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
       payload.companyName = companyName;
       payload.companyRegNumber = companyRegNumber;
     } else {
-      payload.fullName = fullName; // For DVA, Printing, Logistics, Validator, Customer
+      payload.fullName = fullName; // For DVA, Printing, Logistics, Customer
       // If role is not Manufacturer or Skincare Brand, companyName is not explicitly needed from these fields, but fullName is used.
       if (role === 'CUSTOMER') {
           payload.companyName = fullName; // Set companyName to fullName for Customer if backend expects it.
       } else {
-          payload.companyName = fullName; // Use fullName as companyName for other roles like DVA, Printing, Logistics, Validator
+          payload.companyName = fullName; // Use fullName as companyName for other roles like DVA, Printing, Logistics
       }
     }
     
@@ -75,7 +75,6 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
             <option value="PRINTING">Printing</option>
             <option value="LOGISTICS">Logistics</option>
             <option value="SKINCARE_BRAND">Skincare Brand</option>
-            <option value="VALIDATOR">Validator</option> {/* FIX: Added VALIDATOR role */}
           </select>
 
           {isManufacturerOrSkincareBrand ? (
