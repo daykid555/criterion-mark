@@ -36,12 +36,15 @@ function ValidatorDashboardPage() {
     const [error, setError] = useState('');
     const [feedback, setFeedback] = useState({ type: '', message: '' });
     const [sessionStats, setSessionStats] = useState({});
-    const [currentStats, setCurrentStats] = useState({ success: 0, error: 0, duplicate: 0 });
-    const [scannedCodes, setScannedCodes] = useState(new Set());
+    // State for the new "Snap and Validate" workflow
+    const [snappedCodes, setSnappedCodes] = useState(new Set());
+    const [isProcessingValidation, setIsProcessingValidation] = useState(false);
+    const [validationResults, setValidationResults] = useState(null);
+
     const scannerRef = useRef(null);
-    const isProcessingRef = useRef(false);
-    const resumeTimerRef = useRef(null);
     const feedbackTimerRef = useRef(null);
+    const lastScannedCode = useRef(null);
+    const lastScanTime = useRef(0);
 
     useEffect(() => {
         apiClient.get('/api/validator/pending-batches')
@@ -61,7 +64,6 @@ function ValidatorDashboardPage() {
                 scannerRef.current = null;
             }
             if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
-            if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
         };
 
         if (mode !== 'scanning') {
@@ -81,61 +83,57 @@ function ValidatorDashboardPage() {
         feedbackTimerRef.current = setTimeout(() => setFeedback({ type: '', message: '' }), duration);
     };
 
+    // "Snap" phase: Capture codes locally without calling the API.
     const handleScan = async (decodedText) => {
-        if (isProcessingRef.current) return;
-        isProcessingRef.current = true;
-
-        if (scannerRef.current) {
-            try {
-                scannerRef.current.pause(true);
-            } catch (e) {
-                console.error("Failed to pause scanner", e);
-            }
-        }
-
+        const now = Date.now();
         const code = decodedText.split('/').pop();
-        
-        if (scannedCodes.has(code)) {
-            playAudio('duplicate');
-            showFeedback('duplicate', `Already scanned`);
-            setCurrentStats(stats => ({ ...stats, duplicate: stats.duplicate + 1 }));
+
+        // Debounce to prevent the same code from being rapidly re-added.
+        if (code === lastScannedCode.current && (now - lastScanTime.current < 1500)) {
             return;
         }
 
-        try {
-            const response = await apiClient.post('/api/validator/scan', { qrCode: code, batchId: selectedBatch.id });
-            setScannedCodes(prev => new Set(prev).add(code));
-            playAudio('success');
-            showFeedback('success', response.data.message);
-            setCurrentStats(stats => ({ ...stats, success: stats.success + 1 }));
-        } catch (err) {
-            const errorMessage = err.response?.data?.message || 'Verification failed.';
-            if (err.response?.status === 409) {
-                setScannedCodes(prev => new Set(prev).add(code));
-                playAudio('duplicate');
-                showFeedback('duplicate', errorMessage);
-                setCurrentStats(stats => ({ ...stats, duplicate: stats.duplicate + 1 }));
-            } else {
-                playAudio('error');
-                showFeedback('error', errorMessage);
-                setCurrentStats(stats => ({ ...stats, error: stats.error + 1 }));
-            }
+        if (!snappedCodes.has(code)) {
+            lastScannedCode.current = code;
+            lastScanTime.current = now;
+            playAudio('success'); // A quick "snap" sound
+            setSnappedCodes(prev => new Set(prev).add(code));
+        } else {
+            // Optional: give feedback that it's already in the batch
+            // playAudio('duplicate');
         }
+    };
 
-        // Resume scanning after a 1.5s delay to prevent re-scans.
-        if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
-        resumeTimerRef.current = setTimeout(() => {
-            if (scannerRef.current && scannerRef.current.getState() === 3 /* PAUSED */) {
-                scannerRef.current.resume().catch(err => console.error("Failed to resume scanner", err));
-            }
-            isProcessingRef.current = false;
-        }, 1500);
+    // "Validate" phase: Send all snapped codes to the backend.
+    const handleBatchValidate = async () => {
+        if (snappedCodes.size === 0) {
+            showFeedback('error', 'No codes captured to validate.');
+            return;
+        }
+        setIsProcessingValidation(true);
+        setValidationResults(null);
+        setError('');
+
+        try {
+            // NOTE: This requires a new backend endpoint that accepts an array of codes.
+            const response = await apiClient.post('/api/validator/scan-batch', {
+                codes: Array.from(snappedCodes),
+                batchId: selectedBatch.id
+            });
+            setValidationResults(response.data); // e.g., { success: 10, error: 1, duplicate: 2 }
+            showFeedback('success', `Validation complete for ${snappedCodes.size} codes.`);
+            setSnappedCodes(new Set()); // Clear for the next batch
+        } catch (err) {
+            setError(err.response?.data?.message || 'Batch validation failed.');
+        } finally {
+            setIsProcessingValidation(false);
+        }
     };
 
     const startScannerForBatch = (batch) => {
         setSelectedBatch(batch);
-        setCurrentStats({ success: 0, error: 0, duplicate: 0 });
-        setScannedCodes(new Set());
+        setSnappedCodes(new Set());
+        setValidationResults(null);
         setError('');
         setMode('scanning');
         setTimeout(() => {
@@ -171,10 +169,12 @@ function ValidatorDashboardPage() {
 
     const stopScannerAndExit = () => {
         setMode('select_batch');
-        setSessionStats(prev => ({
-            ...prev,
-            [selectedBatch.id]: { ...currentStats }
-        }));
+        if (validationResults) {
+            setSessionStats(prev => ({
+                ...prev,
+                [selectedBatch.id]: { ...validationResults }
+            }));
+        }
         setSelectedBatch(null);
     };
 
@@ -191,13 +191,26 @@ function ValidatorDashboardPage() {
                     <div className="w-full rounded-2xl overflow-hidden aspect-square" style={{ background: '#222' }}>
                         <div id={qrcodeRegionId} style={{ width: '100%', height: '100%' }}></div>
                     </div>
-                    <div className="flex justify-around items-center pt-2">
-                        <span className="text-green-600 font-bold text-xl">Success: {currentStats.success}</span>
-                        <span className="text-red-600 font-bold text-xl">Errors: {currentStats.error}</span>
-                        <span className="text-blue-600 font-bold text-xl">Duplicate: {currentStats.duplicate}</span>
+                    
+                    <div className="text-center py-2">
+                        <span className="text-gray-800 font-bold text-3xl">{snappedCodes.size}</span>
+                        <p className="text-gray-500 text-sm">Codes Captured</p>
                     </div>
-                    <button onClick={stopScannerAndExit} className="w-full glass-button mt-4 py-3 rounded-lg font-bold text-lg">End Session</button>
+
+                    <button onClick={handleBatchValidate} disabled={isProcessingValidation || snappedCodes.size === 0} className="w-full glass-button mt-2 py-3 rounded-lg font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isProcessingValidation ? 'Validating...' : `Validate ${snappedCodes.size} Captured Codes`}
+                    </button>
+
+                    {validationResults && (
+                        <div className="flex justify-around items-center pt-2 border-t border-gray-200 mt-4">
+                            <span className="text-green-600 font-bold text-lg">Success: {validationResults.success}</span>
+                            <span className="text-red-600 font-bold text-lg">Errors: {validationResults.error}</span>
+                            <span className="text-blue-600 font-bold text-lg">Duplicate: {validationResults.duplicate}</span>
+                        </div>
+                    )}
+
                     {error && <p className="text-red-400 text-sm mt-2 text-center">{error}</p>}
+                    <button onClick={stopScannerAndExit} className="w-full text-center text-gray-500 hover:text-gray-800 text-sm mt-4">End Session</button>
                 </div>
                 <ScanFeedback feedback={feedback} />
             </>
