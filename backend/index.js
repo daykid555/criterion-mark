@@ -1,4 +1,4 @@
-// backend/index.js - FINAL CORRECTED VERSION (EMPHASIZING THE LOGISTICS ROUTE)
+// backend/index.js - FINAL CORRECTED VERSION
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -27,17 +27,16 @@ const PORT = process.env.PORT || 5001;
 const allowedOrigins = ['http://localhost:5173', 'https://criterion-mark.vercel.app'];
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
         }
     },
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Use-Location'], // Explicitly allow custom headers
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Use-Location'],
 }));
 app.use(express.json());
-app.set('trust proxy', true); // Important for accurate IP detection with proxies
+app.set('trust proxy', true);
 
 // --- CLOUDINARY & MULTER CONFIGURATION ---
 cloudinary.config({
@@ -61,58 +60,13 @@ const generateSixDigitCode = () => {
 
 // --- ROUTES ---
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
-// --- PUBLIC VERIFICATION ROUTE ---
+
+// --- PUBLIC VERIFICATION ROUTE (REBUILT & FIXED) ---
 app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     const { code } = req.params;
     const ip = req.ip;
     const useLocation = req.headers['x-use-location'] === 'true';
 
-    // Find the QR code record first
-    const qrCodeRecord = await prisma.qRCode.findUnique({
-        where: { code: code },
-        include: {
-            batch: { select: { drugName: true, manufacturer: { select: { companyName: true } }, seal_background_url: true } },
-            scanRecords: { orderBy: { scannedAt: 'asc' } },
-        },
-    });
-
-    // If QR code is not found, we should not proceed with ScanRecord creation or QR update
-    if (!qrCodeRecord) {
-        // We still create a scan record to log the invalid attempt
-        let locationData = { ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null };
-        if (useLocation && process.env.IPINFO_API_KEY) {
-            try {
-                const { data } = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
-                locationData = { ...locationData, city: data.city, region: data.region, country: data.country };
-                if (data.loc) {
-                    const [lat, lon] = data.loc.split(',');
-                    locationData.latitude = parseFloat(lat);
-                    locationData.longitude = parseFloat(lon);
-                }
-            } catch (geoError) {
-                console.error('IPinfo lookup failed:', geoError.message);
-            }
-        }
-        
-        await prisma.scanRecord.create({
-            data: {
-                // qrCodeId is null because the QR code was not found
-                qrCodeId: null, 
-                scannedCode: code,
-                scanOutcome: 'FAILURE', // Explicitly mark as failure
-                scannedByRole: Role.CUSTOMER,
-                ...locationData,
-            },
-        });
-        
-        // Return a 404 error as the code is not found
-        return res.status(404).json({ status: 'error', message: 'This code is invalid. The product is likely counterfeit.' });
-    }
-
-    // --- QR Code Found: Proceed with status checks and transaction ---
-    
-    let scanOutcome = 'FAILURE';
-    let message = 'This code is invalid. The product is likely counterfeit.';
     let locationData = { ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null };
 
     if (useLocation && process.env.IPINFO_API_KEY) {
@@ -129,39 +83,83 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         }
     }
 
-    // Now we know qrCodeRecord is not null, so we can safely use its ID
-    const firstCustomerScan = qrCodeRecord.scanRecords.find(sr => sr.scannedByRole === Role.CUSTOMER);
-    if (qrCodeRecord.status === 'UNUSED') {
+    const qrCodeRecord = await prisma.qRCode.findUnique({
+        where: { code: code },
+        include: {
+            batch: { select: { drugName: true, manufacturer: { select: { companyName: true } }, seal_background_url: true } },
+            scanRecords: { where: { scannedByRole: Role.CUSTOMER }, orderBy: { scannedAt: 'asc' } },
+        },
+    });
+
+    // --- Handle Case: QR Code Not Found ---
+    if (!qrCodeRecord) {
+        await prisma.scanRecord.create({
+            data: {
+                qrCodeId: null,
+                scannedCode: code,
+                scanOutcome: 'NOT_FOUND',
+                scannedByRole: Role.CUSTOMER,
+                ...locationData,
+            },
+        });
+        return res.status(404).json({ status: 'error', message: 'This code is invalid. The product is likely counterfeit.' });
+    }
+
+    // --- Handle QR Code Found ---
+    let scanOutcome = 'FAILURE';
+    let message = 'This code is invalid or in a non-verifiable state.';
+    let httpStatus = 400;
+    
+    // --- CORE LOGIC FIX ---
+    // SUCCESS is now when status is VALIDATED.
+    // USED is a DUPLICATE error.
+    // UNUSED is a "not yet ready" error.
+    if (qrCodeRecord.status === 'VALIDATED') {
         scanOutcome = 'SUCCESS';
         message = 'Product Verified Successfully! This is the first verification.';
+        httpStatus = 200;
     } else if (qrCodeRecord.status === 'USED') {
         scanOutcome = 'DUPLICATE';
         message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
+        httpStatus = 409;
+    } else if (qrCodeRecord.status === 'UNUSED') {
+        scanOutcome = 'NOT_VALIDATED';
+        message = 'This code has not been validated yet. Please try again later.';
+        httpStatus = 400;
     } else {
-        message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified at this time.`;
+        scanOutcome = 'INVALID_STATE';
+        message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified.`;
+        httpStatus = 400;
     }
 
+    // --- PRISMA ERROR FIX ---
+    // Prepare the data for database insertion separately.
+    // The 'firstScanDetails' object is for the API response only, not the database.
+    const scanRecordData = {
+        qrCodeId: qrCodeRecord.id,
+        scannedCode: code,
+        scanOutcome: scanOutcome,
+        scannedByRole: Role.CUSTOMER,
+        ...locationData,
+    };
+    
+    // Prepare first scan details for the API response if it's a duplicate scan
+    const firstCustomerScan = qrCodeRecord.scanRecords[0];
+    let firstScanDetailsForResponse = null;
     if (firstCustomerScan) {
-        locationData.firstScanDetails = {
+        firstScanDetailsForResponse = {
             scannedAt: firstCustomerScan.scannedAt,
             location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location',
         };
     }
 
     await prisma.$transaction(async (tx) => {
-        await tx.scanRecord.create({
-            data: {
-                qrCode: { connect: { id: qrCodeRecord.id } }, // <-- FIXED LINE
-                scannedCode: code,
-                scanOutcome: scanOutcome,
-                scannedByRole: Role.CUSTOMER,
-                ...locationData,
-            },
-        });
+        // Create the scan record without the problematic 'firstScanDetails' field.
+        await tx.scanRecord.create({ data: scanRecordData });
 
         if (scanOutcome === 'SUCCESS') {
             await tx.qRCode.update({
-                where: { id: qrCodeRecord.id }, // Safely use qrCodeRecord.id
+                where: { id: qrCodeRecord.id },
                 data: {
                     status: 'USED',
                     firstVerificationTimestamp: new Date(),
@@ -172,15 +170,15 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         }
     });
 
-    if (scanOutcome === 'SUCCESS') {
-        res.status(200).json({ status: 'success', message, data: qrCodeRecord });
-    } else if (scanOutcome === 'DUPLICATE') {
-        res.status(409).json({ status: 'error', message, firstScanDetails: locationData.firstScanDetails, data: qrCodeRecord });
-    } else {
-        // This case covers invalid states or other non-success outcomes from QR code status checks
-        res.status(400).json({ status: 'error', message }); // Changed status to 400 for clearer error indication
+    // --- Send Response ---
+    const responsePayload = { status: httpStatus === 200 ? 'success' : 'error', message, data: qrCodeRecord };
+    if (scanOutcome === 'DUPLICATE' && firstScanDetailsForResponse) {
+        responsePayload.firstScanDetails = firstScanDetailsForResponse;
     }
+
+    return res.status(httpStatus).json(responsePayload);
 }));
+
 // --- MANUFACTURER ROUTES ---
 app.get('/api/manufacturer/batches', authenticateToken, authorizeRole([Role.MANUFACTURER]), asyncHandler(async (req, res) => {
     const manufacturerId = req.user.userId;
@@ -224,9 +222,6 @@ app.post('/api/batches', authenticateToken, authorizeRole([Role.MANUFACTURER]), 
     res.status(201).json(newBatch);
 }));
 
-// ... other routes ...
-
-// *** ENSURED CORRECT ROUTE PATH ***
 app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, authorizeRole([Role.MANUFACTURER]), asyncHandler(async (req, res) => {
     const batchId = parseInt(req.params.id, 10);
     const manufacturerId = req.user.userId;
@@ -257,7 +252,6 @@ app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, aut
     });
 }));
 
-// --- ADDED THE MISSING CONFIRM-RECEIPT ROUTE ---
 app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, authorizeRole([Role.MANUFACTURER]), asyncHandler(async (req, res) => {
     const batchId = parseInt(req.params.id, 10);
     const manufacturerId = req.user.userId;
@@ -295,10 +289,7 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
     });
 }));
 
-
-// ... rest of the file ...
-
-// --- DVA (Drug Verification Agency) ROUTES ---
+// --- DVA ROUTES ---
 app.get('/api/dva/pending-batches', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const pendingBatches = await prisma.batch.findMany({
         where: { status: BatchStatus.PENDING_DVA_APPROVAL },
@@ -677,9 +668,21 @@ app.put('/api/printing/batches/:id/complete', authenticateToken, authorizeRole([
     res.status(200).json(updatedBatch);
 }));
 
+// --- PRINTING HISTORY ROUTE (FIXED) ---
 app.get('/api/printing/history', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
     const completedBatches = await prisma.batch.findMany({
-        where: { status: { in: [BatchStatus.PRINTING_COMPLETE, BatchStatus.IN_TRANSIT, BatchStatus.PENDING_MANUFACTURER_CONFIRMATION, BatchStatus.DELIVERED_TO_MANUFACTURER] } },
+        where: {
+            status: {
+                // FIX: Added VALIDATION_PENDING to ensure batches don't disappear from history
+                in: [
+                    BatchStatus.VALIDATION_PENDING,
+                    BatchStatus.PRINTING_COMPLETE,
+                    BatchStatus.IN_TRANSIT,
+                    BatchStatus.PENDING_MANUFACTURER_CONFIRMATION,
+                    BatchStatus.DELIVERED_TO_MANUFACTURER
+                ]
+            }
+        },
         include: { manufacturer: { select: { companyName: true } } },
         orderBy: { id: 'desc' },
     });
@@ -1117,23 +1120,19 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
 }));
 
 // --- ERROR HANDLING MIDDLEWARE ---
-// This should be the last middleware added to the app.
 const errorHandler = (err, req, res, next) => {
     console.error('ERROR:', err.stack);
     const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
     res.status(statusCode).json({
         status: 'error',
         message: err.message || 'An internal server error occurred.',
-        // Only include stack in development
         stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     });
 };
 app.use(errorHandler);
 
 // --- START THE SERVER ---
-// Make sure your server listens on the port provided by Render's environment
-const port = process.env.PORT || 5001; // Use process.env.PORT
+const port = process.env.PORT || 5001;
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
-  // This log is important: it confirms which port your Node.js app is using internally.
 });
