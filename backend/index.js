@@ -67,7 +67,8 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     const ip = req.ip;
     const useLocation = req.headers['x-use-location'] === 'true';
 
-    let qrCodeRecord = await prisma.qRCode.findUnique({
+    // Find the QR code record first
+    const qrCodeRecord = await prisma.qRCode.findUnique({
         where: { code: code },
         include: {
             batch: { select: { drugName: true, manufacturer: { select: { companyName: true } }, seal_background_url: true } },
@@ -75,6 +76,41 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         },
     });
 
+    // If QR code is not found, we should not proceed with ScanRecord creation or QR update
+    if (!qrCodeRecord) {
+        // We still create a scan record to log the invalid attempt
+        let locationData = { ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null };
+        if (useLocation && process.env.IPINFO_API_KEY) {
+            try {
+                const { data } = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
+                locationData = { ...locationData, city: data.city, region: data.region, country: data.country };
+                if (data.loc) {
+                    const [lat, lon] = data.loc.split(',');
+                    locationData.latitude = parseFloat(lat);
+                    locationData.longitude = parseFloat(lon);
+                }
+            } catch (geoError) {
+                console.error('IPinfo lookup failed:', geoError.message);
+            }
+        }
+        
+        await prisma.scanRecord.create({
+            data: {
+                // qrCodeId is null because the QR code was not found
+                qrCodeId: null, 
+                scannedCode: code,
+                scanOutcome: 'FAILURE', // Explicitly mark as failure
+                scannedByRole: Role.CUSTOMER,
+                ...locationData,
+            },
+        });
+        
+        // Return a 404 error as the code is not found
+        return res.status(404).json({ status: 'error', message: 'This code is invalid. The product is likely counterfeit.' });
+    }
+
+    // --- QR Code Found: Proceed with status checks and transaction ---
+    
     let scanOutcome = 'FAILURE';
     let message = 'This code is invalid. The product is likely counterfeit.';
     let locationData = { ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null };
@@ -93,29 +129,29 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         }
     }
 
-    if (qrCodeRecord) {
-        const firstCustomerScan = qrCodeRecord.scanRecords.find(sr => sr.scannedByRole === Role.CUSTOMER);
-        if (qrCodeRecord.status === 'UNUSED') {
-            scanOutcome = 'SUCCESS';
-            message = 'Product Verified Successfully! This is the first verification.';
-        } else if (qrCodeRecord.status === 'USED') {
-            scanOutcome = 'DUPLICATE';
-            message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
-        } else {
-            message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified at this time.`;
-        }
-        if (firstCustomerScan) {
-            locationData.firstScanDetails = {
-                scannedAt: firstCustomerScan.scannedAt,
-                location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location',
-            };
-        }
+    // Now we know qrCodeRecord is not null, so we can safely use its ID
+    const firstCustomerScan = qrCodeRecord.scanRecords.find(sr => sr.scannedByRole === Role.CUSTOMER);
+    if (qrCodeRecord.status === 'UNUSED') {
+        scanOutcome = 'SUCCESS';
+        message = 'Product Verified Successfully! This is the first verification.';
+    } else if (qrCodeRecord.status === 'USED') {
+        scanOutcome = 'DUPLICATE';
+        message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
+    } else {
+        message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified at this time.`;
+    }
+
+    if (firstCustomerScan) {
+        locationData.firstScanDetails = {
+            scannedAt: firstCustomerScan.scannedAt,
+            location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location',
+        };
     }
 
     await prisma.$transaction(async (tx) => {
         await tx.scanRecord.create({
             data: {
-                qrCodeId: qrCodeRecord?.id,
+                qrCodeId: qrCodeRecord.id, // Safely use qrCodeRecord.id as it's guaranteed to exist here
                 scannedCode: code,
                 scanOutcome: scanOutcome,
                 scannedByRole: Role.CUSTOMER,
@@ -125,7 +161,7 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
 
         if (scanOutcome === 'SUCCESS') {
             await tx.qRCode.update({
-                where: { id: qrCodeRecord.id },
+                where: { id: qrCodeRecord.id }, // Safely use qrCodeRecord.id
                 data: {
                     status: 'USED',
                     firstVerificationTimestamp: new Date(),
@@ -141,7 +177,8 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     } else if (scanOutcome === 'DUPLICATE') {
         res.status(409).json({ status: 'error', message, firstScanDetails: locationData.firstScanDetails, data: qrCodeRecord });
     } else {
-        res.status(404).json({ status: 'error', message });
+        // This case covers invalid states or other non-success outcomes from QR code status checks
+        res.status(400).json({ status: 'error', message }); // Changed status to 400 for clearer error indication
     }
 }));
 // --- MANUFACTURER ROUTES ---

@@ -6,7 +6,7 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    role: 'MANUFACTURER',
+    role: 'MANUFACTURER', // Default role
     companyName: '',
     companyRegNumber: '',
     fullName: '',
@@ -27,15 +27,21 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
     setSuccessMessage('');
 
     // Prepare payload based on the selected role
-    const { email, password, role, companyName, companyRegNumber } = formData;
-    const payload = {
-        email,
-        password,
-        role,
-        companyName: role === 'MANUFACTURER' || role === 'SKINCARE_BRAND' ? companyName : formData.fullName,
-        companyRegNumber: role === 'MANUFACTURER' || role === 'SKINCARE_BRAND' ? companyRegNumber : undefined,
-        fullName: role !== 'MANUFACTURER' && role !== 'SKINCARE_BRAND' ? formData.fullName : undefined,
-    };
+    const { email, password, role, companyName, companyRegNumber, fullName } = formData;
+    const payload = { email, password, role };
+
+    if (role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') {
+      payload.companyName = companyName;
+      payload.companyRegNumber = companyRegNumber;
+    } else {
+      payload.fullName = fullName; // For DVA, Printing, Logistics, Validator, Customer
+      // If role is not Manufacturer or Skincare Brand, companyName is not explicitly needed from these fields, but fullName is used.
+      if (role === 'CUSTOMER') {
+          payload.companyName = fullName; // Set companyName to fullName for Customer if backend expects it.
+      } else {
+          payload.companyName = fullName; // Use fullName as companyName for other roles like DVA, Printing, Logistics, Validator
+      }
+    }
     
     try {
       const response = await apiClient.post('/api/auth/register', payload);
@@ -51,7 +57,7 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
     }
   };
   
-  const isManufacturerRole = formData.role === 'MANUFACTURER' || formData.role === 'SKINCARE_BRAND';
+  const isManufacturerOrSkincareBrand = formData.role === 'MANUFACTURER' || formData.role === 'SKINCARE_BRAND';
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -69,9 +75,10 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
             <option value="PRINTING">Printing</option>
             <option value="LOGISTICS">Logistics</option>
             <option value="SKINCARE_BRAND">Skincare Brand</option>
+            <option value="VALIDATOR">Validator</option> {/* FIX: Added VALIDATOR role */}
           </select>
 
-          {isManufacturerRole ? (
+          {isManufacturerOrSkincareBrand ? (
             <>
               <input type="text" name="companyName" placeholder="Company Name" value={formData.companyName} onChange={handleChange} className="w-full p-3 glass-input" required />
               <input type="text" name="companyRegNumber" placeholder="Company Registration Number" value={formData.companyRegNumber} onChange={handleChange} className="w-full p-3 glass-input" required />

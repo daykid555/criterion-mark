@@ -40,7 +40,6 @@ function RegistrationPage() {
     }
   };
 
-  // This function now includes the title for Skincare Brands
   const getPageTitle = () => {
     switch (role) {
       case 'MANUFACTURER': return 'Create Manufacturer Account';
@@ -48,6 +47,7 @@ function RegistrationPage() {
       case 'DVA': return 'Create DVA Account';
       case 'PRINTING': return 'Create Printing Account';
       case 'LOGISTICS': return 'Create Logistics Account';
+      case 'VALIDATOR': return 'Create Validator Account'; // Added page title for Validator
       case 'CUSTOMER': return 'Create Customer Account';
       default: return 'Create an Account';
     }
@@ -65,17 +65,16 @@ function RegistrationPage() {
               <div>
                 <label htmlFor="role" className="block text-sm font-medium text-white/80">I am a...</label>
                 <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50">
-                  {/* THIS IS THE FIX: Added Skincare Brand option */}
                   <option className="text-black" value="MANUFACTURER">Pharmaceutical Manufacturer</option>
                   <option className="text-black" value="SKINCARE_BRAND">Skincare Brand</option>
                   <option className="text-black" value="CUSTOMER">Customer / User</option>
                   <option className="text-black" value="DVA">DVA (Regulatory Agency)</option>
                   <option className="text-black" value="PRINTING">Printing</option>
                   <option className="text-black" value="LOGISTICS">Logistics</option>
+                  <option className="text-black" value="VALIDATOR">Validator</option> {/* FIX: Added VALIDATOR role */}
                 </select>
               </div>
 
-              {/* This logic now correctly handles both Manufacturer and Skincare Brand */}
               {(role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') ? (
                 <>
                   <div>
