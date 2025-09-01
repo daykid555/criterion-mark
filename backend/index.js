@@ -485,12 +485,43 @@ app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole(
 }));
 
 app.get('/api/admin/history', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
-    const processedBatches = await prisma.batch.findMany({
-        where: { NOT: { status: { in: [BatchStatus.PENDING_DVA_APPROVAL, BatchStatus.PENDING_ADMIN_APPROVAL] } } },
-        include: { manufacturer: { select: { companyName: true } } },
-        orderBy: { admin_approved_at: 'desc' },
+    // --- START: NEW PAGINATION & SEARCH LOGIC ---
+    const page = parseInt(req.query.page) || 1;
+    const limit = 15; // You can adjust this number to determine how many items per page
+    const skip = (page - 1) * limit;
+    const searchTerm = req.query.search || '';
+
+    const whereClause = {
+        NOT: { status: { in: [BatchStatus.PENDING_DVA_APPROVAL, BatchStatus.PENDING_ADMIN_APPROVAL] } },
+        // Add search logic: looks for the search term in drugName or manufacturer's companyName
+        ...(searchTerm && {
+            OR: [
+                { drugName: { contains: searchTerm, mode: 'insensitive' } },
+                { manufacturer: { companyName: { contains: searchTerm, mode: 'insensitive' } } }
+            ]
+        })
+    };
+    // --- END: NEW PAGINATION & SEARCH LOGIC ---
+
+    const [processedBatches, totalCount] = await prisma.$transaction([
+        prisma.batch.findMany({
+            where: whereClause,
+            include: { manufacturer: { select: { companyName: true } } },
+            orderBy: { admin_approved_at: 'desc' },
+            take: limit, // Get only 'limit' number of records
+            skip: skip,  // Skip records of previous pages
+        }),
+        prisma.batch.count({ where: whereClause }) // Get the total count of matching records
+    ]);
+
+    res.status(200).json({
+        data: processedBatches,
+        pagination: {
+            total: totalCount,
+            currentPage: page,
+            hasNextPage: (skip + processedBatches.length) < totalCount,
+        }
     });
-    res.status(200).json(processedBatches);
 }));
 
 app.get('/api/admin/scans', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {

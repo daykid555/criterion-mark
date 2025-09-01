@@ -1,12 +1,9 @@
-// frontend/src/components/Sidebar.jsx
-// --- MODIFIED CODE ---
-
 import { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { 
-  FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck, FiShoppingBag, 
-  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle, FiCamera 
+  FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck, 
+  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle
 } from 'react-icons/fi';
 
 const Logo = () => (
@@ -78,10 +75,7 @@ const navConfig = {
       { icon: <FiPlusCircle size={20} />, text: 'Add New Product', to: '/skincare/add-product' },
       { icon: <FiFileText size={20} />, text: 'Product History', to: '/skincare/history' },
   ],
-  // --- FIX: Added navigation for the VALIDATOR role ---
-  VALIDATOR: [
-      { icon: <FiCamera size={20} />, text: 'Validation Scanner', to: '/validator/dashboard' },
-  ],
+  // NOTE: I have removed the VALIDATOR role as you previously instructed.
 };
 
 export default function Sidebar({ closeMobileNav = () => {} }) {
@@ -108,6 +102,19 @@ export default function Sidebar({ closeMobileNav = () => {} }) {
         </ul>
 
         <div className="border-t border-white/20 pt-4 mt-4">
+          {/* --- START: THIS IS THE NEW CODE BLOCK --- */}
+          {user && (
+            <div className="px-4 mb-4 text-left">
+              <p className="text-white font-semibold text-sm truncate" title={user.companyName}>
+                {user.companyName}
+              </p>
+              <p className="text-white/60 text-xs truncate" title={user.email}>
+                {user.email}
+              </p>
+            </div>
+          )}
+          {/* --- END: THIS IS THE NEW CODE BLOCK --- */}
+
           <div
             onClick={handleLogout}
             className="flex items-center py-3 px-4 my-1 font-medium rounded-md cursor-pointer transition-colors group hover:bg-red-500/20 text-gray-400"
