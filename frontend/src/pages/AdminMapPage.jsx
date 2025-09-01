@@ -1,10 +1,8 @@
-// frontend/src/pages/AdminMapPage.jsx
-
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import L from 'leaflet'; // Import Leaflet library itself
+import L from 'leaflet';
 
 // Fix for default marker icon issue with webpack
 delete L.Icon.Default.prototype._getIconUrl;
@@ -24,7 +22,6 @@ function AdminMapPage() {
     const fetchScans = async () => {
       try {
         const response = await apiClient.get('/api/admin/scans');
-        // We only want to map scans that have valid coordinates
         const validScans = response.data.filter(scan => scan.latitude && scan.longitude);
         setScans(validScans);
       } catch (err) {
@@ -56,26 +53,35 @@ function AdminMapPage() {
         </Link>
       </div>
       
-      {/* This is the map container */}
+      {/* 
+        --- FIX APPLIED ---
+        The parent div has a defined height (h-[70vh]), which allows the child MapContainer 
+        with className="h-full w-full" to correctly fill the space. This prevents the 
+        "small squares" rendering bug.
+      */}
       <div className="glass-panel p-2 h-[70vh] w-full">
         {scans.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-white/70">No scan location data available to display.</p>
           </div>
         ) : (
-          <MapContainer center={mapCenter} zoom={6} scrollWheelZoom={true} style={{ height: '100%', width: '100%', borderRadius: '0.75rem' }}>
+          <MapContainer 
+            center={mapCenter} 
+            zoom={6} 
+            scrollWheelZoom={true} 
+            className="h-full w-full rounded-xl" // Using className instead of inline style
+          >
             <TileLayer
               attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             
-            {/* Loop through each scan and create a marker */}
             {scans.map((scan) => (
               <Marker key={scan.id} position={[scan.latitude, scan.longitude]}>
                 <Popup>
                   <div className="text-sm">
-                    <p className="font-bold">{scan.qrCode.batch.drugName}</p>
-                    <p>By: {scan.qrCode.batch.manufacturer.companyName}</p>
+                    <p className="font-bold">{scan.qrCode?.batch?.drugName || 'Unknown Product'}</p>
+                    <p>By: {scan.qrCode?.batch?.manufacturer?.companyName || 'Unknown Manufacturer'}</p>
                     <hr className="my-1"/>
                     <p>Scanned: {new Date(scan.scannedAt).toLocaleString()}</p>
                     <p>Location: {scan.city || 'N/A'}, {scan.country || 'N/A'}</p>

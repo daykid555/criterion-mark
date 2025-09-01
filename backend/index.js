@@ -62,26 +62,61 @@ const generateSixDigitCode = () => {
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
 // --- PUBLIC VERIFICATION ROUTE (REBUILT & FIXED) ---
+// AFFECTED ROUTE: /api/verify/:code
 app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     const { code } = req.params;
     const ip = req.ip;
-    const useLocation = req.headers['x-use-location'] === 'true';
+    
+    // --- START: ENHANCED LOCATION LOGIC ---
+    const { lat, lon } = req.query; // Get precise coordinates from query params
+    const useIpLocation = req.headers['x-use-location'] === 'true';
 
-    let locationData = { ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null };
+    let locationData = { 
+        ipAddress: ip, 
+        city: null, region: null, country: null, 
+        latitude: null, longitude: null, fullAddress: null 
+    };
 
-    if (useLocation && process.env.IPINFO_API_KEY) {
+    // PRIORITY 1: Use precise coordinates if provided
+    if (lat && lon) {
+        try {
+            const latitude = parseFloat(lat);
+            const longitude = parseFloat(lon);
+
+            // Using Nominatim (OpenStreetMap) for reverse geocoding. It's free.
+            // A paid service like Google Geocoding API may be more reliable for production.
+            const geoResponse = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`, {
+                headers: { 'User-Agent': 'CriterionMarkApp/1.0' } // Nominatim requires a User-Agent header
+            });
+            
+            if (geoResponse.data && geoResponse.data.display_name) {
+                locationData.latitude = latitude;
+                locationData.longitude = longitude;
+                locationData.fullAddress = geoResponse.data.display_name;
+                locationData.city = geoResponse.data.address.city || geoResponse.data.address.town || null;
+                locationData.country = geoResponse.data.address.country || null;
+            }
+        } catch (geoError) {
+            console.error('Reverse geocoding failed:', geoError.message);
+            // If geocoding fails, we can still fall back to IP-based location
+        }
+    }
+
+    // PRIORITY 2 (FALLBACK): Use IP-based location if precise coords are missing OR failed
+    if (!locationData.fullAddress && useIpLocation && process.env.IPINFO_API_KEY) {
         try {
             const { data } = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
             locationData = { ...locationData, city: data.city, region: data.region, country: data.country };
-            if (data.loc) {
-                const [lat, lon] = data.loc.split(',');
-                locationData.latitude = parseFloat(lat);
-                locationData.longitude = parseFloat(lon);
+            if (data.loc && !locationData.latitude) { // Only set lat/lon if not already set
+                const [ipLat, ipLon] = data.loc.split(',');
+                locationData.latitude = parseFloat(ipLat);
+                locationData.longitude = parseFloat(ipLon);
             }
-        } catch (geoError) {
-            console.error('IPinfo lookup failed:', geoError.message);
+        } catch (ipError) {
+            console.error('IPinfo lookup failed:', ipError.message);
         }
     }
+    // --- END: ENHANCED LOCATION LOGIC ---
 
     const qrCodeRecord = await prisma.qRCode.findUnique({
         where: { code: code },
@@ -91,7 +126,6 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         },
     });
 
-    // --- Handle Case: QR Code Not Found ---
     if (!qrCodeRecord) {
         await prisma.scanRecord.create({
             data: {
@@ -99,20 +133,16 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
                 scannedCode: code,
                 scanOutcome: 'NOT_FOUND',
                 scannedByRole: Role.CUSTOMER,
-                ...locationData,
+                ...locationData, // Save enhanced location data
             },
         });
         return res.status(404).json({ status: 'error', message: 'This code is invalid. The product is likely counterfeit.' });
     }
 
-    // --- Handle QR Code Found ---
     let scanOutcome = 'FAILURE';
     let message = 'This code is invalid or in a non-verifiable state.';
     let httpStatus = 400;
     
-    // --- CORE LOGIC REVISED (NO VALIDATOR) ---
-    // SUCCESS is now when status is UNUSED.
-    // USED is a DUPLICATE error.
     if (qrCodeRecord.status === 'UNUSED') {
         scanOutcome = 'SUCCESS';
         message = 'Product Verified Successfully! This is the first verification.';
@@ -127,29 +157,25 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         httpStatus = 400;
     }
 
-    // --- PRISMA ERROR FIX ---
-    // Prepare the data for database insertion separately.
-    // The 'firstScanDetails' object is for the API response only, not the database.
     const scanRecordData = {
         qrCodeId: qrCodeRecord.id,
         scannedCode: code,
         scanOutcome: scanOutcome,
         scannedByRole: Role.CUSTOMER,
-        ...locationData,
+        ...locationData, // Save enhanced location data
     };
     
-    // Prepare first scan details for the API response if it's a duplicate scan
     const firstCustomerScan = qrCodeRecord.scanRecords[0];
     let firstScanDetailsForResponse = null;
     if (firstCustomerScan) {
         firstScanDetailsForResponse = {
             scannedAt: firstCustomerScan.scannedAt,
-            location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location',
+            // Show the detailed address if it exists, otherwise fall back
+            location: firstCustomerScan.fullAddress || (firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location'),
         };
     }
 
     await prisma.$transaction(async (tx) => {
-        // Create the scan record without the problematic 'firstScanDetails' field.
         await tx.scanRecord.create({ data: scanRecordData });
 
         if (scanOutcome === 'SUCCESS') {
@@ -159,13 +185,13 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
                     status: 'USED',
                     firstVerificationTimestamp: new Date(),
                     firstVerificationIp: locationData.ipAddress,
-                    firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null,
+                    // Save the more detailed location if available
+                    firstVerificationLocation: locationData.fullAddress || (locationData.city ? `${locationData.city}, ${locationData.country}` : null),
                 },
             });
         }
     });
 
-    // --- Send Response ---
     const responsePayload = { status: httpStatus === 200 ? 'success' : 'error', message, data: qrCodeRecord };
     if (scanOutcome === 'DUPLICATE' && firstScanDetailsForResponse) {
         responsePayload.firstScanDetails = firstScanDetailsForResponse;

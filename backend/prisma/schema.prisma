@@ -185,6 +185,10 @@ model ScanRecord {
   country       String?
   latitude      Float?
   longitude     Float?
+
+  // --- START: ADD THIS NEW FIELD ---
+  fullAddress   String? // To store the detailed address from reverse geocoding
+  // --- END: ADD THIS NEW FIELD ---
 }
 
 model NotificationLog {
