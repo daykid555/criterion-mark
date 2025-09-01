@@ -1,4 +1,3 @@
-// frontend/src/components/CreateUserModal.jsx
 import React, { useState } from 'react';
 import apiClient from '../api';
 
@@ -26,29 +25,24 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
     setError('');
     setSuccessMessage('');
 
-    // Prepare payload based on the selected role
     const { email, password, role, companyName, companyRegNumber, fullName } = formData;
     const payload = { email, password, role };
 
-    if (role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') {
+    // Corrected logic based on your new roles
+    const rolesRequiringCompanyInfo = ['MANUFACTURER', 'SKINCARE_BRAND', 'PHARMACY'];
+    if (rolesRequiringCompanyInfo.includes(role)) {
       payload.companyName = companyName;
       payload.companyRegNumber = companyRegNumber;
     } else {
-      payload.fullName = fullName; // For DVA, Printing, Logistics, Customer
-      // If role is not Manufacturer or Skincare Brand, companyName is not explicitly needed from these fields, but fullName is used.
-      if (role === 'CUSTOMER') {
-          payload.companyName = fullName; // Set companyName to fullName for Customer if backend expects it.
-      } else {
-          payload.companyName = fullName; // Use fullName as companyName for other roles like DVA, Printing, Logistics
-      }
+      payload.fullName = fullName;
     }
     
     try {
       const response = await apiClient.post('/api/auth/register', payload);
       setSuccessMessage(response.data.message || 'User created successfully! The account is pending your approval.');
-      onSuccess(); // Refresh the user list in the parent component
+      onSuccess();
       setTimeout(() => {
-        onClose(); // Close modal after a short delay
+        onClose();
       }, 2000);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create user.');
@@ -57,7 +51,9 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
     }
   };
   
-  const isManufacturerOrSkincareBrand = formData.role === 'MANUFACTURER' || formData.role === 'SKINCARE_BRAND';
+  // UPDATED to include PHARMACY
+  const rolesRequiringCompanyInfo = ['MANUFACTURER', 'SKINCARE_BRAND', 'PHARMACY'];
+  const showCompanyFields = rolesRequiringCompanyInfo.includes(formData.role);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -71,13 +67,14 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <select name="role" value={formData.role} onChange={handleChange} className="w-full p-3 glass-input text-white">
             <option value="MANUFACTURER">Manufacturer</option>
+            <option value="PHARMACY">Pharmacy</option> {/* ADDED */}
             <option value="DVA">DVA</option>
             <option value="PRINTING">Printing</option>
             <option value="LOGISTICS">Logistics</option>
             <option value="SKINCARE_BRAND">Skincare Brand</option>
           </select>
 
-          {isManufacturerOrSkincareBrand ? (
+          {showCompanyFields ? (
             <>
               <input type="text" name="companyName" placeholder="Company Name" value={formData.companyName} onChange={handleChange} className="w-full p-3 glass-input" required />
               <input type="text" name="companyRegNumber" placeholder="Company Registration Number" value={formData.companyRegNumber} onChange={handleChange} className="w-full p-3 glass-input" required />

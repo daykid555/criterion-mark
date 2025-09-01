@@ -2,8 +2,8 @@ import { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { 
-  FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck, 
-  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle
+  FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck,
+  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle, FiArchive
 } from 'react-icons/fi';
 
 const Logo = () => (
@@ -53,6 +53,7 @@ const navConfig = {
   MANUFACTURER: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/manufacturer/dashboard' },
     { icon: <FiPlusCircle size={20} />, text: 'Request New Batch', to: '/manufacturer/request-batch' },
+    { icon: <FiArchive size={20} />, text: 'Assign Carton', to: '/manufacturer/assign-carton' },
     { icon: <FiPackage size={20} />, text: 'Batch History', to: '/manufacturer/batch-history' },
   ],
   DVA: [

@@ -1,4 +1,3 @@
-// frontend/src/pages/RegistrationPage.jsx
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api';
@@ -21,8 +20,8 @@ function RegistrationPage() {
 
     let registrationData = { email: email.toLowerCase(), password, role };
 
-    // Logic to handle different form fields based on role
-    if (role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') {
+    // UPDATED to include PHARMACY
+    if (role === 'MANUFACTURER' || role === 'SKINCARE_BRAND' || role === 'PHARMACY') {
       registrationData.companyName = companyName;
       registrationData.companyRegNumber = companyRegNumber;
     } else {
@@ -43,6 +42,7 @@ function RegistrationPage() {
   const getPageTitle = () => {
     switch (role) {
       case 'MANUFACTURER': return 'Create Manufacturer Account';
+      case 'PHARMACY': return 'Create Pharmacy Account'; // ADDED
       case 'SKINCARE_BRAND': return 'Create Skincare Brand Account';
       case 'DVA': return 'Create DVA Account';
       case 'PRINTING': return 'Create Printing Account';
@@ -51,6 +51,13 @@ function RegistrationPage() {
       default: return 'Create an Account';
     }
   };
+  
+  const getCompanyNameLabel = () => {
+      if (role === 'PHARMACY') return 'Pharmacy Name';
+      if (role === 'MANUFACTURER') return 'Company Name';
+      if (role === 'SKINCARE_BRAND') return 'Brand Name';
+      return 'Company Name';
+  }
 
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center">
@@ -65,6 +72,7 @@ function RegistrationPage() {
                 <label htmlFor="role" className="block text-sm font-medium text-white/80">I am a...</label>
                 <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50">
                   <option className="text-black" value="CUSTOMER">Customer / User</option>
+                  <option className="text-black" value="PHARMACY">Pharmacy</option> {/* ADDED */}
                   <option className="text-black" value="SKINCARE_BRAND">Skincare Brand</option>
                   <option className="text-black" value="MANUFACTURER">Pharmaceutical Manufacturer</option>
                   <option className="text-black" value="DVA">DVA (Regulatory Agency)</option>
@@ -73,10 +81,11 @@ function RegistrationPage() {
                 </select>
               </div>
 
-              {(role === 'MANUFACTURER' || role === 'SKINCARE_BRAND') ? (
+              {/* UPDATED to include PHARMACY */}
+              {(role === 'MANUFACTURER' || role === 'SKINCARE_BRAND' || role === 'PHARMACY') ? (
                 <>
                   <div>
-                    <label htmlFor="companyName" className="block text-sm font-medium text-white/80">{role === 'MANUFACTURER' ? 'Company Name' : 'Brand Name'}</label>
+                    <label htmlFor="companyName" className="block text-sm font-medium text-white/80">{getCompanyNameLabel()}</label>
                     <input type="text" id="companyName" required value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input" />
                   </div>
                   <div>

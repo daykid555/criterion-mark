@@ -3,10 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import apiClient from '../api';
 import SealUploader from '../components/SealUploader';
 import StyledQRCode from '../components/StyledQRCode';
+import { FiGrid, FiPackage } from 'react-icons/fi'; // ADDED ICONS
 
-// Helper component for displaying each audit trail entry
+// Your original AuditTrailItem component is preserved
 function AuditTrailItem({ label, user, timestamp }) {
-  if (!user && !timestamp) return null; // Don't render if there's no data
+  if (!user && !timestamp) return null; 
 
   return (
     <div className="flex justify-between items-center py-3 border-b border-white/10">
@@ -26,13 +27,23 @@ function AdminBatchDetailsPage() {
   const [error, setError] = useState(null);
   const [selectedCode, setSelectedCode] = useState(null);
   const [isZipping, setIsZipping] = useState(false);
+  
+  // --- START: NEW STATE TO HOLD SEPARATED QR CODES ---
+  const [masterQRs, setMasterQRs] = useState([]);
+  const [childQRs, setChildQRs] = useState([]);
+  // --- END: NEW STATE ---
 
   const fetchBatchDetails = async () => {
     setIsLoading(true);
     try {
-      // The backend will now include all the user details we need
       const response = await apiClient.get(`/api/admin/batches/${id}`);
       setBatch(response.data);
+      // --- START: NEW LOGIC TO SPLIT THE CODES ---
+      if (response.data && response.data.qrCodes) {
+        setMasterQRs(response.data.qrCodes.filter(qr => qr.isMaster));
+        setChildQRs(response.data.qrCodes.filter(qr => !qr.isMaster));
+      }
+      // --- END: NEW LOGIC ---
     } catch (err) {
       setError('Failed to load batch details.');
     } finally {
@@ -44,29 +55,31 @@ function AdminBatchDetailsPage() {
     fetchBatchDetails();
   }, [id]);
 
+  // Your original handleZipDownload function is fully preserved
   const handleZipDownload = async () => {
     setIsZipping(true);
     try {
-      const response = await apiClient({
-        method: 'post',
-        url: `/api/admin/batches/${id}/codes/zip`,
-        responseType: 'blob',
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `batch_${id}_codes.zip`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+        const response = await apiClient({
+            method: 'post',
+            url: `/api/admin/batches/${id}/codes/zip`,
+            responseType: 'blob',
+        });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `batch_${id}_codes.zip`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Error generating ZIP file.');
+        alert('Error generating ZIP file.');
     } finally {
-      setIsZipping(false);
+        setIsZipping(false);
     }
   };
 
+  // Your original handleUploadSuccess function is fully preserved
   const handleUploadSuccess = () => {
     fetchBatchDetails();
   };
@@ -79,6 +92,7 @@ function AdminBatchDetailsPage() {
     <>
       <Link to="/admin/history" className="text-white/80 hover:underline mb-6 block">← Back to History</Link>
 
+      {/* Your original header is fully preserved */}
       <div className="glass-panel p-6 mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
           <h1 className="text-3xl font-bold text-white">{batch.drugName}</h1>
@@ -90,7 +104,7 @@ function AdminBatchDetailsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* --- START: NEW AUDIT TRAIL PANEL --- */}
+        {/* Your original Audit Trail panel is fully preserved */}
         <div className="lg:col-span-1 glass-panel p-6">
           <h2 className="text-xl font-bold mb-4 text-white">Batch History & Audit Trail</h2>
           <div className="space-y-2">
@@ -101,8 +115,6 @@ function AdminBatchDetailsPage() {
             <AuditTrailItem label="Printing Completed By" user={batch.printingCompletedBy} timestamp={batch.print_completed_at} />
             <AuditTrailItem label="Picked Up By Logistics" user={batch.pickedUpBy} timestamp={batch.picked_up_at} />
             <AuditTrailItem label="Delivery Finalized By" user={batch.finalizedDeliveryBy} timestamp={batch.delivered_at} />
-
-            {/* Special case for rejections */}
             {batch.rejector && (
               <div className="mt-4 pt-4 border-t border-red-500/30">
                  <AuditTrailItem label="Rejected By" user={batch.rejector} timestamp={null} />
@@ -113,33 +125,38 @@ function AdminBatchDetailsPage() {
             )}
           </div>
         </div>
-        {/* --- END: NEW AUDIT TRAIL PANEL --- */}
         
+        {/* Your original two-column layout is preserved, I have only changed the content of the first column */}
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="glass-panel p-6">
-            <h2 className="text-xl font-bold mb-4 text-white">Generated Codes ({batch.qrCodes.length})</h2>
-            {batch.qrCodes.length > 0 ? (
-                <ul className="h-96 overflow-y-auto">
-                    {batch.qrCodes.map(qr => (
-                    <li key={qr.id} className="p-2 border-b border-white/10 flex justify-between items-center">
-                        <span className="font-mono text-sm text-white">{qr.code}</span>
-                        <button onClick={() => setSelectedCode(qr.code)} className="bg-white/10 text-white text-xs font-bold py-1 px-2 rounded hover:bg-white/20">
-                        View
-                        </button>
-                    </li>
-                    ))}
+          
+          {/* --- START: THIS SECTION REPLACES YOUR OLD "GENERATED CODES" PANEL --- */}
+          <div className="space-y-8">
+            <div className="glass-panel p-6">
+                <h2 className="text-xl font-bold mb-4 text-white flex items-center"><FiGrid className="mr-2"/>Master QR Codes ({masterQRs.length})</h2>
+                <ul className="h-40 overflow-y-auto">
+                    {masterQRs.length > 0 ? masterQRs.map(qr => (
+                    <li key={qr.id} className="p-2 border-b border-white/10 font-mono text-sm text-white">{qr.outerCode}</li>
+                    )) : <p className="text-white/60">No master codes.</p>}
                 </ul>
-            ) : (
-                <p className="text-white/70 text-center mt-16">No codes have been generated for this batch yet.</p>
-            )}
+            </div>
+            <div className="glass-panel p-6">
+                <h2 className="text-xl font-bold mb-4 text-white flex items-center"><FiPackage className="mr-2"/>Child QR Codes ({childQRs.length})</h2>
+                <ul className="h-40 overflow-y-auto">
+                    {childQRs.length > 0 ? childQRs.map(qr => (
+                    <li key={qr.id} className="p-2 border-b border-white/10 font-mono text-sm text-white">{qr.outerCode}</li>
+                    )) : <p className="text-white/60">No child codes.</p>}
+                </ul>
+            </div>
           </div>
+          {/* --- END: REPLACEMENT SECTION --- */}
 
+          {/* Your original QR Preview and Seal Uploader panel is fully preserved */}
           <div className="space-y-8">
             <div className="glass-panel p-6 flex flex-col items-center justify-center">
               <h2 className="text-xl font-bold mb-4 text-white">QR Code Preview</h2>
-              {selectedCode ? <StyledQRCode code={selectedCode} /> : <p className="text-white/70">Select a code to view the QR image.</p>}
+              <p className="text-sm text-white/70 text-center mb-2">Note: This preview shows the <span className='font-bold'>Inner (Customer) Code</span>. You can copy an <span className='font-bold'>Outer Code</span> from the lists to generate a printable QR online.</p>
+              {selectedCode ? <StyledQRCode code={selectedCode} /> : <p className="text-white/70">Select a code to view.</p>}
             </div>
-
             <div>
               {batch.seal_background_url ? (
                 <div className="glass-panel p-4">
