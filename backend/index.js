@@ -1243,6 +1243,32 @@ app.post('/api/pharmacy/dispense', authenticateToken, authorizeRole([Role.PHARMA
     });
 }));
 
+// --- ADD THIS NEW ROUTE TO THE PHARMACY SECTION ---
+
+app.get('/api/pharmacy/dispense-history', authenticateToken, authorizeRole([Role.PHARMACY]), asyncHandler(async (req, res) => {
+    const pharmacyId = req.user.userId;
+
+    const history = await prisma.dispenseRecord.findMany({
+        where: { pharmacyId: pharmacyId },
+        orderBy: { dispensedAt: 'desc' },
+        include: {
+            // Include details about the QR code and the product itself
+            qrCode: {
+                include: {
+                    batch: {
+                        select: {
+                            drugName: true,
+                            manufacturer: { select: { companyName: true } }
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    res.status(200).json(history);
+}));
+
 // --- PUBLIC SKINCARE VERIFICATION ROUTE ---
 app.get('/api/skincare/verify/:code', asyncHandler(async (req, res) => {
     const { code } = req.params;

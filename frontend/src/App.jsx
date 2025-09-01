@@ -36,7 +36,6 @@ import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
 
 // Other Portal Pages
 import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
-import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
 import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
 import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
 import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
@@ -105,7 +104,6 @@ function App() {
 
           {/* Manufacturer Routes */}
           <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
-          <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
           <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
 
           {/* DVA Routes */}
