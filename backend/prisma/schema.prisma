@@ -47,7 +47,10 @@ enum BatchStatus {
 
 enum QRCodeStatus {
   UNUSED
-  SEALED
+  AWAITING_ASSIGNMENT // New status for newly created child codes
+  ASSIGNED_TO_MASTER  // New status after being linked to a master carton
+  VERIFIED_BY_SUPPLY_CHAIN // e.g., Scanned by a Pharmacy
+  SEALED // This can represent the "live" state for the Inner QR
   VERIFIED_ONCE
   FLAGGED
   INVALID_STATE
@@ -149,12 +152,24 @@ model Batch {
 
 model QRCode {
   id               Int               @id @default(autoincrement())
-  code             String            @unique
+  
+  // --- START: DUAL QR CODE SYSTEM ---
+  // The 'code' field is now the customer-facing, single-use Inner Code
+  code             String            @unique @map("innerCode") // This is the Inner QR (Customer)
+  outerCode        String            @unique                  // This is the Outer QR (Supply Chain)
+  // --- END: DUAL QR CODE SYSTEM ---
+
   batchId          Int
-  status           QRCodeStatus      @default(UNUSED)
+  status           QRCodeStatus      @default(AWAITING_ASSIGNMENT) // New default status
   batch            Batch             @relation(fields: [batchId], references: [id])
   scanRecords      ScanRecord[]
   dispenseRecord   DispenseRecord?
+
+  isMaster         Boolean   @default(false)
+  parentId         Int?      
+  
+  parent   QRCode?  @relation("MasterChild", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children QRCode[] @relation("MasterChild")
 
   isReinitiated      Boolean   @default(false)
   reinitiatedBy      Int?

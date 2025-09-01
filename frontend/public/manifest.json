@@ -17,5 +17,14 @@
       "type": "image/png",
       "sizes": "512x512"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick Scan Product",
+      "short_name": "Scan",
+      "description": "Open the camera immediately to scan a product",
+      "url": "/scan-only",
+      "icons": [{ "src": "/assets/scan-icon-96.png", "sizes": "96x96" }]
+    }
   ]
 }

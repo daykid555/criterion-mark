@@ -62,61 +62,26 @@ const generateSixDigitCode = () => {
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
 // --- PUBLIC VERIFICATION ROUTE (REBUILT & FIXED) ---
-// AFFECTED ROUTE: /api/verify/:code
 app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     const { code } = req.params;
     const ip = req.ip;
-    
-    // --- START: ENHANCED LOCATION LOGIC ---
-    const { lat, lon } = req.query; // Get precise coordinates from query params
-    const useIpLocation = req.headers['x-use-location'] === 'true';
+    const useLocation = req.headers['x-use-location'] === 'true';
 
-    let locationData = { 
-        ipAddress: ip, 
-        city: null, region: null, country: null, 
-        latitude: null, longitude: null, fullAddress: null 
-    };
+    let locationData = { ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null };
 
-    // PRIORITY 1: Use precise coordinates if provided
-    if (lat && lon) {
-        try {
-            const latitude = parseFloat(lat);
-            const longitude = parseFloat(lon);
-
-            // Using Nominatim (OpenStreetMap) for reverse geocoding. It's free.
-            // A paid service like Google Geocoding API may be more reliable for production.
-            const geoResponse = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`, {
-                headers: { 'User-Agent': 'CriterionMarkApp/1.0' } // Nominatim requires a User-Agent header
-            });
-            
-            if (geoResponse.data && geoResponse.data.display_name) {
-                locationData.latitude = latitude;
-                locationData.longitude = longitude;
-                locationData.fullAddress = geoResponse.data.display_name;
-                locationData.city = geoResponse.data.address.city || geoResponse.data.address.town || null;
-                locationData.country = geoResponse.data.address.country || null;
-            }
-        } catch (geoError) {
-            console.error('Reverse geocoding failed:', geoError.message);
-            // If geocoding fails, we can still fall back to IP-based location
-        }
-    }
-
-    // PRIORITY 2 (FALLBACK): Use IP-based location if precise coords are missing OR failed
-    if (!locationData.fullAddress && useIpLocation && process.env.IPINFO_API_KEY) {
+    if (useLocation && process.env.IPINFO_API_KEY) {
         try {
             const { data } = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
             locationData = { ...locationData, city: data.city, region: data.region, country: data.country };
-            if (data.loc && !locationData.latitude) { // Only set lat/lon if not already set
-                const [ipLat, ipLon] = data.loc.split(',');
-                locationData.latitude = parseFloat(ipLat);
-                locationData.longitude = parseFloat(ipLon);
+            if (data.loc) {
+                const [lat, lon] = data.loc.split(',');
+                locationData.latitude = parseFloat(lat);
+                locationData.longitude = parseFloat(lon);
             }
-        } catch (ipError) {
-            console.error('IPinfo lookup failed:', ipError.message);
+        } catch (geoError) {
+            console.error('IPinfo lookup failed:', geoError.message);
         }
     }
-    // --- END: ENHANCED LOCATION LOGIC ---
 
     const qrCodeRecord = await prisma.qRCode.findUnique({
         where: { code: code },
@@ -126,6 +91,7 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         },
     });
 
+    // --- Handle Case: QR Code Not Found ---
     if (!qrCodeRecord) {
         await prisma.scanRecord.create({
             data: {
@@ -133,16 +99,20 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
                 scannedCode: code,
                 scanOutcome: 'NOT_FOUND',
                 scannedByRole: Role.CUSTOMER,
-                ...locationData, // Save enhanced location data
+                ...locationData,
             },
         });
         return res.status(404).json({ status: 'error', message: 'This code is invalid. The product is likely counterfeit.' });
     }
 
+    // --- Handle QR Code Found ---
     let scanOutcome = 'FAILURE';
     let message = 'This code is invalid or in a non-verifiable state.';
     let httpStatus = 400;
     
+    // --- CORE LOGIC REVISED (NO VALIDATOR) ---
+    // SUCCESS is now when status is UNUSED.
+    // USED is a DUPLICATE error.
     if (qrCodeRecord.status === 'UNUSED') {
         scanOutcome = 'SUCCESS';
         message = 'Product Verified Successfully! This is the first verification.';
@@ -157,25 +127,29 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         httpStatus = 400;
     }
 
+    // --- PRISMA ERROR FIX ---
+    // Prepare the data for database insertion separately.
+    // The 'firstScanDetails' object is for the API response only, not the database.
     const scanRecordData = {
         qrCodeId: qrCodeRecord.id,
         scannedCode: code,
         scanOutcome: scanOutcome,
         scannedByRole: Role.CUSTOMER,
-        ...locationData, // Save enhanced location data
+        ...locationData,
     };
     
+    // Prepare first scan details for the API response if it's a duplicate scan
     const firstCustomerScan = qrCodeRecord.scanRecords[0];
     let firstScanDetailsForResponse = null;
     if (firstCustomerScan) {
         firstScanDetailsForResponse = {
             scannedAt: firstCustomerScan.scannedAt,
-            // Show the detailed address if it exists, otherwise fall back
-            location: firstCustomerScan.fullAddress || (firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location'),
+            location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location',
         };
     }
 
     await prisma.$transaction(async (tx) => {
+        // Create the scan record without the problematic 'firstScanDetails' field.
         await tx.scanRecord.create({ data: scanRecordData });
 
         if (scanOutcome === 'SUCCESS') {
@@ -185,19 +159,170 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
                     status: 'USED',
                     firstVerificationTimestamp: new Date(),
                     firstVerificationIp: locationData.ipAddress,
-                    // Save the more detailed location if available
-                    firstVerificationLocation: locationData.fullAddress || (locationData.city ? `${locationData.city}, ${locationData.country}` : null),
+                    firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null,
                 },
             });
         }
     });
 
+    // --- Send Response ---
     const responsePayload = { status: httpStatus === 200 ? 'success' : 'error', message, data: qrCodeRecord };
     if (scanOutcome === 'DUPLICATE' && firstScanDetailsForResponse) {
         responsePayload.firstScanDetails = firstScanDetailsForResponse;
     }
 
     return res.status(httpStatus).json(responsePayload);
+}));
+
+// --- ADD THIS NEW ROUTE FOR MASTER QR CODE SCANNING ---
+
+app.post('/api/verify/master', authenticateToken, authorizeRole([Role.MANUFACTURER, Role.LOGISTICS, Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { masterCode } = req.body;
+    const scannerId = req.user.userId; // Get the ID of the user scanning the code
+
+    if (!masterCode) {
+        return res.status(400).json({ error: 'Master QR code is required in the request body.' });
+    }
+
+    // First, find the master QR code in the database
+    const masterQr = await prisma.qRCode.findUnique({
+        where: { code: masterCode.trim() }
+    });
+
+    // --- Validation Checks ---
+    if (!masterQr) {
+        return res.status(404).json({ error: 'Master QR code not found.' });
+    }
+    if (!masterQr.isMaster) {
+        return res.status(400).json({ error: 'The scanned code is a child code, not a master code.' });
+    }
+    if (masterQr.status !== 'UNUSED') {
+        return res.status(409).json({ 
+            error: `This master QR code has already been processed.`,
+            status: masterQr.status 
+        });
+    }
+
+    // --- Perform the Update in a Transaction ---
+    // This ensures both the master and all its children are updated successfully, or none are.
+    const [updatedChildrenResult, updatedMaster] = await prisma.$transaction(async (tx) => {
+        
+        // Find all 'UNUSED' children linked to this master and update their status to 'SEALED'.
+        // 'SEALED' signifies they are active in the supply chain but not yet verified by a customer.
+        const childrenUpdate = await tx.qRCode.updateMany({
+            where: {
+                parentId: masterQr.id,
+                status: 'UNUSED' 
+            },
+            data: {
+                status: 'SEALED' // This is the new status for the activated child products
+            }
+        });
+
+        // Update the master QR code itself to 'USED' so it cannot be processed again.
+        const masterUpdate = await tx.qRCode.update({
+            where: { id: masterQr.id },
+            data: {
+                status: 'USED' 
+            }
+        });
+        
+        // Optional: Create a single scan record for the master scan action
+        await tx.scanRecord.create({
+            data: {
+                qrCodeId: masterQr.id,
+                scannedCode: masterQr.code,
+                scanOutcome: 'MASTER_ACTIVATION_SUCCESS',
+                scannedByRole: req.user.role,
+                scannerId: scannerId,
+                ipAddress: req.ip,
+            }
+        });
+
+        return [childrenUpdate, masterUpdate];
+    });
+
+    // --- Send a Success Response ---
+    res.status(200).json({
+        message: `Master QR processed successfully. ${updatedChildrenResult.count} child products have been activated.`,
+        masterCode: updatedMaster.code,
+        masterStatus: updatedMaster.status,
+        childCodesUpdated: updatedChildrenResult.count,
+    });
+}));
+
+// --- ADD THIS NEW ROUTE FOR PHARMACY/SUPPLY CHAIN SCANNING ---
+
+app.post('/api/verify/supply-chain', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN, Role.MANUFACTURER, Role.LOGISTICS]), asyncHandler(async (req, res) => {
+    const { outerCode } = req.body;
+    const scannerId = req.user.userId;
+    const scannerRole = req.user.role;
+
+    if (!outerCode) {
+        return res.status(400).json({ error: 'Outer QR code is required.' });
+    }
+
+    // Find the QR code pair using the Outer Code
+    const qrPair = await prisma.qRCode.findUnique({
+        where: { outerCode: outerCode.trim() },
+        include: {
+            batch: {
+                select: { 
+                    drugName: true,
+                    expirationDate: true,
+                    manufacturer: { select: { companyName: true } }
+                }
+            }
+        }
+    });
+
+    // --- Validation Checks ---
+    if (!qrPair) {
+        return res.status(404).json({ status: 'error', message: 'This code is not registered in our system. The product is likely counterfeit.' });
+    }
+
+    if (qrPair.isMaster) {
+        return res.status(400).json({ status: 'error', message: 'This is a Master Carton code. Please scan an individual product code.' });
+    }
+    
+    // Check if the customer has already used the inner code. If so, the supply chain should not be interacting with it.
+    if (qrPair.status === 'VERIFIED_ONCE' || qrPair.status === 'USED') {
+         return res.status(409).json({ status: 'error', message: 'This product has already been verified by a final customer.' });
+    }
+
+    // --- Create a Scan Record for Auditing ---
+    await prisma.scanRecord.create({
+        data: {
+            qrCodeId: qrPair.id,
+            scannedCode: qrPair.outerCode,
+            scanOutcome: 'SUPPLY_CHAIN_VERIFICATION_SUCCESS',
+            scannedByRole: scannerRole,
+            scannerId: scannerId,
+            ipAddress: req.ip,
+        }
+    });
+    
+    // --- Update the QR Code Status ---
+    // This shows the product has been successfully handled by the pharmacy
+    const updatedQrPair = await prisma.qRCode.update({
+        where: { id: qrPair.id },
+        data: {
+            status: 'VERIFIED_BY_SUPPLY_CHAIN'
+        }
+    });
+
+    // --- Send a Success Response ---
+    // We return the product details so the pharmacy can confirm they have the right item.
+    res.status(200).json({
+        status: 'success',
+        message: 'Product is authentic and verified within the supply chain.',
+        data: {
+            drugName: qrPair.batch.drugName,
+            manufacturer: qrPair.batch.manufacturer.companyName,
+            expirationDate: qrPair.batch.expirationDate,
+            currentStatus: updatedQrPair.status
+        }
+    });
 }));
 
 // --- MANUFACTURER ROUTES ---
@@ -310,6 +435,67 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
     });
 }));
 
+// --- ADD THIS NEW ROUTE TO THE MANUFACTURER SECTION ---
+
+app.post('/api/manufacturer/batches/assign-children', authenticateToken, authorizeRole([Role.MANUFACTURER, Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { masterOuterCode, childOuterCodes } = req.body;
+
+    // Basic validation
+    if (!masterOuterCode || !childOuterCodes || !Array.isArray(childOuterCodes) || childOuterCodes.length === 0) {
+        return res.status(400).json({ error: 'Master code and a list of child codes are required.' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+        // 1. Find and validate the Master QR Code
+        const masterQr = await tx.qRCode.findUnique({
+            where: { outerCode: masterOuterCode.trim() }
+        });
+
+        if (!masterQr) throw new Error('Master QR code not found.');
+        if (!masterQr.isMaster) throw new Error('Scanned code is not a valid Master QR code.');
+        if (masterQr.status !== 'UNUSED') throw new Error('This Master QR code has already been used for an assignment.');
+
+        // 2. Find and validate all Child QR Codes
+        const childQrs = await tx.qRCode.findMany({
+            where: {
+                outerCode: { in: childOuterCodes },
+                isMaster: false,
+                status: 'AWAITING_ASSIGNMENT'
+            }
+        });
+        
+        // Ensure every code provided was found and valid
+        if (childQrs.length !== childOuterCodes.length) {
+            throw new Error('Some child QR codes are invalid, already assigned, or could not be found. Please check the list and try again.');
+        }
+
+        const childIdsToUpdate = childQrs.map(qr => qr.id);
+
+        // 3. Perform the update: Link children to the parent
+        const updateCount = await tx.qRCode.updateMany({
+            where: {
+                id: { in: childIdsToUpdate }
+            },
+            data: {
+                parentId: masterQr.id,
+                status: 'ASSIGNED_TO_MASTER' // Update status to show they are linked
+            }
+        });
+
+        // 4. Mark the Master QR as 'USED' so it can't be assigned to again
+        await tx.qRCode.update({
+            where: { id: masterQr.id },
+            data: { status: 'USED' }
+        });
+
+        return { count: updateCount.count };
+    });
+
+    res.status(200).json({
+        message: `Successfully assigned ${result.count} products to master carton ${masterOuterCode}.`
+    });
+}));
+
 // --- DVA ROUTES ---
 app.get('/api/dva/pending-batches', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const pendingBatches = await prisma.batch.findMany({
@@ -322,14 +508,14 @@ app.get('/api/dva/pending-batches', authenticateToken, authorizeRole([Role.DVA])
 
 app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const batchId = parseInt(req.params.id, 10);
-    const dvaApproverId = req.user.userId; // CAPTURE the user's ID
+    const dvaApproverId = req.user.userId; // CAPTURE ID
 
     const updatedBatch = await prisma.batch.update({
         where: { id: batchId },
         data: {
             status: BatchStatus.PENDING_ADMIN_APPROVAL,
             dva_approved_at: new Date(),
-            dvaApproverId: dvaApproverId, // SAVE the ID here
+            dvaApproverId: dvaApproverId, // SAVE ID
         },
     });
     res.status(200).json(updatedBatch);
@@ -338,7 +524,7 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole([Role.D
 app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
-    const rejectorId = req.user.userId; // CAPTURE the user's ID
+    const rejectorId = req.user.userId; // CAPTURE ID
 
     if (!reason) {
         return res.status(400).json({ error: 'Rejection reason is required.' });
@@ -348,7 +534,8 @@ app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole([Role.DV
         data: {
             status: BatchStatus.DVA_REJECTED,
             rejection_reason: reason,
-            rejectedById: rejectorId, // SAVE the ID here
+            dva_approved_at: new Date(), // Keep timestamp for history
+            rejectedById: rejectorId,    // SAVE ID
         },
     });
     res.status(200).json(updatedBatch);
@@ -375,38 +562,76 @@ app.get('/api/admin/pending-batches', authenticateToken, authorizeRole([Role.ADM
 
 app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const adminApproverId = req.user.userId; // CAPTURE the user's ID
+    const adminApproverId = req.user.userId;
 
     const batchToProcess = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
     if (!batchToProcess) {
         return res.status(404).json({ error: 'Batch not found.' });
     }
-    const codesToCreate = Array.from({ length: batchToProcess.quantity }, () => ({
-        code: nanoid(12),
-        batchId: batchToProcess.id,
-    }));
 
-    const [updatedBatch, createdCodes] = await prisma.$transaction([
-        prisma.batch.update({
+    // --- START: NEW DUAL QR GENERATION LOGIC ---
+
+    const ITEMS_PER_CARTON = 50; // You can still configure this
+    const totalQuantity = batchToProcess.quantity;
+    const numberOfCartons = Math.ceil(totalQuantity / ITEMS_PER_CARTON);
+
+    const updatedBatch = await prisma.$transaction(async (tx) => {
+        // 1. Update the batch status first
+        const batchUpdate = await tx.batch.update({
             where: { id: parseInt(id, 10) },
             data: {
                 status: BatchStatus.PENDING_PRINTING,
                 admin_approved_at: new Date(),
-                rejection_reason: null, // Clear previous rejection reason
-                adminApproverId: adminApproverId, // SAVE the ID here
-                rejectedById: null, // Clear previous rejector
+                rejection_reason: null, rejectedById: null,
+                adminApproverId: adminApproverId,
             },
-        }),
-        prisma.qRCode.createMany({ data: codesToCreate }),
-    ]);
-    console.log(`Successfully generated ${createdCodes.count} codes for Batch ID: ${updatedBatch.id}`);
+        });
+
+        // 2. Generate Master QR Codes (for Cartons)
+        const masterCodesData = [];
+        for (let i = 0; i < numberOfCartons; i++) {
+            masterCodesData.push({
+                // Master QRs only need an outer code for supply chain scanning
+                outerCode: `MASTER-${nanoid(10)}`,
+                // We generate a dummy inner code because the field is required,
+                // but it will never be used or seen.
+                code: `master-inner-${nanoid(12)}`,
+                batchId: batchToProcess.id,
+                isMaster: true,
+                status: 'UNUSED', // Master codes are UNUSED until assigned children
+            });
+        }
+        if (masterCodesData.length > 0) {
+            await tx.qRCode.createMany({ data: masterCodesData });
+        }
+
+        // 3. Generate Child QR Code pairs (Inner and Outer)
+        const childCodesData = [];
+        for (let i = 0; i < totalQuantity; i++) {
+            childCodesData.push({
+                code: nanoid(12),               // Inner Code for the Customer
+                outerCode: `CHILD-${nanoid(10)}`, // Outer Code for Supply Chain
+                batchId: batchToProcess.id,
+                isMaster: false,
+                status: 'AWAITING_ASSIGNMENT', // Default status for new, unlinked codes
+            });
+        }
+        if (childCodesData.length > 0) {
+            await tx.qRCode.createMany({ data: childCodesData });
+        }
+        
+        return batchUpdate;
+    });
+
+    console.log(`Successfully generated ${numberOfCartons} master and ${totalQuantity} child QR pairs for Batch ID: ${batchToProcess.id}`);
     res.status(200).json(updatedBatch);
+    // --- END: NEW DUAL QR GENERATION LOGIC ---
 }));
 
 app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
-    const rejectorId = req.user.userId; // CAPTURE the user's ID
+    const rejectorId = req.user.userId; // CAPTURE ID
 
     if (!reason) {
         return res.status(400).json({ error: 'Rejection reason is required.' });
@@ -416,8 +641,8 @@ app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole([Role.
         data: {
             status: BatchStatus.ADMIN_REJECTED,
             rejection_reason: reason,
-            admin_approved_at: new Date(), // Keep timestamp for history
-            rejectedById: rejectorId, // SAVE the ID here
+            admin_approved_at: new Date(),
+            rejectedById: rejectorId, // SAVE ID
         },
     });
     res.status(200).json(updatedBatch);
@@ -447,22 +672,11 @@ app.get('/api/admin/batches/:id', authenticateToken, authorizeRole([Role.ADMIN])
     const { id } = req.params;
     const batchDetails = await prisma.batch.findUnique({
         where: { id: parseInt(id, 10) },
-        // --- THIS 'INCLUDE' BLOCK IS THE ONLY PART THAT HAS CHANGED ---
         include: {
+            manufacturer: { select: { companyName: true } },
             qrCodes: { orderBy: { id: 'asc' } },
-            // Include the full user object for each role to access their email
-            manufacturer: { select: { email: true, companyName: true } },
-            dvaApprover: { select: { email: true, companyName: true } },
-            adminApprover: { select: { email: true, companyName: true } },
-            rejector: { select: { email: true, companyName: true } },
-            printingStartedBy: { select: { email: true, companyName: true } },
-            printingCompletedBy: { select: { email: true, companyName: true } },
-            pickedUpBy: { select: { email: true, companyName: true } },
-            finalizedDeliveryBy: { select: { email: true, companyName: true } }
         },
     });
-    // --- END OF CHANGE ---
-
     if (!batchDetails) {
         return res.status(404).json({ error: 'Batch not found.' });
     }
@@ -511,43 +725,12 @@ app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole(
 }));
 
 app.get('/api/admin/history', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
-    // --- START: NEW PAGINATION & SEARCH LOGIC ---
-    const page = parseInt(req.query.page) || 1;
-    const limit = 15; // You can adjust this number to determine how many items per page
-    const skip = (page - 1) * limit;
-    const searchTerm = req.query.search || '';
-
-    const whereClause = {
-        NOT: { status: { in: [BatchStatus.PENDING_DVA_APPROVAL, BatchStatus.PENDING_ADMIN_APPROVAL] } },
-        // Add search logic: looks for the search term in drugName or manufacturer's companyName
-        ...(searchTerm && {
-            OR: [
-                { drugName: { contains: searchTerm, mode: 'insensitive' } },
-                { manufacturer: { companyName: { contains: searchTerm, mode: 'insensitive' } } }
-            ]
-        })
-    };
-    // --- END: NEW PAGINATION & SEARCH LOGIC ---
-
-    const [processedBatches, totalCount] = await prisma.$transaction([
-        prisma.batch.findMany({
-            where: whereClause,
-            include: { manufacturer: { select: { companyName: true } } },
-            orderBy: { admin_approved_at: 'desc' },
-            take: limit, // Get only 'limit' number of records
-            skip: skip,  // Skip records of previous pages
-        }),
-        prisma.batch.count({ where: whereClause }) // Get the total count of matching records
-    ]);
-
-    res.status(200).json({
-        data: processedBatches,
-        pagination: {
-            total: totalCount,
-            currentPage: page,
-            hasNextPage: (skip + processedBatches.length) < totalCount,
-        }
+    const processedBatches = await prisma.batch.findMany({
+        where: { NOT: { status: { in: [BatchStatus.PENDING_DVA_APPROVAL, BatchStatus.PENDING_ADMIN_APPROVAL] } } },
+        include: { manufacturer: { select: { companyName: true } } },
+        orderBy: { admin_approved_at: 'desc' },
     });
+    res.status(200).json(processedBatches);
 }));
 
 app.get('/api/admin/scans', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
@@ -858,8 +1041,6 @@ app.get('/api/logistics/in-transit', authenticateToken, authorizeRole([Role.LOGI
 
 app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const logisticsUserId = req.user.userId; // CAPTURE ID
-
     const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
     if (!batch) return res.status(404).json({ error: 'Batch not found.' });
     if (batch.status !== BatchStatus.PRINTING_COMPLETE) {
@@ -867,11 +1048,7 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole([R
     }
     const updatedBatch = await prisma.batch.update({
         where: { id: parseInt(id, 10) },
-        data: { 
-            status: BatchStatus.IN_TRANSIT, 
-            picked_up_at: new Date(),
-            pickedUpById: logisticsUserId, // SAVE ID
-        },
+        data: { status: BatchStatus.IN_TRANSIT, picked_up_at: new Date() },
     });
     res.status(200).json(updatedBatch);
 }));
@@ -901,7 +1078,6 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
 app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { confirmation_code } = req.body;
-    const logisticsUserId = req.user.userId; // CAPTURE ID
 
     if (!confirmation_code || typeof confirmation_code !== 'string' || confirmation_code.length !== 6) {
         return res.status(400).json({ error: 'A valid 6-digit confirmation code is required.' });
@@ -927,8 +1103,7 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
         where: { id: batchId },
         data: {
             status: BatchStatus.DELIVERED_TO_MANUFACTURER,
-            delivered_at: new Date(),
-            finalizedDeliveryById: logisticsUserId, // SAVE ID
+            delivered_at: new Date()
         },
     });
 
@@ -995,6 +1170,77 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole([Role.SKINCA
         },
     });
     res.status(201).json(newProduct);
+}));
+
+// --- PHARMACY PORTAL ROUTES ---
+// We can create a new section to house all pharmacy-specific logic
+
+app.post('/api/pharmacy/dispense', authenticateToken, authorizeRole([Role.PHARMACY]), asyncHandler(async (req, res) => {
+    const { outerCode } = req.body;
+    const pharmacyId = req.user.userId;
+
+    if (!outerCode) {
+        return res.status(400).json({ error: 'Outer QR code is required for dispensing.' });
+    }
+
+    // --- Perform the entire action in a transaction for data safety ---
+    const dispenseResult = await prisma.$transaction(async (tx) => {
+        // 1. Find the QR code using the provided Outer Code
+        const qrToDispense = await tx.qRCode.findUnique({
+            where: { outerCode: outerCode.trim() }
+        });
+
+        // 2. Perform crucial validation checks
+        if (!qrToDispense) {
+            throw new Error('This product code is not registered in our system.');
+        }
+        if (qrToDispense.isMaster) {
+            throw new Error('Cannot dispense a master carton. Please scan an individual product.');
+        }
+        
+        // This is the most important check: The product must be in a "sellable" state.
+        const validStatusesForDispense = ['ASSIGNED_TO_MASTER', 'VERIFIED_BY_SUPPLY_CHAIN'];
+        if (!validStatusesForDispense.includes(qrToDispense.status)) {
+            // It might have already been dispensed, or sold to a customer, or not yet assigned.
+            throw new Error(`This product cannot be dispensed. Its current status is: ${qrToDispense.status}`);
+        }
+
+        // 3. Check if a dispense record already exists for this QR code (double safety check)
+        const existingDispense = await tx.dispenseRecord.findFirst({
+            where: { qrCodeId: qrToDispense.id }
+        });
+        if (existingDispense) {
+            throw new Error('This product has already been dispensed and cannot be processed again.');
+        }
+
+        // 4. If all checks pass, create the permanent dispense record
+        const newDispenseRecord = await tx.dispenseRecord.create({
+            data: {
+                qrCodeId: qrToDispense.id,
+                pharmacyId: pharmacyId,
+                // dispensedAt is handled automatically by the schema's @default(now())
+            }
+        });
+
+        // 5. Update the QR code's status to a final, terminal state.
+        // This "consumes" the outerCode from the supply chain.
+        const updatedQr = await tx.qRCode.update({
+            where: { id: qrToDispense.id },
+            data: {
+                status: 'USED' 
+            }
+        });
+
+        return { dispenseRecord: newDispenseRecord, updatedQr: updatedQr };
+    });
+
+    // --- Send a Success Response ---
+    res.status(201).json({
+        status: 'success',
+        message: `Product successfully dispensed at ${new Date(dispenseResult.dispenseRecord.dispensedAt).toLocaleString()}.`,
+        dispenseRecordId: dispenseResult.dispenseRecord.id,
+        productStatus: dispenseResult.updatedQr.status,
+    });
 }));
 
 // --- PUBLIC SKINCARE VERIFICATION ROUTE ---
@@ -1091,6 +1337,18 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
             dataToCreate.isActive = true;
             successMessage = 'Registration successful! You can now log in.';
             break;
+
+        // --- START: ADD THIS NEW CASE FOR PHARMACY ---
+        case Role.PHARMACY:
+            if (!companyName || !companyRegNumber) return res.status(400).json({ error: 'Pharmacy Name and Registration Number are required.' });
+            const existingPharmacy = await prisma.user.findFirst({ where: { companyRegNumber } });
+            if (existingPharmacy) return res.status(409).json({ error: 'A pharmacy with this registration number already exists.' });
+            dataToCreate.companyName = companyName;
+            dataToCreate.companyRegNumber = companyRegNumber;
+            dataToCreate.isActive = false; // Pharmacies must be approved by an Admin
+            successMessage = 'Registration successful! Your pharmacy account is pending approval from an administrator.';
+            break;
+        // --- END: ADD THIS NEW CASE FOR PHARMACY ---
 
         case Role.DVA:
         case Role.PRINTING:
