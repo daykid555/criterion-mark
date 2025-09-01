@@ -6,6 +6,7 @@ import { BrowserRouter } from 'react-router-dom'; // <-- Import the Router
 import App from './App.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import './index.css';
+import 'leaflet/dist/leaflet.css';
 
 // Register Service Worker
 if ('serviceWorker' in navigator) {

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Import useRef
 import { Link } from 'react-router-dom';
 import apiClient from '../api';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 
-// Fix for default marker icon issue with webpack
+// Your existing icon fix (this is correct)
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
@@ -12,11 +12,25 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
 });
 
-
 function AdminMapPage() {
   const [scans, setScans] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // --- START: BULLETPROOF MAP FIX ---
+  const mapRef = useRef(null); // Create a ref to hold the map instance
+
+  useEffect(() => {
+    // This effect runs after the component has mounted
+    if (mapRef.current) {
+      // The setTimeout is a trick to ensure this runs after the browser has painted everything.
+      // It pushes this function to the end of the execution queue.
+      setTimeout(() => {
+        mapRef.current.invalidateSize();
+      }, 100); // A small delay of 100ms is often enough
+    }
+  }, [scans]); // Re-run if scans data changes, ensuring the map updates
+  // --- END: BULLETPROOF MAP FIX ---
 
   useEffect(() => {
     const fetchScans = async () => {
@@ -34,7 +48,7 @@ function AdminMapPage() {
     fetchScans();
   }, []);
 
-  const mapCenter = [9.0765, 8.6753]; // Default center of map (e.g., Abuja, Nigeria)
+  const mapCenter = [9.0765, 8.6753];
 
   if (isLoading) {
     return <p className="text-white text-center">Loading map data...</p>;
@@ -53,12 +67,6 @@ function AdminMapPage() {
         </Link>
       </div>
       
-      {/* 
-        --- FIX APPLIED ---
-        The parent div has a defined height (h-[70vh]), which allows the child MapContainer 
-        with className="h-full w-full" to correctly fill the space. This prevents the 
-        "small squares" rendering bug.
-      */}
       <div className="glass-panel p-2 h-[70vh] w-full">
         {scans.length === 0 ? (
           <div className="flex items-center justify-center h-full">
@@ -69,7 +77,8 @@ function AdminMapPage() {
             center={mapCenter} 
             zoom={6} 
             scrollWheelZoom={true} 
-            className="h-full w-full rounded-xl" // Using className instead of inline style
+            className="h-full w-full rounded-xl"
+            ref={mapRef} // Assign the ref to the MapContainer
           >
             <TileLayer
               attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -84,7 +93,7 @@ function AdminMapPage() {
                     <p>By: {scan.qrCode?.batch?.manufacturer?.companyName || 'Unknown Manufacturer'}</p>
                     <hr className="my-1"/>
                     <p>Scanned: {new Date(scan.scannedAt).toLocaleString()}</p>
-                    <p>Location: {scan.city || 'N/A'}, {scan.country || 'N/A'}</p>
+                    <p>Location: {scan.fullAddress || `${scan.city || 'N/A'}, ${scan.country || 'N/A'}`}</p>
                     <p>IP: {scan.ipAddress}</p>
                   </div>
                 </Popup>
