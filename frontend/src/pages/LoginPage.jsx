@@ -1,5 +1,3 @@
-// frontend/src/pages/LoginPage.jsx
-
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -30,19 +28,15 @@ function LoginPage() {
       
       login(user, token);
       
-      // The redirect logic now safely lives here again
+      // The redirect logic now works because the routes exist.
+      // I have removed the obsolete VALIDATOR case as requested.
       switch (user.role) {
         case 'MANUFACTURER': navigate('/manufacturer/dashboard'); break;
         case 'DVA': navigate('/dva/dashboard'); break;
         case 'ADMIN': navigate('/admin/dashboard'); break;
         case 'PRINTING': navigate('/printing/dashboard'); break;
         case 'LOGISTICS': navigate('/logistics/dashboard'); break;
-        case 'PHARMACY':
-          navigate('/pharmacy/dashboard');
-          break;
-        case 'VALIDATOR':
-          navigate('/validator/dashboard');
-          break;
+        case 'PHARMACY': navigate('/pharmacy/dashboard'); break; // This will now work correctly
         case 'SKINCARE_BRAND': navigate('/skincare/dashboard'); break;
         default: navigate('/');
       }

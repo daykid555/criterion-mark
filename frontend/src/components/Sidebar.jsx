@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { 
   FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck,
-  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle, FiArchive
+  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle, FiArchive, FiHome
 } from 'react-icons/fi';
 
 const Logo = () => (
@@ -60,6 +60,11 @@ const navConfig = {
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/dva/dashboard' },
     { icon: <FiCheckSquare size={20} />, text: 'Approval Queue', to: '/dva/approval-queue' },
     { icon: <FiClock size={20} />, text: 'Action History', to: '/dva/history' },
+  ],
+  PHARMACY: [
+    { icon: <FiHome size={20} />, text: 'Dashboard', to: '/pharmacy/dashboard' },
+    { icon: <FiCheckSquare size={20} />, text: 'Stock Management', to: '/pharmacy/stock' },
+    { icon: <FiClock size={20} />, text: 'Dispense History', to: '/pharmacy/history' },
   ],
   PRINTING: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/printing/dashboard' },

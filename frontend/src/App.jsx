@@ -23,6 +23,7 @@ import DvaDashboard from './pages/DvaDashboard.jsx';
 import PrintingDashboard from './pages/PrintingDashboard.jsx';
 import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
+import PharmacyDashboardPage from './pages/PharmacyDashboardPage.jsx';
 
 // Admin Pages
 import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
@@ -35,6 +36,7 @@ import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
 
 // Other Portal Pages
 import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
+import ManufacturerAssignCartonPage from './pages/ManufacturerAssignCartonPage.jsx';
 import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
 import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
 import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
@@ -45,6 +47,10 @@ import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
 import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
 import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
 import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
+
+// Pharmacy Pages
+import PharmacyStockPage from './pages/PharmacyStockPage.jsx';
+import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
 
 
 // --- ROUTING LOGIC ---
@@ -70,6 +76,7 @@ function App() {
       PRINTING: '/printing/dashboard',
       LOGISTICS: '/logistics/dashboard',
       SKINCARE_BRAND: '/skincare/dashboard',
+      PHARMACY: '/pharmacy/dashboard',
     };
     return paths[role] || '/login';
   };
@@ -85,6 +92,7 @@ function App() {
           <Route path="/printing/dashboard" element={<PrintingDashboard />} />
           <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
           <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
+          <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
           
           {/* Admin Routes */}
           <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
@@ -97,6 +105,7 @@ function App() {
 
           {/* Manufacturer Routes */}
           <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
+          <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignCartonPage />} />
           <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
 
           {/* DVA Routes */}
@@ -115,6 +124,10 @@ function App() {
           {/* Logistics Routes */}
           <Route path="/logistics/active" element={<LogisticsActiveShipmentsPage />} />
           <Route path="/logistics/history" element={<LogisticsHistoryPage />} />
+
+          {/* Pharmacy Routes */}
+          <Route path="/pharmacy/stock" element={<PharmacyStockPage />} />
+          <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
           
           <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
         </Route>
