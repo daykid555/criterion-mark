@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'; // Import useRef
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
@@ -16,21 +16,15 @@ function AdminMapPage() {
   const [scans, setScans] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // --- START: BULLETPROOF MAP FIX ---
-  const mapRef = useRef(null); // Create a ref to hold the map instance
+  const mapRef = useRef(null);
 
   useEffect(() => {
-    // This effect runs after the component has mounted
     if (mapRef.current) {
-      // The setTimeout is a trick to ensure this runs after the browser has painted everything.
-      // It pushes this function to the end of the execution queue.
       setTimeout(() => {
         mapRef.current.invalidateSize();
-      }, 100); // A small delay of 100ms is often enough
+      }, 100);
     }
-  }, [scans]); // Re-run if scans data changes, ensuring the map updates
-  // --- END: BULLETPROOF MAP FIX ---
+  }, [scans]);
 
   useEffect(() => {
     const fetchScans = async () => {
@@ -78,7 +72,7 @@ function AdminMapPage() {
             zoom={6} 
             scrollWheelZoom={true} 
             className="h-full w-full rounded-xl"
-            ref={mapRef} // Assign the ref to the MapContainer
+            ref={mapRef}
           >
             <TileLayer
               attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -93,7 +87,12 @@ function AdminMapPage() {
                     <p>By: {scan.qrCode?.batch?.manufacturer?.companyName || 'Unknown Manufacturer'}</p>
                     <hr className="my-1"/>
                     <p>Scanned: {new Date(scan.scannedAt).toLocaleString()}</p>
-                    <p>Location: {scan.fullAddress || `${scan.city || 'N/A'}, ${scan.country || 'N/A'}`}</p>
+                    
+                    {/* --- THIS IS THE FIX --- */}
+                    {/* It now displays the precise fullAddress and falls back gracefully */}
+                    <p><strong>Location:</strong> {scan.fullAddress || `${scan.city || 'N/A'}, ${scan.country || 'N/A'}`}</p>
+                    {/* --- END OF FIX --- */}
+
                     <p>IP: {scan.ipAddress}</p>
                   </div>
                 </Popup>
