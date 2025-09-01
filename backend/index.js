@@ -296,11 +296,14 @@ app.get('/api/dva/pending-batches', authenticateToken, authorizeRole([Role.DVA])
 
 app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const batchId = parseInt(req.params.id, 10);
+    const dvaApproverId = req.user.userId; // CAPTURE the user's ID
+
     const updatedBatch = await prisma.batch.update({
         where: { id: batchId },
         data: {
             status: BatchStatus.PENDING_ADMIN_APPROVAL,
             dva_approved_at: new Date(),
+            dvaApproverId: dvaApproverId, // SAVE the ID here
         },
     });
     res.status(200).json(updatedBatch);
@@ -309,6 +312,8 @@ app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole([Role.D
 app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
+    const rejectorId = req.user.userId; // CAPTURE the user's ID
+
     if (!reason) {
         return res.status(400).json({ error: 'Rejection reason is required.' });
     }
@@ -317,7 +322,7 @@ app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole([Role.DV
         data: {
             status: BatchStatus.DVA_REJECTED,
             rejection_reason: reason,
-            dva_approved_at: new Date(),
+            rejectedById: rejectorId, // SAVE the ID here
         },
     });
     res.status(200).json(updatedBatch);
@@ -344,6 +349,8 @@ app.get('/api/admin/pending-batches', authenticateToken, authorizeRole([Role.ADM
 
 app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const adminApproverId = req.user.userId; // CAPTURE the user's ID
+
     const batchToProcess = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
     if (!batchToProcess) {
         return res.status(404).json({ error: 'Batch not found.' });
@@ -359,7 +366,9 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role
             data: {
                 status: BatchStatus.PENDING_PRINTING,
                 admin_approved_at: new Date(),
-                rejection_reason: null,
+                rejection_reason: null, // Clear previous rejection reason
+                adminApproverId: adminApproverId, // SAVE the ID here
+                rejectedById: null, // Clear previous rejector
             },
         }),
         prisma.qRCode.createMany({ data: codesToCreate }),
@@ -371,6 +380,8 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role
 app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
+    const rejectorId = req.user.userId; // CAPTURE the user's ID
+
     if (!reason) {
         return res.status(400).json({ error: 'Rejection reason is required.' });
     }
@@ -379,7 +390,8 @@ app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole([Role.
         data: {
             status: BatchStatus.ADMIN_REJECTED,
             rejection_reason: reason,
-            admin_approved_at: new Date(),
+            admin_approved_at: new Date(), // Keep timestamp for history
+            rejectedById: rejectorId, // SAVE the ID here
         },
     });
     res.status(200).json(updatedBatch);
@@ -409,11 +421,22 @@ app.get('/api/admin/batches/:id', authenticateToken, authorizeRole([Role.ADMIN])
     const { id } = req.params;
     const batchDetails = await prisma.batch.findUnique({
         where: { id: parseInt(id, 10) },
+        // --- THIS 'INCLUDE' BLOCK IS THE ONLY PART THAT HAS CHANGED ---
         include: {
-            manufacturer: { select: { companyName: true } },
             qrCodes: { orderBy: { id: 'asc' } },
+            // Include the full user object for each role to access their email
+            manufacturer: { select: { email: true, companyName: true } },
+            dvaApprover: { select: { email: true, companyName: true } },
+            adminApprover: { select: { email: true, companyName: true } },
+            rejector: { select: { email: true, companyName: true } },
+            printingStartedBy: { select: { email: true, companyName: true } },
+            printingCompletedBy: { select: { email: true, companyName: true } },
+            pickedUpBy: { select: { email: true, companyName: true } },
+            finalizedDeliveryBy: { select: { email: true, companyName: true } }
         },
     });
+    // --- END OF CHANGE ---
+
     if (!batchDetails) {
         return res.status(404).json({ error: 'Batch not found.' });
     }
@@ -647,18 +670,30 @@ app.get('/api/printing/in-progress', authenticateToken, authorizeRole([Role.PRIN
 
 app.put('/api/printing/batches/:id/start', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const printingUserId = req.user.userId; // CAPTURE ID
+
     const updatedBatch = await prisma.batch.update({
         where: { id: parseInt(id, 10) },
-        data: { status: BatchStatus.PRINTING_IN_PROGRESS, print_started_at: new Date() },
+        data: { 
+            status: BatchStatus.PRINTING_IN_PROGRESS, 
+            print_started_at: new Date(),
+            printingStartedById: printingUserId, // SAVE ID
+        },
     });
     res.status(200).json(updatedBatch);
 }));
 
 app.put('/api/printing/batches/:id/complete', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const printingUserId = req.user.userId; // CAPTURE ID
+
     const updatedBatch = await prisma.batch.update({
         where: { id: parseInt(id, 10) },
-        data: { status: BatchStatus.PRINTING_COMPLETE, print_completed_at: new Date() },
+        data: { 
+            status: BatchStatus.PRINTING_COMPLETE, 
+            print_completed_at: new Date(),
+            printingCompletedById: printingUserId, // SAVE ID
+        },
     });
     res.status(200).json(updatedBatch);
 }));
@@ -766,6 +801,8 @@ app.get('/api/logistics/in-transit', authenticateToken, authorizeRole([Role.LOGI
 
 app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
     const { id } = req.params;
+    const logisticsUserId = req.user.userId; // CAPTURE ID
+
     const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
     if (!batch) return res.status(404).json({ error: 'Batch not found.' });
     if (batch.status !== BatchStatus.PRINTING_COMPLETE) {
@@ -773,7 +810,11 @@ app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole([R
     }
     const updatedBatch = await prisma.batch.update({
         where: { id: parseInt(id, 10) },
-        data: { status: BatchStatus.IN_TRANSIT, picked_up_at: new Date() },
+        data: { 
+            status: BatchStatus.IN_TRANSIT, 
+            picked_up_at: new Date(),
+            pickedUpById: logisticsUserId, // SAVE ID
+        },
     });
     res.status(200).json(updatedBatch);
 }));
@@ -803,6 +844,7 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
 app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { confirmation_code } = req.body;
+    const logisticsUserId = req.user.userId; // CAPTURE ID
 
     if (!confirmation_code || typeof confirmation_code !== 'string' || confirmation_code.length !== 6) {
         return res.status(400).json({ error: 'A valid 6-digit confirmation code is required.' });
@@ -828,7 +870,8 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
         where: { id: batchId },
         data: {
             status: BatchStatus.DELIVERED_TO_MANUFACTURER,
-            delivered_at: new Date()
+            delivered_at: new Date(),
+            finalizedDeliveryById: logisticsUserId, // SAVE ID
         },
     });
 

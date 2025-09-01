@@ -77,6 +77,16 @@ model User {
   approvedBy       Int?
   approvedAt       DateTime?
 
+  // --- START: ADD THESE LINES FOR COMPREHENSIVE AUDITING ---
+  dvaApprovedBatches       Batch[] @relation("DvaApprovals")
+  adminApprovedBatches     Batch[] @relation("AdminApprovals")
+  rejectedBatches          Batch[] @relation("Rejections")
+  printingStartedBatches   Batch[] @relation("PrintingStartedBy")
+  printingCompletedBatches Batch[] @relation("PrintingCompletedBy")
+  pickedUpBatches          Batch[] @relation("PickedUpBy")
+  finalizedDeliveryBatches Batch[] @relation("FinalizedBy")
+  // --- END: ADD THESE LINES ---
+
   batches               Batch[]
   // Correctly defined opposite relation for ScanRecord.scanner
   scanRecords           ScanRecord[]
@@ -111,6 +121,24 @@ model Batch {
   delivery_confirmation_code     String?            @default("")
   manufacturer_received_quantity Int?
   seal_background_url            String?
+
+  // --- START: ADD THESE LINES FOR COMPREHENSIVE AUDITING ---
+  dvaApproverId         Int?
+  adminApproverId       Int?
+  rejectedById          Int?
+  printingStartedById   Int?
+  printingCompletedById Int?
+  pickedUpById          Int?
+  finalizedDeliveryById Int?
+
+  dvaApprover         User? @relation("DvaApprovals", fields: [dvaApproverId], references: [id])
+  adminApprover       User? @relation("AdminApprovals", fields: [adminApproverId], references: [id])
+  rejector            User? @relation("Rejections", fields: [rejectedById], references: [id])
+  printingStartedBy   User? @relation("PrintingStartedBy", fields: [printingStartedById], references: [id])
+  printingCompletedBy User? @relation("PrintingCompletedBy", fields: [printingCompletedById], references: [id])
+  pickedUpBy          User? @relation("PickedUpBy", fields: [pickedUpById], references: [id])
+  finalizedDeliveryBy User? @relation("FinalizedBy", fields: [finalizedDeliveryById], references: [id])
+  // --- END: ADD THESE LINES ---
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
