@@ -252,77 +252,84 @@ app.post('/api/verify/master', authenticateToken, authorizeRole([Role.MANUFACTUR
 }));
 
 // --- ADD THIS NEW ROUTE FOR PHARMACY/SUPPLY CHAIN SCANNING ---
-
 app.post('/api/verify/supply-chain', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN, Role.MANUFACTURER, Role.LOGISTICS]), asyncHandler(async (req, res) => {
-    const { outerCode } = req.body;
-    const scannerId = req.user.userId;
-    const scannerRole = req.user.role;
+    try { // ADDED try...catch block
+        const { outerCode } = req.body;
+        const scannerId = req.user.userId;
+        const scannerRole = req.user.role;
 
-    if (!outerCode) {
-        return res.status(400).json({ error: 'Outer QR code is required.' });
-    }
+        if (!outerCode) {
+            return res.status(400).json({ error: 'Outer QR code is required.' });
+        }
 
-    // Find the QR code pair using the Outer Code
-    const qrPair = await prisma.qRCode.findUnique({
-        where: { outerCode: outerCode.trim() },
-        include: {
-            batch: {
-                select: { 
-                    drugName: true,
-                    expirationDate: true,
-                    manufacturer: { select: { companyName: true } }
+        // Find the QR code pair using the Outer Code
+        const qrPair = await prisma.qRCode.findUnique({
+            where: { outerCode: outerCode.trim() },
+            include: {
+                batch: {
+                    select: { 
+                        drugName: true,
+                        expirationDate: true,
+                        manufacturer: { select: { companyName: true } }
+                    }
                 }
             }
-        }
-    });
+        });
 
-    // --- Validation Checks ---
-    if (!qrPair) {
-        return res.status(404).json({ status: 'error', message: 'This code is not registered in our system. The product is likely counterfeit.' });
+        // --- Validation Checks ---
+        if (!qrPair) {
+            return res.status(404).json({ status: 'error', message: 'This code is not registered in our system. The product is likely counterfeit.' });
+        }
+
+        if (qrPair.isMaster) {
+            return res.status(400).json({ status: 'error', message: 'This is a Master Carton code. Please scan an individual product code.' });
+        }
+        
+        // Check if the customer has already used the inner code. If so, the supply chain should not be interacting with it.
+        if (qrPair.status === 'VERIFIED_ONCE' || qrPair.status === 'USED') {
+             return res.status(409).json({ status: 'error', message: 'This product has already been verified by a final customer.' });
+        }
+
+        // --- Create a Scan Record for Auditing ---
+        await prisma.scanRecord.create({
+            data: {
+                qrCodeId: qrPair.id,
+                scannedCode: qrPair.outerCode,
+                scanOutcome: 'SUPPLY_CHAIN_VERIFICATION_SUCCESS',
+                scannedByRole: scannerRole,
+                scannerId: scannerId,
+                ipAddress: req.ip,
+            }
+        });
+        
+        // --- Update the QR Code Status ---
+        // This shows the product has been successfully handled by the pharmacy
+        const updatedQrPair = await prisma.qRCode.update({
+            where: { id: qrPair.id },
+            data: {
+                status: 'VERIFIED_BY_SUPPLY_CHAIN'
+            }
+        });
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Product is authentic and verified within the supply chain.',
+            data: {
+                drugName: qrPair.batch.drugName,
+                manufacturer: qrPair.batch.manufacturer.companyName,
+                expirationDate: qrPair.batch.expirationDate,
+                currentStatus: updatedQrPair.status
+            }
+        });
+
+    } catch (error) {
+        console.error('Error during supply chain verification:', error); // Log real error
+        // This is the clean, simple error message you wanted
+        if (error.message.includes('not registered')) {
+             return res.status(404).json({ status: 'error', message: 'This code is not registered in our system.' });
+        }
+        res.status(400).json({ status: 'error', message: error.message });
     }
-
-    if (qrPair.isMaster) {
-        return res.status(400).json({ status: 'error', message: 'This is a Master Carton code. Please scan an individual product code.' });
-    }
-    
-    // Check if the customer has already used the inner code. If so, the supply chain should not be interacting with it.
-    if (qrPair.status === 'VERIFIED_ONCE' || qrPair.status === 'USED') {
-         return res.status(409).json({ status: 'error', message: 'This product has already been verified by a final customer.' });
-    }
-
-    // --- Create a Scan Record for Auditing ---
-    await prisma.scanRecord.create({
-        data: {
-            qrCodeId: qrPair.id,
-            scannedCode: qrPair.outerCode,
-            scanOutcome: 'SUPPLY_CHAIN_VERIFICATION_SUCCESS',
-            scannedByRole: scannerRole,
-            scannerId: scannerId,
-            ipAddress: req.ip,
-        }
-    });
-    
-    // --- Update the QR Code Status ---
-    // This shows the product has been successfully handled by the pharmacy
-    const updatedQrPair = await prisma.qRCode.update({
-        where: { id: qrPair.id },
-        data: {
-            status: 'VERIFIED_BY_SUPPLY_CHAIN'
-        }
-    });
-
-    // --- Send a Success Response ---
-    // We return the product details so the pharmacy can confirm they have the right item.
-    res.status(200).json({
-        status: 'success',
-        message: 'Product is authentic and verified within the supply chain.',
-        data: {
-            drugName: qrPair.batch.drugName,
-            manufacturer: qrPair.batch.manufacturer.companyName,
-            expirationDate: qrPair.batch.expirationDate,
-            currentStatus: updatedQrPair.status
-        }
-    });
 }));
 
 // --- MANUFACTURER ROUTES ---
@@ -669,18 +676,31 @@ app.get('/api/admin/batches/all', authenticateToken, authorizeRole([Role.ADMIN])
 }));
 
 app.get('/api/admin/batches/:id', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
-    const { id } = req.params;
-    const batchDetails = await prisma.batch.findUnique({
-        where: { id: parseInt(id, 10) },
-        include: {
-            manufacturer: { select: { companyName: true } },
-            qrCodes: { orderBy: { id: 'asc' } },
-        },
-    });
-    if (!batchDetails) {
-        return res.status(404).json({ error: 'Batch not found.' });
+    try { // ADDED try...catch block
+        const { id } = req.params;
+        const batchDetails = await prisma.batch.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                qrCodes: { orderBy: { id: 'asc' } },
+                manufacturer: { select: { email: true, companyName: true } },
+                dvaApprover: { select: { email: true, companyName: true } },
+                adminApprover: { select: { email: true, companyName: true } },
+                rejector: { select: { email: true, companyName: true } },
+                printingStartedBy: { select: { email: true, companyName: true } },
+                printingCompletedBy: { select: { email: true, companyName: true } },
+                pickedUpBy: { select: { email: true, companyName: true } },
+                finalizedDeliveryBy: { select: { email: true, companyName: true } }
+            },
+        });
+
+        if (!batchDetails) {
+            return res.status(404).json({ error: 'Batch not found.' });
+        }
+        res.status(200).json(batchDetails);
+    } catch (error) {
+        console.error('Error fetching batch details:', error); // Log the real error for you
+        res.status(500).json({ error: 'An internal error occurred while fetching batch details.' }); // Send a clean message to the user
     }
-    res.status(200).json(batchDetails);
 }));
 
 app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
@@ -1176,71 +1196,76 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole([Role.SKINCA
 // We can create a new section to house all pharmacy-specific logic
 
 app.post('/api/pharmacy/dispense', authenticateToken, authorizeRole([Role.PHARMACY]), asyncHandler(async (req, res) => {
-    const { outerCode } = req.body;
-    const pharmacyId = req.user.userId;
+    try { // ADDED try...catch block
+        const { outerCode } = req.body;
+        const pharmacyId = req.user.userId;
 
-    if (!outerCode) {
-        return res.status(400).json({ error: 'Outer QR code is required for dispensing.' });
+        if (!outerCode) {
+            return res.status(400).json({ error: 'Outer QR code is required for dispensing.' });
+        }
+
+        // --- Perform the entire action in a transaction for data safety ---
+        const dispenseResult = await prisma.$transaction(async (tx) => {
+            // 1. Find the QR code using the provided Outer Code
+            const qrToDispense = await tx.qRCode.findUnique({
+                where: { outerCode: outerCode.trim() }
+            });
+
+            // 2. Perform crucial validation checks
+            if (!qrToDispense) {
+                throw new Error('This product code is not registered in our system.');
+            }
+            if (qrToDispense.isMaster) {
+                throw new Error('Cannot dispense a master carton. Please scan an individual product.');
+            }
+            
+            // This is the most important check: The product must be in a "sellable" state.
+            const validStatusesForDispense = ['ASSIGNED_TO_MASTER', 'VERIFIED_BY_SUPPLY_CHAIN'];
+            if (!validStatusesForDispense.includes(qrToDispense.status)) {
+                // It might have already been dispensed, or sold to a customer, or not yet assigned.
+                throw new Error(`This product cannot be dispensed. Its current status is: ${qrToDispense.status}`);
+            }
+
+            // 3. Check if a dispense record already exists for this QR code (double safety check)
+            const existingDispense = await tx.dispenseRecord.findFirst({
+                where: { qrCodeId: qrToDispense.id }
+            });
+            if (existingDispense) {
+                throw new Error('This product has already been dispensed and cannot be processed again.');
+            }
+
+            // 4. If all checks pass, create the permanent dispense record
+            const newDispenseRecord = await tx.dispenseRecord.create({
+                data: {
+                    qrCodeId: qrToDispense.id,
+                    pharmacyId: pharmacyId,
+                    // dispensedAt is handled automatically by the schema's @default(now())
+                }
+            });
+
+            // 5. Update the QR code's status to a final, terminal state.
+            // This "consumes" the outerCode from the supply chain.
+            const updatedQr = await tx.qRCode.update({
+                where: { id: qrToDispense.id },
+                data: {
+                    status: 'USED' 
+                }
+            });
+
+            return { dispenseRecord: newDispenseRecord, updatedQr: updatedQr };
+        });
+
+        res.status(201).json({
+            status: 'success',
+            message: `Product successfully dispensed at ${new Date(dispenseResult.dispenseRecord.dispensedAt).toLocaleString()}.`,
+            dispenseRecordId: dispenseResult.dispenseRecord.id,
+            productStatus: dispenseResult.updatedQr.status,
+        });
+    } catch (error) {
+        console.error('Error during dispense:', error); // Log real error
+        // This is the clean, simple error message you wanted
+        res.status(400).json({ status: 'error', message: error.message });
     }
-
-    // --- Perform the entire action in a transaction for data safety ---
-    const dispenseResult = await prisma.$transaction(async (tx) => {
-        // 1. Find the QR code using the provided Outer Code
-        const qrToDispense = await tx.qRCode.findUnique({
-            where: { outerCode: outerCode.trim() }
-        });
-
-        // 2. Perform crucial validation checks
-        if (!qrToDispense) {
-            throw new Error('This product code is not registered in our system.');
-        }
-        if (qrToDispense.isMaster) {
-            throw new Error('Cannot dispense a master carton. Please scan an individual product.');
-        }
-        
-        // This is the most important check: The product must be in a "sellable" state.
-        const validStatusesForDispense = ['ASSIGNED_TO_MASTER', 'VERIFIED_BY_SUPPLY_CHAIN'];
-        if (!validStatusesForDispense.includes(qrToDispense.status)) {
-            // It might have already been dispensed, or sold to a customer, or not yet assigned.
-            throw new Error(`This product cannot be dispensed. Its current status is: ${qrToDispense.status}`);
-        }
-
-        // 3. Check if a dispense record already exists for this QR code (double safety check)
-        const existingDispense = await tx.dispenseRecord.findFirst({
-            where: { qrCodeId: qrToDispense.id }
-        });
-        if (existingDispense) {
-            throw new Error('This product has already been dispensed and cannot be processed again.');
-        }
-
-        // 4. If all checks pass, create the permanent dispense record
-        const newDispenseRecord = await tx.dispenseRecord.create({
-            data: {
-                qrCodeId: qrToDispense.id,
-                pharmacyId: pharmacyId,
-                // dispensedAt is handled automatically by the schema's @default(now())
-            }
-        });
-
-        // 5. Update the QR code's status to a final, terminal state.
-        // This "consumes" the outerCode from the supply chain.
-        const updatedQr = await tx.qRCode.update({
-            where: { id: qrToDispense.id },
-            data: {
-                status: 'USED' 
-            }
-        });
-
-        return { dispenseRecord: newDispenseRecord, updatedQr: updatedQr };
-    });
-
-    // --- Send a Success Response ---
-    res.status(201).json({
-        status: 'success',
-        message: `Product successfully dispensed at ${new Date(dispenseResult.dispenseRecord.dispensedAt).toLocaleString()}.`,
-        dispenseRecordId: dispenseResult.dispenseRecord.id,
-        productStatus: dispenseResult.updatedQr.status,
-    });
 }));
 
 // --- ADD THIS NEW ROUTE TO THE PHARMACY SECTION ---
