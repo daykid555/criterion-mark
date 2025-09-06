@@ -1,9 +1,9 @@
-// frontend/src/App.jsx (FINAL VERSION)
+// frontend/src/App.jsx (FINAL VERSION w/ REPORT PAGE)
 
 import { useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthContext } from './context/AuthContext';
-import { Toaster } from 'react-hot-toast'; // --- 1. ADD THIS IMPORT ---
+import { Toaster } from 'react-hot-toast';
 
 // --- LAYOUTS ---
 import AppLayout from './components/AppLayout.jsx';
@@ -15,7 +15,8 @@ import HomePage from './pages/HomePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
-import QuickScanPage from './pages/QuickScanPage.jsx'; // --- 2. ADD THIS IMPORT ---
+import QuickScanPage from './pages/QuickScanPage.jsx';
+import ReportPage from './pages/ReportPage.jsx'; // --- 1. ADD THIS IMPORT ---
 
 // Role Dashboards
 import AdminDashboard from './pages/AdminDashboard.jsx';
@@ -60,8 +61,6 @@ const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
 function App() {
   const { user, isAuthenticated, isLoading } = useContext(AuthContext);
   const location = useLocation();
-
-  // --- 3. ADD THIS LINE TO DETECT PWA MODE ---
   const isPwa = window.matchMedia('(display-mode: standalone)').matches;
 
   useEffect(() => {
@@ -86,22 +85,31 @@ function App() {
   };
 
   return (
-    // --- 4. ADD THE TOASTER COMPONENT HERE ---
     <>
+      {/* --- 2. ADD IMPROVED TOASTER STYLES --- */}
       <Toaster 
         position="top-center"
         reverseOrder={false}
         toastOptions={{
+          duration: 6000,
           style: {
-            background: '#363636',
+            background: 'rgba(26, 42, 69, 0.8)',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
             color: '#fff',
+            padding: '20px',
+            minWidth: '320px',
+            borderRadius: '12px',
+            fontSize: '1.1rem',
+            textAlign: 'center',
           },
         }}
       />
       <Routes>
         {isAuthenticated ? (
           <Route path="/" element={<AppLayout />}>
-            {/* Dashboards */}
+            {/* All your existing authenticated routes are perfect, no changes needed here */}
+            {/* ... */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
             <Route path="/dva/dashboard" element={<DvaDashboard />} />
@@ -109,8 +117,6 @@ function App() {
             <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
             <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
             <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
-            
-            {/* Admin Routes */}
             <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
             <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
             <Route path="/admin/users" element={<AdminUserManagementPage />} />
@@ -118,40 +124,29 @@ function App() {
             <Route path="/admin/settings" element={<SystemSettingsPage />} />
             <Route path="/admin/map" element={<AdminMapPage />} />
             <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
-
-            {/* Manufacturer Routes */}
             <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
             <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
             <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
-
-            {/* DVA Routes */}
             <Route path="/dva/approval-queue" element={<DvaApprovalQueuePage />} />
             <Route path="/dva/history" element={<DvaHistoryPage />} />
-            
-            {/* Skincare Routes */}
             <Route path="/skincare/add-product" element={<SkincareAddProductPage />} />
             <Route path="/skincare/history" element={<SkincareHistoryPage />} />
-
-            {/* Printing Routes */}
             <Route path="/printing/queue" element={<PrintingQueuePage />} />
             <Route path="/printing/history" element={<PrintingHistoryPage />} />
             <Route path="/printing/batch/:id" element={<PrintingBatchPage />} />
-
-            {/* Logistics Routes */}
             <Route path="/logistics/active" element={<LogisticsActiveShipmentsPage />} />
             <Route path="/logistics/history" element={<LogisticsHistoryPage />} />
-
-            {/* Pharmacy Routes */}
             <Route path="/pharmacy/stock" element={<PharmacyStockPage />} />
             <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
-            
             <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
           </Route>
         ) : (
           <>
-            {/* --- 5. MAKE THE ROOT ROUTE CONDITIONAL --- */}
             <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
             
+            {/* --- 3. ADD THE NEW REPORT ROUTE --- */}
+            <Route path="/report" element={<ReportPage />} />
+
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegistrationPage />} />
