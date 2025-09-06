@@ -5,7 +5,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { FiZap, FiX, FiCheckCircle, FiXCircle, FiClock, FiAlertTriangle } from 'react-icons/fi';
+import { FiZap, FiX, FiCheckCircle, FiXCircle, FiRefreshCw } from 'react-icons/fi';
 import Modal from 'react-modal';
 
 // --- STYLES ---
@@ -31,29 +31,47 @@ function QuickScanPage() {
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [scanHistory, setScanHistory] = useState([]);
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
+  
+  // --- NEW STATE TO PREVENT RAPID-FIRE SCANS ---
+  const [isProcessing, setIsProcessing] = useState(false);
+
   const html5QrCodeRef = useRef(null);
   
-  // Load history from localStorage on initial render
   useEffect(() => {
     try {
       const savedHistory = localStorage.getItem('scanHistory');
-      if (savedHistory) {
-        setScanHistory(JSON.parse(savedHistory));
-      }
-    } catch (error) {
-      console.error("Could not load scan history:", error);
-    }
+      if (savedHistory) setScanHistory(JSON.parse(savedHistory));
+    } catch (error) { console.error("Could not load scan history:", error); }
   }, []);
 
   const toggleFlash = useCallback(async () => {
-    // Flashlight logic remains the same
-    // ... (code omitted for brevity, it's the same as the previous version)
+    if (html5QrCodeRef.current?.isScanning) {
+        const newFlashState = !isFlashOn;
+        try {
+            const stream = await html5QrCodeRef.current.getRunningTrackCameraCapabilities();
+            const track = stream.track;
+            if (track.getCapabilities().torch) {
+                await track.applyConstraints({ advanced: [{ torch: newFlashState }] });
+                setIsFlashOn(newFlashState);
+            } else {
+                toast.error("Flashlight not available.");
+            }
+        } catch (err) {
+            console.error("Flash toggle failed:", err);
+            toast.error("Could not control flashlight.");
+        }
+    }
   }, [isFlashOn]);
 
   const onScanSuccess = useCallback((decodedText) => {
-    if (html5QrCodeRef.current?.isScanning) {
-      html5QrCodeRef.current.pause(true); // Pause instead of stop to keep flash state
+    // --- THIS IS THE FIX ---
+    // If we are already processing a code, ignore all new scans.
+    if (isProcessing) {
+      return;
     }
+
+    // Lock the scanner immediately.
+    setIsProcessing(true);
     
     toast.loading('Verifying code...');
 
@@ -68,8 +86,7 @@ function QuickScanPage() {
           </div>,
           { icon: <FiCheckCircle size={24} className="text-green-400" /> }
         );
-        // Save to history
-        const newHistory = [result, ...scanHistory.slice(0, 19)]; // Keep last 20 scans
+        const newHistory = [result, ...scanHistory.slice(0, 19)];
         setScanHistory(newHistory);
         localStorage.setItem('scanHistory', JSON.stringify(newHistory));
       })
@@ -85,15 +102,17 @@ function QuickScanPage() {
         const newHistory = [result, ...scanHistory.slice(0, 19)];
         setScanHistory(newHistory);
         localStorage.setItem('scanHistory', JSON.stringify(newHistory));
-      })
-      .finally(() => {
-        setTimeout(() => {
-            if (html5QrCodeRef.current) {
-                html5QrCodeRef.current.resume();
-            }
-        }, 3000);
       });
-  }, [scanHistory]);
+      // NO automatic rescan. The user will tap to resume.
+  }, [isProcessing, scanHistory]);
+  
+  // --- NEW FUNCTION TO RESUME SCANNING ON USER TAP ---
+  const handleResumeScan = () => {
+    if (html5QrCodeRef.current && !html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.resume();
+    }
+    setIsProcessing(false); // Unlock the scanner
+  };
   
   const startScanner = useCallback(() => {
     if (html5QrCodeRef.current?.isScanning) return;
@@ -117,27 +136,37 @@ function QuickScanPage() {
       <style>{fullScreenCameraStyle}</style>
       <div className="w-screen h-screen bg-black relative overflow-hidden">
         <div id="pwa-scanner" className="absolute inset-0"></div>
+        
+        {/* The UI Overlay sits on top */}
         <div className="absolute inset-0 z-10 flex flex-col justify-between items-center p-6 pointer-events-none">
-          
           <div className="w-full flex justify-between items-center pointer-events-auto">
             <button onClick={() => navigate('/')} className="p-3"><FiX size={28} color="white" /></button>
             <button onClick={toggleFlash} className={`p-3 rounded-full transition-colors ${isFlashOn ? 'bg-white text-black' : 'bg-black/40 text-white'}`}><FiZap size={24} /></button>
           </div>
-
           <div className="w-full flex flex-col items-center pointer-events-auto">
-            <div className="w-20 h-20 rounded-full bg-white/30 p-1 backdrop-blur-sm">
-                <div className="w-full h-full rounded-full bg-white"></div>
-            </div>
+            <div className="w-20 h-20 rounded-full bg-white/30 p-1 backdrop-blur-sm"><div className="w-full h-full rounded-full bg-white"></div></div>
             <div className="flex justify-center gap-8 mt-4">
-                <button onClick={() => setIsHistoryVisible(true)} className="text-white/80 font-semibold text-lg">HISTORY</button>
-                <button onClick={() => navigate('/report')} className="text-white/80 font-semibold text-lg">REPORT</button>
+              <button onClick={() => setIsHistoryVisible(true)} className="text-white/80 font-semibold text-lg">HISTORY</button>
+              <button onClick={() => navigate('/report')} className="text-white/80 font-semibold text-lg">REPORT</button>
             </div>
           </div>
         </div>
+
+        {/* --- NEW OVERLAY FOR "TAP TO RESCAN" --- */}
+        {isProcessing && (
+          <div 
+            className="absolute inset-0 z-20 bg-black/70 flex flex-col justify-center items-center text-white cursor-pointer"
+            onClick={handleResumeScan}
+          >
+            <FiRefreshCw size={48} className="mb-4" />
+            <p className="text-2xl font-bold">Tap to Scan Again</p>
+          </div>
+        )}
       </div>
       
       <Modal isOpen={isHistoryVisible} onRequestClose={() => setIsHistoryVisible(false)} style={modalStyles} contentLabel="Scan History">
-        <div className="text-white">
+         {/* Modal content is unchanged */}
+         <div className="text-white">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold">Scan History</h2>
             <button onClick={() => setIsHistoryVisible(false)}><FiX size={24} /></button>
