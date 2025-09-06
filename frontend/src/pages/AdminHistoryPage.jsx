@@ -1,10 +1,11 @@
+// frontend/src/pages/AdminHistoryPage.jsx
+
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom'; // STEP 1: Import Link
 import apiClient from '../api';
 import { FiSearch, FiLoader } from 'react-icons/fi';
 
-// A simple table component to display the data. 
-// You can replace this with your existing BatchHistoryTable component, 
-// just make sure it accepts 'batches' as a prop.
+// The BatchHistoryTable component is now updated to include the link
 const BatchHistoryTable = ({ batches }) => (
   <div className="overflow-x-auto">
     <table className="min-w-full text-sm text-left text-white/90">
@@ -21,7 +22,16 @@ const BatchHistoryTable = ({ batches }) => (
         {batches.map((batch) => (
           <tr key={batch.id} className="border-b border-white/10 hover:bg-white/5">
             <td className="px-6 py-4 font-mono">{batch.id}</td>
-            <td className="px-6 py-4 font-bold">{batch.drugName}</td>
+            {/* --- STEP 2: The drug name is now a clickable link --- */}
+            <td className="px-6 py-4 font-bold">
+              <Link 
+                to={`/admin/batches/${batch.id}`} 
+                className="hover:text-cyan-300 hover:underline transition-colors"
+              >
+                {batch.drugName}
+              </Link>
+            </td>
+            {/* --- End of Change --- */}
             <td className="px-6 py-4">{batch.manufacturer.companyName}</td>
             <td className="px-6 py-4">{batch.status}</td>
             <td className="px-6 py-4">{new Date(batch.admin_approved_at).toLocaleDateString()}</td>

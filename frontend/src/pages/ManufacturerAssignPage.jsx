@@ -66,24 +66,38 @@ function ManufacturerAssignPage() {
   }, []);
 
   const startScanner = useCallback(() => {
-    if (html5QrCodeRef.current || document.getElementById('scanner') === null) return;
-    const qrCodeInstance = new Html5Qrcode("scanner");
+    if (html5QrCodeRef.current?.isScanning) return;
+
+    const qrCodeInstance = new Html5Qrcode("scanner", { verbose: false });
     html5QrCodeRef.current = qrCodeInstance;
-    qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, (errorMessage) => { /* ignore */ })
+
+    qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {})
       .then(() => setIsScannerActive(true))
       .catch(err => setMessage({ type: 'error', text: 'Failed to start camera. Check permissions.' }));
   }, [onScanSuccess]);
 
   const stopScanner = useCallback(() => {
-    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+    if (html5QrCodeRef.current?.isScanning) {
       html5QrCodeRef.current.stop()
-        .then(() => {
-          html5QrCodeRef.current = null;
-          setIsScannerActive(false);
-        })
-        .catch(err => console.error("Failed to stop scanner:", err));
+        .then(() => setIsScannerActive(false))
+        .catch(err => {
+          console.error("Failed to stop scanner:", err);
+          setIsScannerActive(false); // Force UI update even if stop fails
+        });
     }
   }, []);
+
+  // --- BUG FIX: This useEffect now correctly handles component mount and unmount ---
+  useEffect(() => {
+    startScanner(); // Start scanner on component mount
+
+    // Cleanup function: stop scanner when component unmounts
+    return () => {
+      if (html5QrCodeRef.current?.isScanning) {
+        html5QrCodeRef.current.stop().catch(err => console.error("Cleanup failed:", err));
+      }
+    };
+  }, [startScanner]); // The dependency is stable and safe
 
   const removeCode = (codeToRemove) => {
     setChildCodes(prev => {
@@ -129,13 +143,6 @@ function ManufacturerAssignPage() {
     downloadLink.click();
     document.body.removeChild(downloadLink);
   };
-
-  useEffect(() => {
-    if (!isScannerActive) {
-      startScanner();
-    }
-    return () => stopScanner();
-  }, [isScannerActive, startScanner, stopScanner]);
 
   return (
     <>

@@ -22,6 +22,7 @@ enum Role {
   LOGISTICS_DISTRIBUTOR
   PHARMACY
   SKINCARE_BRAND
+  HEALTH_ADVISOR
 }
 
 enum BatchStatus {
@@ -101,6 +102,7 @@ model User {
   reports               Report[]
   communications        Communication[]    @relation("AuthorCommunications")
   notifications         NotificationLog[]
+  uploadedHealthVideos  HealthVideo[]
 }
 
 model Batch {
@@ -310,4 +312,20 @@ model SkincareProduct {
   uniqueCode    String        @unique
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+}
+
+// --- HEALTH ADVISOR MODELS ---
+
+model HealthVideo {
+  id                  Int      @id @default(autoincrement())
+  nafdacNumber        String   @unique // The drug identifier
+  drugName            String
+  genuineVideoUrl     String   // URL for the "how to use" video
+  counterfeitVideoUrl String   // URL for the "what to do" safety video
+  
+  uploaderId          Int
+  uploader            User     @relation(fields: [uploaderId], references: [id])
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
