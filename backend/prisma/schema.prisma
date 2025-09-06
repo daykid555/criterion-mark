@@ -157,10 +157,11 @@ model QRCode {
   // The 'code' field is now the customer-facing, single-use Inner Code
   code             String            @unique @map("innerCode") // This is the Inner QR (Customer)
   outerCode        String            @unique                  // This is the Outer QR (Supply Chain)
+  smsCode          String?           @unique                  // ADD THIS LINE FOR THE NUMERIC SMS CODE
   // --- END: DUAL QR CODE SYSTEM ---
 
   batchId          Int
-  status           QRCodeStatus      @default(AWAITING_ASSIGNMENT) // New default status
+  status           QRCodeStatus      @default(AWAITING_ASSIGNMENT)
   batch            Batch             @relation(fields: [batchId], references: [id])
   scanRecords      ScanRecord[]
   dispenseRecord   DispenseRecord?

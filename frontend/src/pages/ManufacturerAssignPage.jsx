@@ -1,8 +1,13 @@
+// frontend/src/pages/ManufacturerAssignPage.jsx (REPLACE THE ENTIRE FILE)
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
-import { FiGrid, FiPackage, FiXCircle, FiCheckCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff } from 'react-icons/fi';
+import Modal from 'react-modal';
+import { QRCodeCanvas } from 'qrcode.react';
+import { FiPackage, FiXCircle, FiCheckCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff, FiPlusCircle, FiX } from 'react-icons/fi';
 
+// --- STYLES ---
 const cleanCameraStyle = `
   #scanner-container { overflow: hidden; position: relative; border-radius: 0.5rem; }
   #scanner-container > div { border: none !important; }
@@ -11,59 +16,62 @@ const cleanCameraStyle = `
   #qr-shaded-region { display: none !important; }
 `;
 
+const modalStyles = {
+  content: {
+    top: '50%',
+    left: '50%',
+    right: 'auto',
+    bottom: 'auto',
+    marginRight: '-50%',
+    transform: 'translate(-50%, -50%)',
+    background: 'rgba(10, 25, 47, 0.8)',
+    backdropFilter: 'blur(10px)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: '1rem',
+    padding: '2rem',
+    width: '90%',
+    maxWidth: '400px',
+  },
+  overlay: {
+    backgroundColor: 'rgba(0, 0, 0, 0.75)'
+  }
+};
+
+Modal.setAppElement('#root'); // Important for accessibility
+
 function ManufacturerAssignPage() {
-  const [mode, setMode] = useState('master'); // 'master' or 'child'
-  const [masterCode, setMasterCode] = useState('');
   const [childCodes, setChildCodes] = useState(new Set());
   const [isScannerActive, setIsScannerActive] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(false);
+  const [generatedMasterCode, setGeneratedMasterCode] = useState(null);
 
-  // Use a ref to hold the scanner instance to prevent re-initialization on re-renders
   const html5QrCodeRef = useRef(null);
 
   const onScanSuccess = useCallback((decodedText) => {
-    setMessage({ type: '', text: '' }); // Clear previous message on new scan
-    if (mode === 'master') {
-      if (!decodedText.startsWith('MASTER-')) {
-        setMessage({ type: 'error', text: 'Invalid Code. Please scan a MASTER carton QR.' });
-        return;
-      }
-      setMasterCode(decodedText);
-      setMessage({ type: 'success', text: `Master Carton ready. Now scan child products.` });
-      setMode('child');
-    } else {
-      if (!decodedText.startsWith('CHILD-')) {
-        setMessage({ type: 'error', text: 'Invalid Code. Please scan a CHILD product QR.' });
-        return;
-      }
-      setChildCodes(prev => {
-        if (prev.has(decodedText)) {
-          setMessage({ type: 'warn', text: `Already added: ${decodedText}` });
-          return prev;
-        }
-        setMessage({ type: 'info', text: `Added: ${decodedText}` });
-        // Create a new Set to trigger re-render
-        return new Set([decodedText, ...prev]);
-      });
+    setMessage({ type: '', text: '' });
+
+    if (!decodedText.startsWith('CHILD-')) {
+      setMessage({ type: 'error', text: 'Invalid Code. Please scan a CHILD product QR.' });
+      return;
     }
-  }, [mode]);
+    setChildCodes(prev => {
+      if (prev.has(decodedText)) {
+        setMessage({ type: 'warn', text: `Already added: ${decodedText.substring(0, 20)}...` });
+        return prev;
+      }
+      setMessage({ type: 'info', text: `Added: ${decodedText.substring(0, 20)}...` });
+      return new Set([decodedText, ...prev]);
+    });
+  }, []);
 
   const startScanner = useCallback(() => {
-    if (html5QrCodeRef.current) return;
-
+    if (html5QrCodeRef.current || document.getElementById('scanner') === null) return;
     const qrCodeInstance = new Html5Qrcode("scanner");
     html5QrCodeRef.current = qrCodeInstance;
-
-    qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, (errorMessage) => { /* ignore errors */ })
-      .then(() => {
-        setIsScannerActive(true);
-        setMessage({ type: 'info', text: 'Camera started. Scan a Master Carton QR.' });
-      })
-      .catch(err => {
-        setMessage({ type: 'error', text: 'Failed to start camera. Please check permissions.' });
-        console.error("Camera start error:", err);
-      });
+    qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, (errorMessage) => { /* ignore */ })
+      .then(() => setIsScannerActive(true))
+      .catch(err => setMessage({ type: 'error', text: 'Failed to start camera. Check permissions.' }));
   }, [onScanSuccess]);
 
   const stopScanner = useCallback(() => {
@@ -72,12 +80,11 @@ function ManufacturerAssignPage() {
         .then(() => {
           html5QrCodeRef.current = null;
           setIsScannerActive(false);
-          setMessage({ type: '', text: '' });
         })
         .catch(err => console.error("Failed to stop scanner:", err));
     }
   }, []);
-  
+
   const removeCode = (codeToRemove) => {
     setChildCodes(prev => {
       const newSet = new Set(prev);
@@ -86,86 +93,81 @@ function ManufacturerAssignPage() {
     });
   }
 
-  const handleAssignment = async () => {
-    if (!masterCode || childCodes.size === 0) {
-      setMessage({ type: 'error', text: 'Master code and at least one child code are required.' });
+  const handleGenerateMaster = async () => {
+    if (childCodes.size === 0) {
+      setMessage({ type: 'error', text: 'Please scan at least one child product.' });
       return;
     }
     setIsLoading(true);
     setMessage({ type: '', text: '' });
     try {
-      const response = await apiClient.post('/api/manufacturer/batches/assign-children', {
-        masterOuterCode: masterCode,
-        childOuterCodes: Array.from(childCodes), // Convert Set to Array for API
+      const response = await apiClient.post('/api/manufacturer/master-codes/generate', {
+        childOuterCodes: Array.from(childCodes),
       });
       setMessage({ type: 'success', text: response.data.message });
-      resetProcess();
+      setGeneratedMasterCode(response.data.masterCode);
+      setChildCodes(new Set()); // Clear the list for the next batch
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Assignment failed.' });
+      setMessage({ type: 'error', text: err.response?.data?.message || 'Master Code generation failed.' });
     } finally {
       setIsLoading(false);
     }
   };
 
   const resetProcess = () => {
-    setMasterCode('');
     setChildCodes(new Set());
-    setMode('master');
-    setMessage({ type: 'info', text: 'Process reset. Scan a new Master Carton QR.' });
+    setMessage({ type: '', text: '' });
+  };
+  
+  const handlePrint = () => {
+    const canvas = document.getElementById('master-qr-canvas');
+    const pngUrl = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
+    let downloadLink = document.createElement('a');
+    downloadLink.href = pngUrl;
+    downloadLink.download = `${generatedMasterCode.outerCode}.png`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
   };
 
   useEffect(() => {
-    startScanner();
-    return () => {
-      if (html5QrCodeRef.current) {
-        stopScanner();
-      }
-    };
-  }, [startScanner, stopScanner]);
+    if (!isScannerActive) {
+      startScanner();
+    }
+    return () => stopScanner();
+  }, [isScannerActive, startScanner, stopScanner]);
 
   return (
     <>
       <style>{cleanCameraStyle}</style>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-white">Assign Products to Carton</h1>
+        <h1 className="text-3xl font-bold text-white">Group Products into a Master Carton</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="glass-panel p-6 space-y-4">
             <h2 className="text-xl font-bold text-white">Scanner</h2>
             <div className="w-full aspect-square bg-black/30" id="scanner-container">
               <div id="scanner" className='w-full h-full'></div>
             </div>
-            <div className="flex space-x-4">
-              <button onClick={isScannerActive ? stopScanner : startScanner} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button">
-                {isScannerActive ? <FiCameraOff /> : <FiCamera />}
-                <span className="ml-2">{isScannerActive ? 'Stop Camera' : 'Start Camera'}</span>
-              </button>
-            </div>
+            <button onClick={isScannerActive ? stopScanner : startScanner} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button">
+              {isScannerActive ? <FiCameraOff /> : <FiCamera />}
+              <span className="ml-2">{isScannerActive ? 'Stop Camera' : 'Start Camera'}</span>
+            </button>
           </div>
           <div className="glass-panel p-6 space-y-4 flex flex-col">
-            <h2 className="text-xl font-bold text-white">Assignment Details</h2>
-            <div>
-              <label className="block text-sm font-medium text-white/80">1. Master Carton QR</label>
-              <div className={`flex items-center gap-2 mt-1 p-3 rounded-md ${masterCode ? 'bg-green-500/10' : 'bg-black/30'}`}>
-                <FiGrid className={masterCode ? 'text-green-400' : 'text-white/50'}/>
-                <span className="font-mono text-sm truncate">{masterCode || 'Awaiting master scan...'}</span>
-              </div>
-            </div>
-            <div className="flex flex-col flex-grow">
-              <label className="block text-sm font-medium text-white/80">2. Child Product QRs ({childCodes.size})</label>
-              <div className="mt-1 flex-grow p-3 rounded-md bg-black/30 overflow-y-auto">
-                {childCodes.size === 0 ? (
-                  <p className="text-white/50 text-sm">Awaiting product scans...</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {Array.from(childCodes).map(code => (
-                       <li key={code} className="flex justify-between items-center bg-white/5 p-2 rounded">
-                          <span className="flex items-center gap-2 font-mono text-xs text-white/90"><FiPackage/> {code}</span>
-                          <button onClick={() => removeCode(code)} className="text-red-400 hover:text-red-300"><FiTrash2 /></button>
-                       </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+            <h2 className="text-xl font-bold text-white">Scanned Products ({childCodes.size})</h2>
+            <div className="mt-1 flex-grow p-3 rounded-md bg-black/30 overflow-y-auto h-64 md:h-auto">
+              {childCodes.size === 0 ? (
+                <p className="text-white/50 text-sm">Scan product QR codes to add them to the list...</p>
+              ) : (
+                <ul className="space-y-1">
+                  {Array.from(childCodes).map(code => (
+                     <li key={code} className="flex justify-between items-center bg-white/5 p-2 rounded">
+                        <span className="flex items-center gap-2 font-mono text-xs text-white/90"><FiPackage/> {code}</span>
+                        <button onClick={() => removeCode(code)} className="text-red-400 hover:text-red-300"><FiTrash2 /></button>
+                     </li>
+                  ))}
+                </ul>
+              )}
             </div>
             {message.text && (
               <div className={`p-3 rounded-md text-sm font-semibold text-center ${
@@ -177,9 +179,9 @@ function ManufacturerAssignPage() {
               </div>
             )}
             <div className="flex space-x-4 pt-2">
-               <button onClick={handleAssignment} disabled={isLoading || !masterCode || childCodes.size === 0} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                {isLoading ? <FiLoader className="animate-spin"/> : <FiCheckCircle/>}
-                <span className="ml-2">Complete</span>
+               <button onClick={handleGenerateMaster} disabled={isLoading || childCodes.size === 0} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+                {isLoading ? <FiLoader className="animate-spin"/> : <FiPlusCircle/>}
+                <span className="ml-2">Generate Master Code</span>
               </button>
               <button onClick={resetProcess} className="w-auto flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button bg-red-500/20 hover:bg-red-500/40">
                 <FiXCircle/>
@@ -188,6 +190,36 @@ function ManufacturerAssignPage() {
           </div>
         </div>
       </div>
+      
+      <Modal
+        isOpen={!!generatedMasterCode}
+        onRequestClose={() => setGeneratedMasterCode(null)}
+        style={modalStyles}
+        contentLabel="Generated Master QR Code"
+      >
+        <div className="text-white text-center space-y-4">
+          <div className="flex justify-between items-center">
+             <h2 className="text-2xl font-bold">Master Code Generated</h2>
+             <button onClick={() => setGeneratedMasterCode(null)} className="text-2xl"><FiX /></button>
+          </div>
+          <p className="text-white/80">Print this QR code and apply it to the master carton.</p>
+          <div className="p-4 bg-white rounded-lg inline-block">
+             {generatedMasterCode && (
+               <QRCodeCanvas 
+                 id="master-qr-canvas"
+                 value={generatedMasterCode.outerCode}
+                 size={256}
+                 level={"H"}
+               />
+             )}
+          </div>
+          <p className='font-mono text-sm break-all'>{generatedMasterCode?.outerCode}</p>
+          <div className="flex space-x-4 pt-4">
+            <button onClick={handlePrint} className="w-full font-bold py-3 px-4 rounded-lg glass-button">Print</button>
+            <button onClick={() => setGeneratedMasterCode(null)} className="w-full font-bold py-3 px-4 rounded-lg glass-button bg-green-500/20">Done</button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

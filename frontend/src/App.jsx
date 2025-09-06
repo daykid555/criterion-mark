@@ -1,8 +1,9 @@
-// Your existing file structure and logic is 100% preserved.
+// frontend/src/App.jsx (FINAL VERSION)
 
 import { useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthContext } from './context/AuthContext';
+import { Toaster } from 'react-hot-toast'; // --- 1. ADD THIS IMPORT ---
 
 // --- LAYOUTS ---
 import AppLayout from './components/AppLayout.jsx';
@@ -14,6 +15,7 @@ import HomePage from './pages/HomePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
+import QuickScanPage from './pages/QuickScanPage.jsx'; // --- 2. ADD THIS IMPORT ---
 
 // Role Dashboards
 import AdminDashboard from './pages/AdminDashboard.jsx';
@@ -50,10 +52,7 @@ import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
 import PharmacyStockPage from './pages/PharmacyStockPage.jsx';
 import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
 
-// --- START: ADD IMPORT FOR THE NEW MANUFACTURER PAGE ---
 import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
-// --- END: ADD IMPORT ---
-
 
 // --- ROUTING LOGIC ---
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
@@ -62,17 +61,17 @@ function App() {
   const { user, isAuthenticated, isLoading } = useContext(AuthContext);
   const location = useLocation();
 
-  // Your original useEffect hook is preserved
+  // --- 3. ADD THIS LINE TO DETECT PWA MODE ---
+  const isPwa = window.matchMedia('(display-mode: standalone)').matches;
+
   useEffect(() => {
     document.body.classList.toggle('admin-bg', isAuthenticated && location.pathname.startsWith('/admin'));
   }, [location, isAuthenticated]);
 
-  // Your original isLoading logic is preserved
   if (isLoading) {
     return null;
   }
 
-  // Your original getDashboardPath function is preserved
   const getDashboardPath = (role) => {
     const paths = {
       ADMIN: '/admin/dashboard',
@@ -87,72 +86,82 @@ function App() {
   };
 
   return (
-    <Routes>
-      {isAuthenticated ? (
-        <Route path="/" element={<AppLayout />}>
-          {/* Dashboards */}
-          <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
-          <Route path="/dva/dashboard" element={<DvaDashboard />} />
-          <Route path="/printing/dashboard" element={<PrintingDashboard />} />
-          <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
-          <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
-          <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
-          
-          {/* Admin Routes */}
-          <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
-          <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
-          <Route path="/admin/users" element={<AdminUserManagementPage />} />
-          <Route path="/admin/history" element={<AdminHistoryPage />} />
-          <Route path="/admin/settings" element={<SystemSettingsPage />} />
-          <Route path="/admin/map" element={<AdminMapPage />} />
-          <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
+    // --- 4. ADD THE TOASTER COMPONENT HERE ---
+    <>
+      <Toaster 
+        position="top-center"
+        reverseOrder={false}
+        toastOptions={{
+          style: {
+            background: '#363636',
+            color: '#fff',
+          },
+        }}
+      />
+      <Routes>
+        {isAuthenticated ? (
+          <Route path="/" element={<AppLayout />}>
+            {/* Dashboards */}
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
+            <Route path="/dva/dashboard" element={<DvaDashboard />} />
+            <Route path="/printing/dashboard" element={<PrintingDashboard />} />
+            <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
+            <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
+            <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
+            
+            {/* Admin Routes */}
+            <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
+            <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
+            <Route path="/admin/users" element={<AdminUserManagementPage />} />
+            <Route path="/admin/history" element={<AdminHistoryPage />} />
+            <Route path="/admin/settings" element={<SystemSettingsPage />} />
+            <Route path="/admin/map" element={<AdminMapPage />} />
+            <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
 
-          {/* Manufacturer Routes */}
-          <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
-          <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
-          
-          {/* --- START: ADD THE ROUTE FOR THE NEW MANUFACTURER PAGE --- */}
-          <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
-          {/* --- END: ADD THE ROUTE --- */}
+            {/* Manufacturer Routes */}
+            <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
+            <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
+            <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
 
-          {/* DVA Routes */}
-          <Route path="/dva/approval-queue" element={<DvaApprovalQueuePage />} />
-          <Route path="/dva/history" element={<DvaHistoryPage />} />
-          
-          {/* Skincare Routes */}
-          <Route path="/skincare/add-product" element={<SkincareAddProductPage />} />
-          <Route path="/skincare/history" element={<SkincareHistoryPage />} />
+            {/* DVA Routes */}
+            <Route path="/dva/approval-queue" element={<DvaApprovalQueuePage />} />
+            <Route path="/dva/history" element={<DvaHistoryPage />} />
+            
+            {/* Skincare Routes */}
+            <Route path="/skincare/add-product" element={<SkincareAddProductPage />} />
+            <Route path="/skincare/history" element={<SkincareHistoryPage />} />
 
-          {/* Printing Routes */}
-          <Route path="/printing/queue" element={<PrintingQueuePage />} />
-          <Route path="/printing/history" element={<PrintingHistoryPage />} />
-          <Route path="/printing/batch/:id" element={<PrintingBatchPage />} />
+            {/* Printing Routes */}
+            <Route path="/printing/queue" element={<PrintingQueuePage />} />
+            <Route path="/printing/history" element={<PrintingHistoryPage />} />
+            <Route path="/printing/batch/:id" element={<PrintingBatchPage />} />
 
-          {/* Logistics Routes */}
-          <Route path="/logistics/active" element={<LogisticsActiveShipmentsPage />} />
-          <Route path="/logistics/history" element={<LogisticsHistoryPage />} />
+            {/* Logistics Routes */}
+            <Route path="/logistics/active" element={<LogisticsActiveShipmentsPage />} />
+            <Route path="/logistics/history" element={<LogisticsHistoryPage />} />
 
-          {/* Pharmacy Routes */}
-          <Route path="/pharmacy/stock" element={<PharmacyStockPage />} />
-          <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
-          
-          {/* Your original wildcard redirect is preserved */}
-          <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
-        </Route>
-      ) : (
-        // Your original public routes logic is preserved
-        <>
-          <Route path="/" element={<HomePage />} />
-          <Route element={<PublicLayout />}>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegistrationPage />} />
-            <Route path="/verify" element={<VerificationPage />} />
+            {/* Pharmacy Routes */}
+            <Route path="/pharmacy/stock" element={<PharmacyStockPage />} />
+            <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
+            
+            <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
           </Route>
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </>
-      )}
-    </Routes>
+        ) : (
+          <>
+            {/* --- 5. MAKE THE ROOT ROUTE CONDITIONAL --- */}
+            <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
+            
+            <Route element={<PublicLayout />}>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegistrationPage />} />
+              <Route path="/verify" element={<VerificationPage />} />
+            </Route>
+            <Route path="*" element={<Navigate to={isPwa ? '/' : '/login'} replace />} />
+          </>
+        )}
+      </Routes>
+    </>
   );
 }
 

@@ -58,6 +58,10 @@ const generateSixDigitCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+const generateEightDigitCode = () => {
+    return Math.floor(10000000 + Math.random() * 90000000).toString();
+};
+
 // --- ROUTES ---
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
@@ -503,6 +507,67 @@ app.post('/api/manufacturer/batches/assign-children', authenticateToken, authori
     });
 }));
 
+// --- NEW ROUTE FOR GENERATE-ON-DEMAND MASTER QR ---
+app.post('/api/manufacturer/master-codes/generate', authenticateToken, authorizeRole([Role.MANUFACTURER, Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { childOuterCodes } = req.body;
+
+    if (!childOuterCodes || !Array.isArray(childOuterCodes) || childOuterCodes.length === 0) {
+        return res.status(400).json({ error: 'A list of child product codes is required.' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+        // 1. Find and validate all the child QR codes provided
+        const childQrs = await tx.qRCode.findMany({
+            where: {
+                outerCode: { in: childOuterCodes },
+                isMaster: false,
+                status: 'AWAITING_ASSIGNMENT' // Ensure they are ready to be assigned
+            },
+            select: { id: true, batchId: true } // Only select what we need
+        });
+
+        if (childQrs.length !== childOuterCodes.length) {
+            throw new Error('Some product codes are invalid, already assigned, or could not be found. Please scan again.');
+        }
+
+        // 2. Security Check: Ensure all children belong to the same batch
+        const firstBatchId = childQrs[0].batchId;
+        if (!childQrs.every(qr => qr.batchId === firstBatchId)) {
+            throw new Error('All products in a carton must belong to the same manufacturing batch.');
+        }
+
+        // 3. Create the new Master QR Code in the database
+        const newMasterQr = await tx.qRCode.create({
+            data: {
+                batchId: firstBatchId,
+                isMaster: true,
+                status: 'USED', // Mark it as used immediately since its purpose is fulfilled
+                outerCode: `MASTER-${nanoid(10)}`, // This is what the pharmacy/distributor will scan
+                code: `master-inner-${nanoid(12)}`, // A dummy inner code that is never used
+                smsCode: generateEightDigitCode(), // A dummy SMS code that is never used
+            }
+        });
+
+        // 4. Link all the child codes to the new Master QR code
+        const childIdsToUpdate = childQrs.map(qr => qr.id);
+        const updateCount = await tx.qRCode.updateMany({
+            where: {
+                id: { in: childIdsToUpdate }
+            },
+            data: {
+                parentId: newMasterQr.id,
+                status: 'ASSIGNED_TO_MASTER'
+            }
+        });
+
+        return { newMasterQr, count: updateCount.count };
+    });
+
+    res.status(201).json({
+        message: `Successfully created Master QR and assigned ${result.count} products to it.`,
+        masterCode: result.newMasterQr // Send the full new master code object back to the frontend
+    });
+}));
 // --- DVA ROUTES ---
 app.get('/api/dva/pending-batches', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const pendingBatches = await prisma.batch.findMany({
