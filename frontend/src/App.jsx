@@ -1,4 +1,4 @@
-// frontend/src/App.jsx (FINAL VERSION w/ REPORT PAGE)
+// frontend/src/App.jsx (FINAL CLEANED VERSION)
 
 import { useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -16,7 +16,7 @@ import LoginPage from './pages/LoginPage.jsx';
 import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
 import QuickScanPage from './pages/QuickScanPage.jsx';
-import ReportPage from './pages/ReportPage.jsx'; // --- 1. ADD THIS IMPORT ---
+// --- The ReportPage import has been REMOVED ---
 
 // Role Dashboards
 import AdminDashboard from './pages/AdminDashboard.jsx';
@@ -44,7 +44,7 @@ import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
 import SkincareAddProductPage from './pages/SkincareAddProductPage.jsx';
 import SkincareHistoryPage from './pages/SkincareHistoryPage.jsx';
 import PrintingQueuePage from './pages/PrintingQueuePage.jsx';
-import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
+import PrintingHistoryPage from './pages-history/PrintingHistoryPage.jsx';
 import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
 import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
 import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
@@ -86,7 +86,6 @@ function App() {
 
   return (
     <>
-      {/* --- 2. ADD IMPROVED TOASTER STYLES --- */}
       <Toaster 
         position="top-center"
         reverseOrder={false}
@@ -108,8 +107,6 @@ function App() {
       <Routes>
         {isAuthenticated ? (
           <Route path="/" element={<AppLayout />}>
-            {/* All your existing authenticated routes are perfect, no changes needed here */}
-            {/* ... */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
             <Route path="/dva/dashboard" element={<DvaDashboard />} />
@@ -144,8 +141,7 @@ function App() {
           <>
             <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
             
-            {/* --- 3. ADD THE NEW REPORT ROUTE --- */}
-            <Route path="/report" element={<ReportPage />} />
+            {/* --- The ReportPage route has been REMOVED --- */}
 
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<LoginPage />} />
