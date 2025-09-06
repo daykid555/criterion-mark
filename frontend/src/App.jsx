@@ -1,4 +1,4 @@
-// frontend/src/App.jsx (FINAL CLEANED VERSION)
+// frontend/src/App.jsx (CORRECTED FILE PATH)
 
 import { useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -16,7 +16,6 @@ import LoginPage from './pages/LoginPage.jsx';
 import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
 import QuickScanPage from './pages/QuickScanPage.jsx';
-// --- The ReportPage import has been REMOVED ---
 
 // Role Dashboards
 import AdminDashboard from './pages/AdminDashboard.jsx';
@@ -44,7 +43,8 @@ import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
 import SkincareAddProductPage from './pages/SkincareAddProductPage.jsx';
 import SkincareHistoryPage from './pages/SkincareHistoryPage.jsx';
 import PrintingQueuePage from './pages/PrintingQueuePage.jsx';
-import PrintingHistoryPage from './pages-history/PrintingHistoryPage.jsx';
+// --- THIS IS THE CORRECTED LINE ---
+import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
 import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
 import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
 import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
@@ -140,9 +140,6 @@ function App() {
         ) : (
           <>
             <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
-            
-            {/* --- The ReportPage route has been REMOVED --- */}
-
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegistrationPage />} />
