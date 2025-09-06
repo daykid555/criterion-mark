@@ -1,4 +1,4 @@
-// frontend/src/pages/QuickScanPage.jsx (FINAL STABLE VERSION)
+// frontend/src/pages/QuickScanPage.jsx (STABLE VERSION OF YOUR CHOSEN UI)
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -8,16 +8,26 @@ import { useNavigate } from 'react-router-dom';
 import { FiZap, FiX, FiCheckCircle, FiXCircle, FiRefreshCw } from 'react-icons/fi';
 
 // --- STYLES ---
+// This is a more aggressive CSS block to GUARANTEE the white border is removed.
 const fullScreenCameraStyle = `
-  #pwa-scanner video { width: 100vw; height: 100vh; object-fit: cover; }
-  #pwa-scanner > div[style*="border"] { display: none !important; }
+  #pwa-scanner video {
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+  }
+  #pwa-scanner > div {
+    border: none !important;
+  }
+  #pwa-scanner > div > div[style*="border"] {
+    display: none !important;
+  }
 `;
 
 function QuickScanPage() {
   const navigate = useNavigate();
   const [isFlashOn, setIsFlashOn] = useState(false);
   
-  // --- STATE TO PREVENT RAPID-FIRE SCANS ---
+  // --- STATE TO FIX THE GLITCH AND RESTORE TAP-TO-RESCAN ---
   const [isProcessing, setIsProcessing] = useState(false);
 
   const html5QrCodeRef = useRef(null);
@@ -42,16 +52,13 @@ function QuickScanPage() {
   }, [isFlashOn]);
 
   const onScanSuccess = useCallback((decodedText) => {
-    // --- THIS IS THE FIX ---
-    // If we are already processing a code, ignore all subsequent scans.
+    // --- BUG FIX: This lock prevents the rapid-fire glitch ---
     if (isProcessing) {
       return;
     }
-
-    // Lock the scanner immediately.
     setIsProcessing(true);
     
-    // Pause the camera feed to prevent it from looking frozen
+    // Pause the camera feed so it doesn't look frozen while verifying
     if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.pause();
     }
@@ -78,15 +85,15 @@ function QuickScanPage() {
           { icon: <FiXCircle size={24} className="text-red-400" /> }
         );
       });
-      // The scanner remains paused until the user taps the screen.
+      // The automatic 3-second rescan is GONE. The user must tap to continue.
   }, [isProcessing]);
   
-  // --- FUNCTION TO RESUME SCANNING ON USER TAP ---
+  // --- FEATURE RESTORED: This handles the "Tap to Rescan" ---
   const handleResumeScan = () => {
     if (html5QrCodeRef.current) {
         html5QrCodeRef.current.resume();
     }
-    setIsProcessing(false); // Unlock the scanner for the next scan
+    setIsProcessing(false); // Unlocks the scanner for the next scan
   };
 
   const startScanner = useCallback(() => {
@@ -130,6 +137,7 @@ function QuickScanPage() {
           </div>
         </div>
 
+        {/* --- This overlay appears after a scan, restoring the feature you wanted --- */}
         {isProcessing && (
           <div 
             className="absolute inset-0 z-20 bg-black/70 flex flex-col justify-center items-center text-white cursor-pointer"
