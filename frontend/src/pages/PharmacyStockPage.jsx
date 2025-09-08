@@ -12,7 +12,8 @@ const cleanCameraStyle = `
     overflow: hidden !important; /* Safety net: clips anything that might over-spill */
     position: relative;
     width: 100%;
-    height: 100%;
+    height: auto;
+    aspect-ratio: 1; /* This ensures the box is a perfect square */
     border-radius: 0.5rem;
     background-color: #000;
   }
@@ -22,13 +23,21 @@ const cleanCameraStyle = `
     /* This ensures the library's container doesn't get weird sizing */
     width: 100% !important;
     height: 100% !important;
+    overflow: hidden !important; /* Prevents overflow from this nested div */
   }
 
-  /* THE KEY FIX: Bring the video to the front */
+  /* THE KEY FIX: Size and position the video to fill the container */
   #scanner-container video {
     /* This brings the video layer to the very front, above everything else inside its container */
     z-index: 10 !important;
-    position: relative;
+    position: absolute; /* Changed from relative to absolute */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%); /* Center the video */
+    min-width: 100%; /* Ensure the video covers the full width */
+    min-height: 100%; /* Ensure the video covers the full height */
+    width: auto; /* Maintain video aspect ratio */
+    height: auto; /* Maintain video aspect ratio */
   }
 
   /* Aggressive cleanup to remove any overlays/borders from the library */
