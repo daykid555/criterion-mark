@@ -1,5 +1,3 @@
-// frontend/src/pages/PharmacyStockPage.jsx
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
