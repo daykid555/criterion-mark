@@ -1,41 +1,37 @@
-// frontend/src/pages/PharmacyStockPage.jsx (FINAL UI FIX)
+// frontend/src/pages/PharmacyStockPage.jsx
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import { FiCamera, FiCheck, FiShoppingBag, FiLoader, FiInfo, FiTrash2, FiXCircle, FiCameraOff, FiPackage } from 'react-icons/fi';
 
-// --- STYLES (FINAL, RESPONSIVE & CONTAINMENT FIX) ---
+// --- STYLES (FINAL - 15% Bottom Margin Fix) ---
 const cleanCameraStyle = `
-  /* The main container you defined in your JSX */
+  /* The main container for the scanner */
   #scanner-container {
-    overflow: hidden !important; /* CRITICAL: This clips anything that spills out */
+    overflow: hidden !important;
     position: relative;
     width: 100%;
     height: 100%;
-    border-radius: 0.5rem; /* The rounded corners we must respect */
+    border-radius: 0.5rem;
     background-color: #000;
   }
 
-  /* Target the direct child div created by the library and force it to behave */
-  #scanner-container > div {
-    width: 100% !important;
-    height: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* Target the video element itself to fill the container perfectly */
+  /* Target the video element itself */
   #scanner-container video {
     width: 100%;
-    height: 100%;
-    object-fit: cover; /* Fills the box, maintains aspect ratio, and crops excess */
+    height: 85% !important; /* THIS IS THE FIX: 100% - 15% = 85% */
+    object-fit: cover;
+    display: block; /* Ensures no extra space below the element */
   }
 
-  /* Extra cleanup to remove any other junk the library might add */
+  /* Aggressive cleanup to remove any overlays/borders from the library */
+  #scanner-container > div,
   #scanner-container span,
   #scanner-container div[style*="border"] {
-    display: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: none !important;
   }
 `;
 
@@ -50,28 +46,21 @@ function PharmacyStockPage() {
 
   const onScanSuccess = useCallback(async (decodedText) => {
     if (isPausedRef.current) return;
-    
     const isAlreadyScanned = scannedProducts.some(p => p.code === decodedText);
     if (isAlreadyScanned) {
       setLastScanMessage(`Already scanned: ${decodedText}`);
       return;
     }
-
     isPausedRef.current = true;
     if (html5QrCodeRef.current?.isScanning) html5QrCodeRef.current.pause(true);
-    
     setLastScanMessage(`Processing: ${decodedText}`);
-    
     const newProduct = { code: decodedText, name: 'Loading...' };
     setScannedProducts(prev => [newProduct, ...prev]);
-
     try {
       const response = await apiClient.get(`/api/qrcodes/details/${decodedText}`);
       const { drugName } = response.data;
-      
       setScannedProducts(prev => prev.map(p => p.code === decodedText ? { ...p, name: drugName } : p));
       setLastScanMessage(`Added: ${drugName}`);
-
     } catch (error) {
       const errorMessage = error.response?.data?.error || 'Unknown Product';
       setScannedProducts(prev => prev.map(p => p.code === decodedText ? { ...p, name: errorMessage, isError: true } : p));
@@ -118,11 +107,9 @@ function PharmacyStockPage() {
     if (scannedProducts.length === 0) return;
     setIsLoading(true);
     setResult(null);
-    
     const codesToProcess = scannedProducts.map(p => p.code);
     const endpoint = actionType === 'verify' ? '/api/verify/supply-chain' : '/api/pharmacy/dispense';
     const payload = { outerCodes: codesToProcess };
-
     try {
       const response = await apiClient.post(endpoint, payload);
       setResult({ type: 'success', ...response.data });
@@ -155,7 +142,6 @@ function PharmacyStockPage() {
             </div>
             <p className="text-center h-5 text-white/80 font-mono text-sm">{lastScanMessage}</p>
           </div>
-
           <div className="glass-panel p-6 space-y-4 flex flex-col">
             <h2 className="text-xl font-bold text-white">2. Process Scanned Products ({scannedProducts.length})</h2>
             <div className="flex-grow p-3 rounded-md bg-black/30 overflow-y-auto">
@@ -182,7 +168,6 @@ function PharmacyStockPage() {
                 </ul>
               )}
             </div>
-
             <div className="flex space-x-4">
               <button onClick={() => handleBatchAction('verify')} disabled={scannedProducts.length === 0 || isLoading} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
                 {isLoading ? <FiLoader className="animate-spin"/> : <FiCheck/>}
@@ -193,7 +178,6 @@ function PharmacyStockPage() {
                 <span className="ml-2">Dispense All</span>
               </button>
             </div>
-
             {result && (
               <div className={`mt-4 p-4 rounded-lg text-sm ${result.type === 'success' ? 'bg-green-500/20 text-green-200' : 'bg-red-500/20 text-red-200'}`}>
                 <div className="flex items-center">

@@ -1,4 +1,4 @@
-// frontend/src/pages/ManufacturerAssignPage.jsx (FINAL UI FIX)
+// frontend/src/pages/ManufacturerAssignPage.jsx
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -7,40 +7,35 @@ import Modal from 'react-modal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { FiPackage, FiXCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff, FiPlusCircle, FiX } from 'react-icons/fi';
 
-// --- STYLES (FINAL, RESPONSIVE & CONTAINMENT FIX) ---
+// --- STYLES (FINAL - 15% Bottom Margin Fix) ---
 const cleanCameraStyle = `
-  /* The main container you defined in your JSX */
+  /* The main container for the scanner */
   #scanner-container {
-    overflow: hidden !important; /* CRITICAL: This clips anything that spills out */
+    overflow: hidden !important;
     position: relative;
     width: 100%;
     height: 100%;
-    border-radius: 0.5rem; /* The rounded corners we must respect */
+    border-radius: 0.5rem;
     background-color: #000;
   }
 
-  /* Target the direct child div created by the library and force it to behave */
-  #scanner-container > div {
-    width: 100% !important;
-    height: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* Target the video element itself to fill the container perfectly */
+  /* Target the video element itself */
   #scanner-container video {
     width: 100%;
-    height: 100%;
-    object-fit: cover; /* Fills the box, maintains aspect ratio, and crops excess */
+    height: 85% !important; /* THIS IS THE FIX: 100% - 15% = 85% */
+    object-fit: cover;
+    display: block; /* Ensures no extra space below the element */
   }
 
-  /* Extra cleanup to remove any other junk the library might add */
+  /* Aggressive cleanup to remove any overlays/borders from the library */
+  #scanner-container > div,
   #scanner-container span,
   #scanner-container div[style*="border"] {
-    display: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: none !important;
   }
 `;
-
 
 const modalStyles = {
   content: {
@@ -71,12 +66,10 @@ function ManufacturerAssignPage() {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [generatedMasterCode, setGeneratedMasterCode] = useState(null);
-
   const html5QrCodeRef = useRef(null);
 
   const onScanSuccess = useCallback((decodedText) => {
     setMessage({ type: '', text: '' });
-
     if (!decodedText.startsWith('CHILD-')) {
       setMessage({ type: 'error', text: 'Invalid Code. Please scan a CHILD product QR.' });
       return;
@@ -93,10 +86,8 @@ function ManufacturerAssignPage() {
 
   const startScanner = useCallback(() => {
     if (html5QrCodeRef.current?.isScanning) return;
-
     const qrCodeInstance = new Html5Qrcode("scanner", { verbose: false });
     html5QrCodeRef.current = qrCodeInstance;
-
     qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {})
       .then(() => setIsScannerActive(true))
       .catch(err => setMessage({ type: 'error', text: 'Failed to start camera. Check permissions.' }));
@@ -127,7 +118,7 @@ function ManufacturerAssignPage() {
       newSet.delete(codeToRemove);
       return newSet;
     });
-  }
+  };
 
   const handleGenerateMaster = async () => {
     if (childCodes.size === 0) {
@@ -154,7 +145,7 @@ function ManufacturerAssignPage() {
     setChildCodes(new Set());
     setMessage({ type: '', text: '' });
   };
-  
+
   const handlePrint = () => {
     const canvas = document.getElementById('master-qr-canvas');
     const pngUrl = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
@@ -223,7 +214,6 @@ function ManufacturerAssignPage() {
           </div>
         </div>
       </div>
-      
       <Modal
         isOpen={!!generatedMasterCode}
         onRequestClose={() => setGeneratedMasterCode(null)}
