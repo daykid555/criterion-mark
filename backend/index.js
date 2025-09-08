@@ -1548,7 +1548,15 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
             dataToCreate.isActive = false; // Pharmacies must be approved by an Admin
             successMessage = 'Registration successful! Your pharmacy account is pending approval from an administrator.';
             break;
-        // --- END: ADD THIS NEW CASE FOR PHARMACY ---
+           
+        case Role.HEALTH_ADVISOR:
+            if (!fullName) return res.status(400).json({ error: 'Full Name is required for Health Advisors.' });
+            dataToCreate.companyName = fullName;
+            dataToCreate.isActive = false; // Health Advisors must be approved by an Admin
+            successMessage = 'Registration successful! Your Health Advisor account is pending approval from an administrator.';
+            break;
+        // --- End of new code block ---
+        
 
         case Role.DVA:
         case Role.PRINTING:
