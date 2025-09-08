@@ -7,11 +7,11 @@ import Modal from 'react-modal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { FiPackage, FiXCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff, FiPlusCircle, FiX } from 'react-icons/fi';
 
-// --- STYLES (FINAL - 15% Bottom Margin Fix) ---
+// --- STYLES (FINAL - Restored Size & Layering Fix) ---
 const cleanCameraStyle = `
-  /* The main container for the scanner */
+  /* The black box that contains the scanner */
   #scanner-container {
-    overflow: hidden !important;
+    overflow: hidden !important; /* Safety net: clips anything that might over-spill */
     position: relative;
     width: 100%;
     height: 100%;
@@ -19,21 +19,24 @@ const cleanCameraStyle = `
     background-color: #000;
   }
 
-  /* Target the video element itself */
+  /* The div the library creates */
+  #scanner-container > div {
+    /* This ensures the library's container doesn't get weird sizing */
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* THE KEY FIX: Bring the video to the front */
   #scanner-container video {
-    width: 100%;
-    height: 85% !important; /* THIS IS THE FIX: 100% - 15% = 85% */
-    object-fit: cover;
-    display: block; /* Ensures no extra space below the element */
+    /* This brings the video layer to the very front, above everything else inside its container */
+    z-index: 10 !important;
+    position: relative;
   }
 
   /* Aggressive cleanup to remove any overlays/borders from the library */
-  #scanner-container > div,
   #scanner-container span,
   #scanner-container div[style*="border"] {
-    border: none !important;
-    box-shadow: none !important;
-    background: none !important;
+    display: none !important;
   }
 `;
 
