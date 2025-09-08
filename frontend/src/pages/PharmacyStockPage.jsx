@@ -1,90 +1,112 @@
-// frontend/src/pages/PharmacyStockPage.jsx (REPLACE THE ENTIRE FILE)
+// frontend/src/pages/PharmacyStockPage.jsx (FINAL VERSION - REPLACE THE ENTIRE FILE)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
-import { FiCamera, FiCheck, FiShoppingBag, FiLoader, FiInfo, FiTrash2, FiXCircle, FiCameraOff } from 'react-icons/fi';
+import { FiCamera, FiCheck, FiShoppingBag, FiLoader, FiInfo, FiTrash2, FiXCircle, FiCameraOff, FiPackage } from 'react-icons/fi';
 
 const cleanCameraStyle = `
   #scanner-container { overflow: hidden; position: relative; border-radius: 0.5rem; }
   #scanner-container > div { border: none !important; }
   #scanner-container video { object-fit: cover !important; }
   #scanner-container > div > div { border: none !important; box-shadow: none !important; }
-  #qr-shaded-region { display: none !important; }
+  #scanner-container > div > span { display: none !important; }
 `;
 
 function PharmacyStockPage() {
-  const [scannedCodes, setScannedCodes] = useState([]);
+  // --- STEP 1: State is now an array of objects ---
+  const [scannedProducts, setScannedProducts] = useState([]);
   const [isScannerActive, setIsScannerActive] = useState(false);
   const [result, setResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastScanMessage, setLastScanMessage] = useState('');
-
-  // --- BUG FIX: Use a ref to hold the scanner instance across renders ---
+  const isPausedRef = useRef(false);
   const html5QrCodeRef = useRef(null);
 
-  const onScanSuccess = useCallback((decodedText) => {
-    setResult(null); // Clear previous results on a new scan
-    if (!scannedCodes.includes(decodedText)) {
-      setScannedCodes(prev => [decodedText, ...prev]);
-      setLastScanMessage(`Added: ${decodedText}`);
-    } else {
+  // --- STEP 2: The onScanSuccess function now fetches the drug name ---
+  const onScanSuccess = useCallback(async (decodedText) => {
+    if (isPausedRef.current) return;
+    
+    const isAlreadyScanned = scannedProducts.some(p => p.code === decodedText);
+    if (isAlreadyScanned) {
       setLastScanMessage(`Already scanned: ${decodedText}`);
+      return;
     }
-  }, [scannedCodes]);
+
+    isPausedRef.current = true;
+    if (html5QrCodeRef.current?.isScanning) html5QrCodeRef.current.pause(true);
+    
+    setLastScanMessage(`Processing: ${decodedText}`);
+    
+    // Add to list with a "Loading..." state
+    const newProduct = { code: decodedText, name: 'Loading...' };
+    setScannedProducts(prev => [newProduct, ...prev]);
+
+    try {
+      // Call the new backend endpoint
+      const response = await apiClient.get(`/api/qrcodes/details/${decodedText}`);
+      const { drugName } = response.data;
+      
+      // Update the specific product in the list with the fetched name
+      setScannedProducts(prev => prev.map(p => p.code === decodedText ? { ...p, name: drugName } : p));
+      setLastScanMessage(`Added: ${drugName}`);
+
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 'Unknown Product';
+      setScannedProducts(prev => prev.map(p => p.code === decodedText ? { ...p, name: errorMessage, isError: true } : p));
+      setLastScanMessage(`Error: ${errorMessage}`);
+    } finally {
+      setTimeout(() => {
+        if (html5QrCodeRef.current?.isScanning) html5QrCodeRef.current.resume();
+        isPausedRef.current = false;
+      }, 2000);
+    }
+  }, [scannedProducts]);
 
   const startScanner = useCallback(() => {
     if (html5QrCodeRef.current?.isScanning) return;
-
     const qrCodeInstance = new Html5Qrcode("scanner", { verbose: false });
     html5QrCodeRef.current = qrCodeInstance;
-
     setResult(null);
     qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {})
       .then(() => setIsScannerActive(true))
-      .catch(err => {
-        console.error("Failed to start scanner:", err);
-        setLastScanMessage('Camera permission denied.');
-      });
+      .catch(err => setLastScanMessage('Camera permission denied.'));
   }, [onScanSuccess]);
 
   const stopScanner = useCallback(() => {
     if (html5QrCodeRef.current?.isScanning) {
       html5QrCodeRef.current.stop()
         .then(() => setIsScannerActive(false))
-        .catch(err => {
-          console.error("Failed to stop scanner:", err);
-          setIsScannerActive(false); // Force UI update
-        });
+        .catch(err => setIsScannerActive(false));
     }
   }, []);
 
-  // --- BUG FIX: This useEffect now correctly handles component unmount cleanup ---
   useEffect(() => {
-    // This effect only handles cleanup when the component is removed
     return () => {
       if (html5QrCodeRef.current?.isScanning) {
-        html5QrCodeRef.current.stop().catch(err => console.error("Cleanup failed:", err));
+        html5QrCodeRef.current.stop().catch(() => {});
       }
     };
   }, []);
 
-  const removeCode = (codeToRemove) => {
-    setScannedCodes(prev => prev.filter(code => code !== codeToRemove));
+  const removeProduct = (codeToRemove) => {
+    setScannedProducts(prev => prev.filter(p => p.code !== codeToRemove));
   };
 
   const handleBatchAction = async (actionType) => {
-    if (scannedCodes.length === 0) return;
+    if (scannedProducts.length === 0) return;
     setIsLoading(true);
     setResult(null);
-
+    
+    // Extract just the codes for the payload
+    const codesToProcess = scannedProducts.map(p => p.code);
     const endpoint = actionType === 'verify' ? '/api/verify/supply-chain' : '/api/pharmacy/dispense';
-    const payload = { outerCodes: scannedCodes };
+    const payload = { outerCodes: codesToProcess };
 
     try {
       const response = await apiClient.post(endpoint, payload);
       setResult({ type: 'success', ...response.data });
-      setScannedCodes([]);
+      setScannedProducts([]);
     } catch (err) {
       setResult({ type: 'error', ...err.response?.data });
     } finally {
@@ -115,16 +137,25 @@ function PharmacyStockPage() {
           </div>
 
           <div className="glass-panel p-6 space-y-4 flex flex-col">
-            <h2 className="text-xl font-bold text-white">2. Process Scanned Products ({scannedCodes.length})</h2>
+            <h2 className="text-xl font-bold text-white">2. Process Scanned Products ({scannedProducts.length})</h2>
             <div className="flex-grow p-3 rounded-md bg-black/30 overflow-y-auto">
-              {scannedCodes.length === 0 ? (
+              {scannedProducts.length === 0 ? (
                 <p className="text-white/50 text-center pt-16">Scan products to add them here.</p>
               ) : (
                 <ul className="space-y-2">
-                  {scannedCodes.map(code => (
-                    <li key={code} className="flex justify-between items-center bg-white/5 p-2 rounded">
-                      <span className="font-mono text-xs text-white/90">{code}</span>
-                      <button onClick={() => removeCode(code)} className="text-red-400 hover:text-red-300">
+                  {/* --- STEP 3: The list now displays the product name --- */}
+                  {scannedProducts.map(product => (
+                    <li key={product.code} className="flex justify-between items-center bg-white/5 p-2 rounded">
+                      <div className="flex items-center gap-3">
+                        <FiPackage className={product.isError ? 'text-red-400' : 'text-cyan-300'} />
+                        <div>
+                          <p className={`font-semibold ${product.isError ? 'text-red-300' : 'text-white'}`}>
+                            {product.name}
+                          </p>
+                          <p className="font-mono text-xs text-white/50">{product.code}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => removeProduct(product.code)} className="text-red-400 hover:text-red-300">
                         <FiTrash2 />
                       </button>
                     </li>
@@ -134,11 +165,11 @@ function PharmacyStockPage() {
             </div>
 
             <div className="flex space-x-4">
-              <button onClick={() => handleBatchAction('verify')} disabled={scannedCodes.length === 0 || isLoading} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+              <button onClick={() => handleBatchAction('verify')} disabled={scannedProducts.length === 0 || isLoading} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
                 {isLoading ? <FiLoader className="animate-spin"/> : <FiCheck/>}
                 <span className="ml-2">Verify All</span>
               </button>
-              <button onClick={() => handleBatchAction('dispense')} disabled={scannedCodes.length === 0 || isLoading} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button bg-green-500/20 hover:bg-green-500/40 disabled:opacity-50">
+              <button onClick={() => handleBatchAction('dispense')} disabled={scannedProducts.length === 0 || isLoading} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button bg-green-500/20 hover:bg-green-500/40 disabled:opacity-50">
                 {isLoading ? <FiLoader className="animate-spin"/> : <FiShoppingBag/>}
                 <span className="ml-2">Dispense All</span>
               </button>

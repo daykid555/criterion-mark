@@ -1257,79 +1257,42 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole([Role.SKINCA
     res.status(201).json(newProduct);
 }));
 
-// --- PHARMACY PORTAL ROUTES ---
-// We can create a new section to house all pharmacy-specific logic
-
-app.post('/api/pharmacy/dispense', authenticateToken, authorizeRole([Role.PHARMACY]), asyncHandler(async (req, res) => {
-    try { // ADDED try...catch block
-        const { outerCode } = req.body;
-        const pharmacyId = req.user.userId;
+// --- START: NEW ROUTE TO GET PRODUCT DETAILS BY QR CODE ---
+app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN]), asyncHandler(async (req, res) => {
+    try {
+        const { outerCode } = req.params;
 
         if (!outerCode) {
-            return res.status(400).json({ error: 'Outer QR code is required for dispensing.' });
+            return res.status(400).json({ error: 'Outer code parameter is required.' });
         }
 
-        // --- Perform the entire action in a transaction for data safety ---
-        const dispenseResult = await prisma.$transaction(async (tx) => {
-            // 1. Find the QR code using the provided Outer Code
-            const qrToDispense = await tx.qRCode.findUnique({
-                where: { outerCode: outerCode.trim() }
-            });
-
-            // 2. Perform crucial validation checks
-            if (!qrToDispense) {
-                throw new Error('This product code is not registered in our system.');
-            }
-            if (qrToDispense.isMaster) {
-                throw new Error('Cannot dispense a master carton. Please scan an individual product.');
-            }
-            
-            // This is the most important check: The product must be in a "sellable" state.
-            const validStatusesForDispense = ['ASSIGNED_TO_MASTER', 'VERIFIED_BY_SUPPLY_CHAIN'];
-            if (!validStatusesForDispense.includes(qrToDispense.status)) {
-                // It might have already been dispensed, or sold to a customer, or not yet assigned.
-                throw new Error(`This product cannot be dispensed. Its current status is: ${qrToDispense.status}`);
-            }
-
-            // 3. Check if a dispense record already exists for this QR code (double safety check)
-            const existingDispense = await tx.dispenseRecord.findFirst({
-                where: { qrCodeId: qrToDispense.id }
-            });
-            if (existingDispense) {
-                throw new Error('This product has already been dispensed and cannot be processed again.');
-            }
-
-            // 4. If all checks pass, create the permanent dispense record
-            const newDispenseRecord = await tx.dispenseRecord.create({
-                data: {
-                    qrCodeId: qrToDispense.id,
-                    pharmacyId: pharmacyId,
-                    // dispensedAt is handled automatically by the schema's @default(now())
+        const qrCodeDetails = await prisma.qRCode.findUnique({
+            where: { outerCode: outerCode.trim() },
+            include: {
+                batch: {
+                    select: {
+                        drugName: true,
+                    }
                 }
-            });
-
-            // 5. Update the QR code's status to a final, terminal state.
-            // This "consumes" the outerCode from the supply chain.
-            const updatedQr = await tx.qRCode.update({
-                where: { id: qrToDispense.id },
-                data: {
-                    status: 'USED' 
-                }
-            });
-
-            return { dispenseRecord: newDispenseRecord, updatedQr: updatedQr };
+            }
         });
 
-        res.status(201).json({
-            status: 'success',
-            message: `Product successfully dispensed at ${new Date(dispenseResult.dispenseRecord.dispensedAt).toLocaleString()}.`,
-            dispenseRecordId: dispenseResult.dispenseRecord.id,
-            productStatus: dispenseResult.updatedQr.status,
+        if (!qrCodeDetails) {
+            return res.status(404).json({ error: 'Product code not found in the system.' });
+        }
+
+        if (!qrCodeDetails.batch || !qrCodeDetails.batch.drugName) {
+            return res.status(404).json({ error: 'Could not find product details associated with this code.' });
+        }
+
+        res.status(200).json({
+            drugName: qrCodeDetails.batch.drugName,
+            outerCode: qrCodeDetails.outerCode, // Return the code for confirmation
         });
+
     } catch (error) {
-        console.error('Error during dispense:', error); // Log real error
-        // This is the clean, simple error message you wanted
-        res.status(400).json({ status: 'error', message: error.message });
+        console.error('Error fetching QR code details:', error);
+        res.status(500).json({ error: 'An internal server error occurred while fetching product details.' });
     }
 }));
 
@@ -1494,6 +1457,24 @@ const errorHandler = (err, req, res, next) => {
     });
 };
 app.use(errorHandler);
+
+// --- SERVE FRONTEND IN PRODUCTION ---
+// This code MUST be placed after all your API routes but before app.listen()
+
+// ES Module-safe way to get __dirname
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve the static files from the React app
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// Handles any requests that don't match the API routes
+// by sending back the main index.html file.
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
+});
+
 
 // --- START THE SERVER ---
 const port = process.env.PORT || 5001;

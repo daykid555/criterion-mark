@@ -5,15 +5,16 @@ import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import Modal from 'react-modal';
 import { QRCodeCanvas } from 'qrcode.react';
-import { FiPackage, FiXCircle, FiCheckCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff, FiPlusCircle, FiX } from 'react-icons/fi';
+import { FiPackage, FiXCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff, FiPlusCircle, FiX } from 'react-icons/fi';
 
-// --- STYLES ---
+// --- STYLES (BUG FIX: More aggressive CSS to remove the bottom bar) ---
 const cleanCameraStyle = `
   #scanner-container { overflow: hidden; position: relative; border-radius: 0.5rem; }
   #scanner-container > div { border: none !important; }
   #scanner-container video { object-fit: cover !important; }
   #scanner-container > div > div { border: none !important; box-shadow: none !important; }
-  #qr-shaded-region { display: none !important; }
+  /* This is the new rule to forcibly remove the unwanted bottom bar */
+  #scanner-container > div > span { display: none !important; }
 `;
 
 const modalStyles = {
@@ -37,7 +38,7 @@ const modalStyles = {
   }
 };
 
-Modal.setAppElement('#root'); // Important for accessibility
+Modal.setAppElement('#root');
 
 function ManufacturerAssignPage() {
   const [childCodes, setChildCodes] = useState(new Set());
@@ -82,22 +83,19 @@ function ManufacturerAssignPage() {
         .then(() => setIsScannerActive(false))
         .catch(err => {
           console.error("Failed to stop scanner:", err);
-          setIsScannerActive(false); // Force UI update even if stop fails
+          setIsScannerActive(false);
         });
     }
   }, []);
 
-  // --- BUG FIX: This useEffect now correctly handles component mount and unmount ---
+  // --- BUG FIX: Removed auto-start. This now only handles cleanup. ---
   useEffect(() => {
-    startScanner(); // Start scanner on component mount
-
-    // Cleanup function: stop scanner when component unmounts
     return () => {
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(err => console.error("Cleanup failed:", err));
       }
     };
-  }, [startScanner]); // The dependency is stable and safe
+  }, []); // Empty dependency array means this only runs on mount and unmount
 
   const removeCode = (codeToRemove) => {
     setChildCodes(prev => {
@@ -108,6 +106,7 @@ function ManufacturerAssignPage() {
   }
 
   const handleGenerateMaster = async () => {
+    // ... (rest of the function is unchanged)
     if (childCodes.size === 0) {
       setMessage({ type: 'error', text: 'Please scan at least one child product.' });
       return;
@@ -134,6 +133,7 @@ function ManufacturerAssignPage() {
   };
   
   const handlePrint = () => {
+    // ... (rest of the function is unchanged)
     const canvas = document.getElementById('master-qr-canvas');
     const pngUrl = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
     let downloadLink = document.createElement('a');
@@ -155,10 +155,15 @@ function ManufacturerAssignPage() {
             <div className="w-full aspect-square bg-black/30" id="scanner-container">
               <div id="scanner" className='w-full h-full'></div>
             </div>
-            <button onClick={isScannerActive ? stopScanner : startScanner} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button">
-              {isScannerActive ? <FiCameraOff /> : <FiCamera />}
-              <span className="ml-2">{isScannerActive ? 'Stop Camera' : 'Start Camera'}</span>
-            </button>
+            {/* --- BUG FIX: Replaced toggle with two separate buttons --- */}
+            <div className="flex space-x-4">
+              <button onClick={startScanner} disabled={isScannerActive} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+                <FiCamera className="mr-2"/> Start Camera
+              </button>
+              <button onClick={stopScanner} disabled={!isScannerActive} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50 bg-red-500/20 hover:bg-red-500/40">
+                <FiCameraOff className="mr-2"/> Stop Camera
+              </button>
+            </div>
           </div>
           <div className="glass-panel p-6 space-y-4 flex flex-col">
             <h2 className="text-xl font-bold text-white">Scanned Products ({childCodes.size})</h2>
@@ -204,6 +209,7 @@ function ManufacturerAssignPage() {
         style={modalStyles}
         contentLabel="Generated Master QR Code"
       >
+        {/* ... (Modal content is unchanged) */}
         <div className="text-white text-center space-y-4">
           <div className="flex justify-between items-center">
              <h2 className="text-2xl font-bold">Master Code Generated</h2>
@@ -231,4 +237,4 @@ function ManufacturerAssignPage() {
   );
 }
 
-export default ManufacturerAssignPage;
+export export default ManufacturerAssignPage;
