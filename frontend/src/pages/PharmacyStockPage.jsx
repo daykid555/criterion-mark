@@ -5,34 +5,37 @@ import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import { FiCamera, FiCheck, FiShoppingBag, FiLoader, FiInfo, FiTrash2, FiXCircle, FiCameraOff, FiPackage } from 'react-icons/fi';
 
-// --- STYLES (FINAL, RESPONSIVE FIX) ---
+// --- STYLES (FINAL, RESPONSIVE & CONTAINMENT FIX) ---
 const cleanCameraStyle = `
-  /* Main container: clips the video and adds a loading background */
+  /* The main container you defined in your JSX */
   #scanner-container {
-    overflow: hidden;
+    overflow: hidden !important; /* CRITICAL: This clips anything that spills out */
     position: relative;
     width: 100%;
     height: 100%;
-    border-radius: 0.5rem;
-    background-color: #000; /* Shows while camera loads */
+    border-radius: 0.5rem; /* The rounded corners we must respect */
+    background-color: #000;
   }
 
-  /* THIS IS THE KEY FIX: Makes the video element fill the container */
+  /* Target the direct child div created by the library and force it to behave */
+  #scanner-container > div {
+    width: 100% !important;
+    height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Target the video element itself to fill the container perfectly */
   #scanner-container video {
     width: 100%;
     height: 100%;
     object-fit: cover; /* Fills the box, maintains aspect ratio, and crops excess */
   }
 
-  /* Aggressive rules to remove any borders, overlays, or status bars from the library */
-  #scanner-container > div,
-  #scanner-container > div > div,
-  #scanner-container > div > span {
-    border: none !important;
-    box-shadow: none !important;
-  }
-  #scanner-container > div > div[style*="border"] {
-     display: none !important;
+  /* Extra cleanup to remove any other junk the library might add */
+  #scanner-container span,
+  #scanner-container div[style*="border"] {
+    display: none !important;
   }
 `;
 
