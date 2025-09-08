@@ -237,4 +237,4 @@ function ManufacturerAssignPage() {
   );
 }
 
-export export default ManufacturerAssignPage;
+export default ManufacturerAssignPage;
