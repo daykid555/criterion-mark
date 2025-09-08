@@ -28,23 +28,21 @@ const cleanCameraStyle = `
 
   /* THE KEY FIX: Bring the video to the front and control its size */
   #scanner-container video {
-    /* This brings the video layer to the very front, above everything else inside its container */
-    z-index: 10 !important;
-    position: absolute; /* Change from relative to absolute */
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%); /* Center the video */
-    min-width: 100%;
-    min-height: 100%;
-    width: auto;
-    height: auto;
-  }
- 
-  /* Aggressive cleanup to remove any overlays/borders from the library */
-  #scanner-container span,
-  #scanner-container div[style*="border"] {
-    display: none !important;
-  }
+  /* This brings the video layer to the very front, above everything else inside its container */
+  z-index: 10 !important;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* This is the main fix */
+}
+
+/* Aggressive cleanup to remove any overlays/borders from the library */
+#scanner-container span,
+#scanner-container div[style*="border"] {
+  display: none !important;
+}
 `;
 
 const modalStyles = {

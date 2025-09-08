@@ -26,23 +26,21 @@ const cleanCameraStyle = `
 
   /* THE KEY FIX: Size and position the video to fill the container */
   #scanner-container video {
-    /* This brings the video layer to the very front, above everything else inside its container */
-    z-index: 10 !important;
-    position: absolute; /* Changed from relative to absolute */
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%); /* Center the video */
-    min-width: 100%; /* Ensure the video covers the full width */
-    min-height: 100%; /* Ensure the video covers the full height */
-    width: auto; /* Maintain video aspect ratio */
-    height: auto; /* Maintain video aspect ratio */
-  }
+  /* This brings the video layer to the very front, above everything else inside its container */
+  z-index: 10 !important;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* This is the main fix */
+}
 
-  /* Aggressive cleanup to remove any overlays/borders from the library */
-  #scanner-container span,
-  #scanner-container div[style*="border"] {
-    display: none !important;
-  }
+/* Aggressive cleanup to remove any overlays/borders from the library */
+#scanner-container span,
+#scanner-container div[style*="border"] {
+  display: none !important;
+}
 `;
 
 function PharmacyStockPage() {
