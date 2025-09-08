@@ -1,18 +1,26 @@
+// frontend/src/pages/QuickScanPage.jsx
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { FiZap, FiX, FiCheckCircle, FiXCircle, FiRefreshCw, FiPlayCircle, FiFileText, FiCamera, FiCameraOff } from 'react-icons/fi';
+import { FiZap, FiCheckCircle, FiXCircle, FiPlayCircle, FiFileText } from 'react-icons/fi';
 
-// --- ANIMATED SVG FOR TAPPING ---
+// Logo for the page title
+const MyLogo = () => (
+    <h1 className="text-2xl font-bold text-white tracking-widest text-center">
+      criterion-mark
+    </h1>
+);
+
+// Animated SVG for the tapping finger
 const TappingFingerSVG = () => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
         viewBox="0 0 100 100" 
         width="80" 
         height="80"
-        className="animate-[tap_1.5s_infinite_ease-in-out_2s]"
+        className="animate-[tap_1.5s_infinite_ease-in-out]"
     >
         <style>
             {`
@@ -33,46 +41,7 @@ const TappingFingerSVG = () => (
     </svg>
 );
 
-
-// --- STYLES (Restored for container view) ---
-const cleanCameraStyle = `
-  /* The black box that contains the scanner */
-  #scanner-container {
-    overflow: hidden !important; /* Safety net: clips anything that might over-spill */
-    position: relative;
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1;
-    border-radius: 0.5rem;
-    background-color: #000;
-  }
-
-  /* The div the library creates */
-  #scanner-container > div {
-    width: 100% !important;
-    height: 100% !important;
-    overflow: hidden !important;
-  }
-
-  /* The main fix: Make video fit the container */
-  #scanner-container video {
-    z-index: 10 !important;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  /* Aggressive cleanup to remove any overlays/borders from the library */
-  #scanner-container span,
-  #scanner-container div[style*="border"] {
-    display: none !important;
-  }
-`;
-
-// --- NEW COMPONENT: Health Content Modal ---
+// Health Content Modal
 const HealthContentModal = ({ content, onClose }) => {
   if (!content) return null;
 
@@ -113,6 +82,7 @@ const HealthContentModal = ({ content, onClose }) => {
   );
 };
 
+
 function QuickScanPage() {
   const navigate = useNavigate();
   const [isFlashOn, setIsFlashOn] = useState(false);
@@ -120,31 +90,23 @@ function QuickScanPage() {
   const [healthContent, setHealthContent] = useState(null);
   const html5QrCodeRef = useRef(null);
 
-  const toggleFlash = useCallback(async () => {
-    if (html5QrCodeRef.current?.isScanning) {
-      const newFlashState = !isFlashOn;
-      try {
-        const capabilities = html5QrCodeRef.current.getRunningTrackCapabilities();
-        if (capabilities.torch) {
-          await html5QrCodeRef.current.applyVideoConstraints({ advanced: [{ torch: newFlashState }] });
-          setIsFlashOn(newFlashState);
-        } else {
-          toast.error("Flashlight not available.");
-        }
-      } catch (err) {
-        console.error("Flash toggle failed:", err);
-        toast.error("Could not control flashlight.");
-      }
-    }
-  }, [isFlashOn]);
+  const startScanner = useCallback(() => {
+    if (html5QrCodeRef.current?.isScanning) return;
+    const qrCodeInstance = new Html5Qrcode("scanner", { verbose: false });
+    html5QrCodeRef.current = qrCodeInstance;
+    setIsProcessing(false); // Reset to allow scanning
+    qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {})
+    .catch(err => toast.error('Could not start camera. Please grant permission.'));
+  }, []);
 
   const onScanSuccess = useCallback((decodedText) => {
     if (isProcessing) return;
     setIsProcessing(true);
     setHealthContent(null);
-    
+
+    // Stop the scanner immediately after a successful scan
     if (html5QrCodeRef.current?.isScanning) {
-        html5QrCodeRef.current.pause();
+        html5QrCodeRef.current.stop().catch(() => {});
     }
     
     const toastId = toast.loading('Verifying code...');
@@ -178,90 +140,67 @@ function QuickScanPage() {
   }, [isProcessing]);
   
   const handleResumeScan = () => {
-    if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.resume();
-    }
-    setIsProcessing(false);
-    setHealthContent(null);
+    startScanner();
   };
-
-  const startScanner = useCallback(() => {
-    if (html5QrCodeRef.current?.isScanning) return;
-    const qrCodeInstance = new Html5Qrcode("scanner", { verbose: false });
-    html5QrCodeRef.current = qrCodeInstance;
-    qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {})
-    .catch(err => toast.error('Could not start camera. Please grant permission.'));
-  }, [onScanSuccess]);
-
-  const stopScanner = useCallback(() => {
-    if (html5QrCodeRef.current?.isScanning) {
-      html5QrCodeRef.current.stop()
-        .then(() => navigate('/'))
-        .catch(() => navigate('/'));
-    } else {
-      navigate('/');
-    }
-  }, [navigate]);
-
+  
+  // Auto-start scanner on component mount
   useEffect(() => {
     startScanner();
     return () => {
+      // Cleanup: stop scanner when component unmounts
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(() => {});
       }
     };
   }, [startScanner]);
 
+  const toggleFlash = useCallback(async () => {
+    try {
+        const capabilities = html5QrCodeRef.current.getRunningTrackCapabilities();
+        if (capabilities.torch) {
+            await html5QrCodeRef.current.applyVideoConstraints({ advanced: [{ torch: !isFlashOn }] });
+            setIsFlashOn(!isFlashOn);
+        } else {
+            toast.error("Flashlight not available.");
+        }
+    } catch (err) {
+        toast.error("Could not control flashlight.");
+    }
+  }, [isFlashOn]);
+
+
   return (
     <>
-      <style>{cleanCameraStyle}</style>
+      {/* The camera will automatically start here */}
+      <div className="w-screen h-screen bg-black relative">
+        {/* Main scanner container and camera view */}
+        <div id="scanner" className="absolute inset-0"></div>
+        
+        {/* Top-right flash button */}
+        <div className="absolute top-0 right-0 z-10 p-6 pointer-events-auto">
+          <button onClick={toggleFlash} className={`p-3 rounded-full transition-colors ${isFlashOn ? 'bg-white text-black' : 'bg-black/40 text-white'}`}><FiZap size={24} /></button>
+        </div>
+
+        {/* This overlay appears after a scan, allowing for "Tap to Scan" */}
+        {isProcessing && !healthContent && (
+          <div 
+            className="absolute inset-0 z-20 bg-black/70 flex flex-col justify-center items-center text-white cursor-pointer"
+            onClick={handleResumeScan}
+          >
+            <TappingFingerSVG />
+            <p className="text-2xl font-bold mt-4">Tap to Scan Again</p>
+          </div>
+        )}
+
+        {/* Header with logo and 'Scan Product' text */}
+        <div className="absolute top-0 left-0 w-full z-10 flex flex-col items-center pt-8 pointer-events-none">
+          <MyLogo />
+          <h1 className="text-white text-4xl mt-4 font-bold">Scan Product</h1>
+        </div>
+
+      </div>
       
       <HealthContentModal content={healthContent} onClose={handleResumeScan} />
-
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold text-white">QuickScan: Product Verification</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="glass-panel p-6 space-y-4">
-            <h2 className="text-xl font-bold text-white">1. Scan Product</h2>
-            <div className="w-full aspect-square bg-black/30" id="scanner-container">
-              <div id="scanner" className='w-full h-full'></div>
-            </div>
-            <div className="flex space-x-4">
-              <button onClick={startScanner} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                <FiCamera className="mr-2"/> Start Scan
-              </button>
-              <button onClick={stopScanner} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50 bg-red-500/20 hover:bg-red-500/40">
-                <FiCameraOff className="mr-2"/> Stop Scan
-              </button>
-            </div>
-          </div>
-          <div className="glass-panel p-6 space-y-4 flex flex-col justify-between">
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold text-white">2. Results & Actions</h2>
-              <div className="flex-grow flex flex-col justify-center items-center p-6 rounded-md bg-black/30 text-white/50 text-center">
-                 {isProcessing ? (
-                    <div className="flex flex-col items-center animate-pulse">
-                        <FiRefreshCw className="text-6xl text-cyan-400 mb-4" />
-                        <p className="text-lg">Processing...</p>
-                    </div>
-                 ) : (
-                    <div className="flex flex-col items-center justify-center space-y-4">
-                        <TappingFingerSVG />
-                        <p className="text-xl font-bold text-white">Ready to Scan</p>
-                        <p className="text-sm">Point the camera at a QR code. Results will appear here.</p>
-                    </div>
-                 )}
-              </div>
-            </div>
-            <div className="flex space-x-4">
-               <button onClick={handleResumeScan} disabled={!isProcessing} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button bg-green-500/20 hover:bg-green-500/40 disabled:opacity-50">
-                <FiRefreshCw className="mr-2"/>
-                <span className="ml-2">Tap to Scan Again</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     </>
   );
 }

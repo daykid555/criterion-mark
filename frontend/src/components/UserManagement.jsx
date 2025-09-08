@@ -1,3 +1,4 @@
+// frontend/src/components/UserManagement.jsx
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import CreateUserModal from './CreateUserModal';
@@ -132,19 +133,22 @@ function UserManagement() {
                       {user.isActive ? 'Active' : 'Deactivated'}
                     </span>
                   </td>
-                  <td className="p-4 text-center space-x-2">
-                    <button 
-                      onClick={() => handleToggleActivation(user.id)}
-                      className={`min-w-[100px] whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md ${user.isActive ? 'bg-yellow-500/30 hover:bg-yellow-500/50' : 'bg-green-500/30 hover:bg-green-500/50'}`}
-                    >
-                      {user.isActive ? 'Deactivate' : 'Activate'}
-                    </button>
-                    <button 
-                      onClick={() => openConfirmationModal(user.id)}
-                      className="min-w-[80px] whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-red-500/30 hover:bg-red-500/50"
-                    >
-                      Remove
-                    </button>
+                  <td className="p-4">
+                    {/* FIXED: Use flexbox to keep buttons side-by-side */}
+                    <div className="flex gap-2 justify-center">
+                        <button 
+                          onClick={() => handleToggleActivation(user.id)}
+                          className={`min-w-[100px] whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md ${user.isActive ? 'bg-yellow-500/30 hover:bg-yellow-500/50' : 'bg-green-500/30 hover:bg-green-500/50'}`}
+                        >
+                          {user.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button 
+                          onClick={() => openConfirmationModal(user.id)}
+                          className="min-w-[80px] whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-red-500/30 hover:bg-red-500/50"
+                        >
+                          Remove
+                        </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -167,6 +171,7 @@ function UserManagement() {
                 <div><span className="font-semibold text-white/60">Role: </span><span className="font-mono text-xs">{user.role}</span></div>
               </div>
               
+              {/* FIXED: Use a grid to ensure consistent two-column layout */}
               <div className="grid grid-cols-2 gap-2">
                 <button 
                   onClick={() => handleToggleActivation(user.id)}
