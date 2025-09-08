@@ -1,20 +1,42 @@
-// frontend/src/pages/PharmacyStockPage.jsx (FINAL VERSION - REPLACE THE ENTIRE FILE)
+// frontend/src/pages/PharmacyStockPage.jsx (FINAL UI FIX)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import { FiCamera, FiCheck, FiShoppingBag, FiLoader, FiInfo, FiTrash2, FiXCircle, FiCameraOff, FiPackage } from 'react-icons/fi';
 
+// --- STYLES (FINAL, RESPONSIVE FIX) ---
 const cleanCameraStyle = `
-  #scanner-container { overflow: hidden; position: relative; border-radius: 0.5rem; }
-  #scanner-container > div { border: none !important; }
-  #scanner-container video { object-fit: cover !important; }
-  #scanner-container > div > div { border: none !important; box-shadow: none !important; }
-  #scanner-container > div > span { display: none !important; }
+  /* Main container: clips the video and adds a loading background */
+  #scanner-container {
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 0.5rem;
+    background-color: #000; /* Shows while camera loads */
+  }
+
+  /* THIS IS THE KEY FIX: Makes the video element fill the container */
+  #scanner-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Fills the box, maintains aspect ratio, and crops excess */
+  }
+
+  /* Aggressive rules to remove any borders, overlays, or status bars from the library */
+  #scanner-container > div,
+  #scanner-container > div > div,
+  #scanner-container > div > span {
+    border: none !important;
+    box-shadow: none !important;
+  }
+  #scanner-container > div > div[style*="border"] {
+     display: none !important;
+  }
 `;
 
 function PharmacyStockPage() {
-  // --- STEP 1: State is now an array of objects ---
   const [scannedProducts, setScannedProducts] = useState([]);
   const [isScannerActive, setIsScannerActive] = useState(false);
   const [result, setResult] = useState(null);
@@ -23,7 +45,6 @@ function PharmacyStockPage() {
   const isPausedRef = useRef(false);
   const html5QrCodeRef = useRef(null);
 
-  // --- STEP 2: The onScanSuccess function now fetches the drug name ---
   const onScanSuccess = useCallback(async (decodedText) => {
     if (isPausedRef.current) return;
     
@@ -38,16 +59,13 @@ function PharmacyStockPage() {
     
     setLastScanMessage(`Processing: ${decodedText}`);
     
-    // Add to list with a "Loading..." state
     const newProduct = { code: decodedText, name: 'Loading...' };
     setScannedProducts(prev => [newProduct, ...prev]);
 
     try {
-      // Call the new backend endpoint
       const response = await apiClient.get(`/api/qrcodes/details/${decodedText}`);
       const { drugName } = response.data;
       
-      // Update the specific product in the list with the fetched name
       setScannedProducts(prev => prev.map(p => p.code === decodedText ? { ...p, name: drugName } : p));
       setLastScanMessage(`Added: ${drugName}`);
 
@@ -98,7 +116,6 @@ function PharmacyStockPage() {
     setIsLoading(true);
     setResult(null);
     
-    // Extract just the codes for the payload
     const codesToProcess = scannedProducts.map(p => p.code);
     const endpoint = actionType === 'verify' ? '/api/verify/supply-chain' : '/api/pharmacy/dispense';
     const payload = { outerCodes: codesToProcess };
@@ -143,7 +160,6 @@ function PharmacyStockPage() {
                 <p className="text-white/50 text-center pt-16">Scan products to add them here.</p>
               ) : (
                 <ul className="space-y-2">
-                  {/* --- STEP 3: The list now displays the product name --- */}
                   {scannedProducts.map(product => (
                     <li key={product.code} className="flex justify-between items-center bg-white/5 p-2 rounded">
                       <div className="flex items-center gap-3">

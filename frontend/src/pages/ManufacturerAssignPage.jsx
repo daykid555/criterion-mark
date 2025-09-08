@@ -1,4 +1,4 @@
-// frontend/src/pages/ManufacturerAssignPage.jsx (REPLACE THE ENTIRE FILE)
+// frontend/src/pages/ManufacturerAssignPage.jsx (FINAL UI FIX)
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -7,15 +7,37 @@ import Modal from 'react-modal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { FiPackage, FiXCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff, FiPlusCircle, FiX } from 'react-icons/fi';
 
-// --- STYLES (BUG FIX: More aggressive CSS to remove the bottom bar) ---
+// --- STYLES (FINAL, RESPONSIVE FIX) ---
 const cleanCameraStyle = `
-  #scanner-container { overflow: hidden; position: relative; border-radius: 0.5rem; }
-  #scanner-container > div { border: none !important; }
-  #scanner-container video { object-fit: cover !important; }
-  #scanner-container > div > div { border: none !important; box-shadow: none !important; }
-  /* This is the new rule to forcibly remove the unwanted bottom bar */
-  #scanner-container > div > span { display: none !important; }
+  /* Main container: clips the video and adds a loading background */
+  #scanner-container {
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 0.5rem;
+    background-color: #000; /* Shows while camera loads */
+  }
+
+  /* THIS IS THE KEY FIX: Makes the video element fill the container */
+  #scanner-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Fills the box, maintains aspect ratio, and crops excess */
+  }
+
+  /* Aggressive rules to remove any borders, overlays, or status bars from the library */
+  #scanner-container > div,
+  #scanner-container > div > div,
+  #scanner-container > div > span {
+    border: none !important;
+    box-shadow: none !important;
+  }
+  #scanner-container > div > div[style*="border"] {
+     display: none !important;
+  }
 `;
+
 
 const modalStyles = {
   content: {
@@ -88,14 +110,13 @@ function ManufacturerAssignPage() {
     }
   }, []);
 
-  // --- BUG FIX: Removed auto-start. This now only handles cleanup. ---
   useEffect(() => {
     return () => {
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(err => console.error("Cleanup failed:", err));
       }
     };
-  }, []); // Empty dependency array means this only runs on mount and unmount
+  }, []);
 
   const removeCode = (codeToRemove) => {
     setChildCodes(prev => {
@@ -106,7 +127,6 @@ function ManufacturerAssignPage() {
   }
 
   const handleGenerateMaster = async () => {
-    // ... (rest of the function is unchanged)
     if (childCodes.size === 0) {
       setMessage({ type: 'error', text: 'Please scan at least one child product.' });
       return;
@@ -119,7 +139,7 @@ function ManufacturerAssignPage() {
       });
       setMessage({ type: 'success', text: response.data.message });
       setGeneratedMasterCode(response.data.masterCode);
-      setChildCodes(new Set()); // Clear the list for the next batch
+      setChildCodes(new Set());
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Master Code generation failed.' });
     } finally {
@@ -133,7 +153,6 @@ function ManufacturerAssignPage() {
   };
   
   const handlePrint = () => {
-    // ... (rest of the function is unchanged)
     const canvas = document.getElementById('master-qr-canvas');
     const pngUrl = canvas.toDataURL('image/png').replace('image/png', 'image/octet-stream');
     let downloadLink = document.createElement('a');
@@ -155,7 +174,6 @@ function ManufacturerAssignPage() {
             <div className="w-full aspect-square bg-black/30" id="scanner-container">
               <div id="scanner" className='w-full h-full'></div>
             </div>
-            {/* --- BUG FIX: Replaced toggle with two separate buttons --- */}
             <div className="flex space-x-4">
               <button onClick={startScanner} disabled={isScannerActive} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
                 <FiCamera className="mr-2"/> Start Camera
@@ -209,7 +227,6 @@ function ManufacturerAssignPage() {
         style={modalStyles}
         contentLabel="Generated Master QR Code"
       >
-        {/* ... (Modal content is unchanged) */}
         <div className="text-white text-center space-y-4">
           <div className="flex justify-between items-center">
              <h2 className="text-2xl font-bold">Master Code Generated</h2>
