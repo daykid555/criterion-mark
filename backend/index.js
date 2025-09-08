@@ -665,16 +665,17 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role
     const numberOfCartons = Math.ceil(totalQuantity / ITEMS_PER_CARTON);
 
     const updatedBatch = await prisma.$transaction(async (tx) => {
-        // 1. Update the batch status first
-        const batchUpdate = await tx.batch.update({
-            where: { id: parseInt(id, 10) },
-            data: {
-                status: BatchStatus.PENDING_PRINTING,
-                admin_approved_at: new Date(),
-                rejection_reason: null, rejectedById: null,ø
-                adminApproverId: adminApproverId,
-            },
-        });
+    // 1. Update the batch status first
+    const batchUpdate = await tx.batch.update({
+        where: { id: parseInt(id, 10) },
+        data: {
+            status: BatchStatus.PENDING_PRINTING,
+            admin_approved_at: new Date(),
+            rejection_reason: null, 
+            rejectedById: null,
+            adminApproverId: adminApproverId,
+        },
+    });
 
         // 2. Generate Master QR Codes (for Cartons)
         const masterCodesData = [];

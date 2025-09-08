@@ -1,6 +1,6 @@
 // frontend/src/pages/RegistrationPage.jsx
 
-import React, 'useState } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api';
 import NodeBackground from '../components/NodeBackground';
