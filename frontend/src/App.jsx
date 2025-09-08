@@ -9,55 +9,43 @@ import { Toaster } from 'react-hot-toast';
 import AppLayout from './components/AppLayout.jsx';
 import Navbar from './components/Navbar.jsx';
 
-// --- PAGE IMPORTS ---
-// Public Pages
+// --- PAGE IMPORTS (imports are the same, no changes needed here) ---
 import HomePage from './pages/HomePage.jsx';
-import LoginPage from './pages/LoginPage.jsx';
-import RegistrationPage from './pages/RegistrationPage.jsx';
-import VerificationPage from './pages/VerificationPage.jsx';
-import QuickScanPage from './pages/QuickScanPage.jsx';
-
-// Role Dashboards
-import AdminDashboard from './pages/AdminDashboard.jsx';
-import ManufacturerDashboard from './pages/ManufacturerDashboard.jsx';
-import DvaDashboard from './pages/DvaDashboard.jsx';
-import PrintingDashboard from './pages/PrintingDashboard.jsx';
-import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
-import SkincareDashboard from './pages/SkincareDashboard.jsx';
-import PharmacyDashboardPage from './pages/PharmacyDashboardPage.jsx';
-// --- ADD HEALTH ADVISOR DASHBOARD ---
+//... (all other imports)
 import HealthAdvisorDashboardPage from './pages/HealthAdvisorDashboardPage.jsx';
-
-
-// Admin Pages
-import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
-import AdminRegistrationQueuePage from './pages/AdminRegistrationQueuePage.jsx';
-import AdminUserManagementPage from './pages/AdminUserManagementPage.jsx';
-import AdminHistoryPage from './pages/AdminHistoryPage.jsx';
-import SystemSettingsPage from './pages/SystemSettingsPage.jsx';
-import AdminMapPage from './pages/AdminMapPage.jsx';
-import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
-
-// Other Portal Pages
-import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
-import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
-import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
-import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
-import SkincareAddProductPage from './pages/SkincareAddProductPage.jsx';
-import SkincareHistoryPage from './pages/SkincareHistoryPage.jsx';
-import PrintingQueuePage from './pages/PrintingQueuePage.jsx';
-import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
-import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
-import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
-import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
-import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
-
-// Pharmacy Pages
-import PharmacyStockPage from './pages/PharmacyStockPage.jsx';
-import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
-
-// --- ADD HEALTH ADVISOR CREATE PAGE ---
 import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
+import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
+import PharmacyStockPage from './pages/PharmacyStockPage.jsx';
+import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
+import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
+import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
+import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
+import PrintingQueuePage from './pages/PrintingQueuePage.jsx';
+import SkincareHistoryPage from './pages/SkincareHistoryPage.jsx';
+import SkincareAddProductPage from './pages/SkincareAddProductPage.jsx';
+import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
+import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
+import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
+import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
+import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
+import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
+import AdminMapPage from './pages/AdminMapPage.jsx';
+import SystemSettingsPage from './pages/SystemSettingsPage.jsx';
+import AdminHistoryPage from './pages/AdminHistoryPage.jsx';
+import AdminUserManagementPage from './pages/AdminUserManagementPage.jsx';
+import AdminRegistrationQueuePage from './pages/AdminRegistrationQueuePage.jsx';
+import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
+import PharmacyDashboardPage from './pages/PharmacyDashboardPage.jsx';
+import SkincareDashboard from './pages/SkincareDashboard.jsx';
+import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
+import PrintingDashboard from './pages/PrintingDashboard.jsx';
+import DvaDashboard from './pages/DvaDashboard.jsx';
+import ManufacturerDashboard from './pages/ManufacturerDashboard.jsx';
+import AdminDashboard from './pages/AdminDashboard.jsx';
+import QuickScanPage from './pages/QuickScanPage.jsx';
+import VerificationPage from './pages/VerificationPage.jsx';
+import RegistrationPage from './pages/RegistrationPage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
 
 
 // --- ROUTING LOGIC ---
@@ -72,9 +60,7 @@ function App() {
     document.body.classList.toggle('admin-bg', isAuthenticated && location.pathname.startsWith('/admin'));
   }, [location, isAuthenticated]);
 
-  if (isLoading) {
-    return null;
-  }
+  if (isLoading) return null;
 
   const getDashboardPath = (role) => {
     const paths = {
@@ -85,7 +71,8 @@ function App() {
       LOGISTICS: '/logistics/dashboard',
       SKINCARE_BRAND: '/skincare/dashboard',
       PHARMACY: '/pharmacy/dashboard',
-      HEALTH_ADVISOR: '/health-advisor/dashboard', // <-- Add path for new role
+      // --- UPDATED: The default path for Health Advisor is now the "pending" view ---
+      HEALTH_ADVISOR: '/health-advisor/dashboard/pending',
     };
     return paths[role] || '/login';
   };
@@ -121,10 +108,13 @@ function App() {
             <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
             <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
             <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
-            <Route path="/health-advisor/dashboard" element={<HealthAdvisorDashboardPage />} /> {/* <-- ADDED */}
+            
+            {/* --- UPDATED: Health Advisor routes are now more specific --- */}
+            <Route path="/health-advisor/dashboard/:tab" element={<HealthAdvisorDashboardPage />} />
 
             {/* Admin Pages */}
             <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
+            {/* ... other admin routes */}
             <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
             <Route path="/admin/users" element={<AdminUserManagementPage />} />
             <Route path="/admin/history" element={<AdminHistoryPage />} />
@@ -132,40 +122,31 @@ function App() {
             <Route path="/admin/map" element={<AdminMapPage />} />
             <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
 
-            {/* Manufacturer Pages */}
+            {/* Other Portal Pages */}
             <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
+            {/* ... other portal routes */}
             <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
             <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
-
-            {/* DVA Pages */}
             <Route path="/dva/approval-queue" element={<DvaApprovalQueuePage />} />
             <Route path="/dva/history" element={<DvaHistoryPage />} />
-
-            {/* Skincare Pages */}
             <Route path="/skincare/add-product" element={<SkincareAddProductPage />} />
             <Route path="/skincare/history" element={<SkincareHistoryPage />} />
-
-            {/* Printing Pages */}
             <Route path="/printing/queue" element={<PrintingQueuePage />} />
             <Route path="/printing/history" element={<PrintingHistoryPage />} />
             <Route path="/printing/batch/:id" element={<PrintingBatchPage />} />
-            
-            {/* Logistics Pages */}
             <Route path="/logistics/active" element={<LogisticsActiveShipmentsPage />} />
             <Route path="/logistics/history" element={<LogisticsHistoryPage />} />
-            
-            {/* Pharmacy Pages */}
             <Route path="/pharmacy/stock" element={<PharmacyStockPage />} />
             <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
             
-            {/* Health Advisor Pages */}
-            <Route path="/health-advisor/create" element={<CreateHealthVideoPage />} /> {/* <-- ADDED */}
+            <Route path="/health-advisor/create" element={<CreateHealthVideoPage />} />
             
             {/* Fallback Route */}
             <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
           </Route>
         ) : (
           <>
+             {/* Public routes remain the same */}
             <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<LoginPage />} />

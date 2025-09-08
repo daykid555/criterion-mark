@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import CreateUserModal from './CreateUserModal';
-import toast from 'react-hot-toast'; // We'll use toast for better feedback
+import toast from 'react-hot-toast';
 
 function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -38,21 +38,19 @@ function UserManagement() {
     try {
       const response = await apiClient.put(`/api/admin/users/${userId}/toggle-activation`);
       toast.success(response.data.message || 'User status updated!');
-      fetchUsers(); // Refresh the list
+      fetchUsers();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to update user status.');
     }
   };
 
-  // --- NEW FUNCTION: Handle user deletion ---
   const handleRemoveUser = async (userId) => {
-    // Confirmation dialog to prevent accidental deletion
     if (window.confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) {
       const toastId = toast.loading('Deleting user...');
       try {
         const response = await apiClient.delete(`/api/admin/users/${userId}`);
         toast.success(response.data.message, { id: toastId });
-        fetchUsers(); // Refresh the user list
+        fetchUsers();
       } catch (err) {
         toast.error(err.response?.data?.error || 'Failed to delete user.', { id: toastId });
       }
@@ -79,7 +77,7 @@ function UserManagement() {
                 <th className="p-4">Email</th>
                 <th className="p-4">Role</th>
                 <th className="p-4">Status</th>
-                <th className="p-4 text-center">Actions</th> {/* Renamed from Action */}
+                <th className="p-4 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -93,7 +91,6 @@ function UserManagement() {
                       {user.isActive ? 'Active' : 'Deactivated'}
                     </span>
                   </td>
-                  {/* --- UPDATED: Added Remove button --- */}
                   <td className="p-4 text-center space-x-2">
                     <button 
                       onClick={() => handleToggleActivation(user.id)}
@@ -128,17 +125,18 @@ function UserManagement() {
                 <div><span className="font-semibold text-white/60">Email: </span><span>{user.email}</span></div>
                 <div><span className="font-semibold text-white/60">Role: </span><span className="font-mono text-xs">{user.role}</span></div>
               </div>
-              {/* --- UPDATED: Added Remove button --- */}
-              <div className="grid grid-cols-2 gap-2">
+              
+              {/* --- BUG FIX: Replaced grid with flex --- */}
+              <div className="flex items-center gap-2">
                 <button 
                   onClick={() => handleToggleActivation(user.id)}
-                  className={`w-full glass-button-sm text-sm font-bold py-2 px-3 rounded-md ${user.isActive ? 'bg-yellow-500/30 hover:bg-yellow-500/50' : 'bg-green-500/30 hover:bg-green-500/50'}`}
+                  className={`flex-1 text-center glass-button-sm text-sm font-bold py-2 px-3 rounded-md ${user.isActive ? 'bg-yellow-500/30 hover:bg-yellow-500/50' : 'bg-green-500/30 hover:bg-green-500/50'}`}
                 >
                   {user.isActive ? 'Deactivate' : 'Activate'}
                 </button>
                  <button 
                   onClick={() => handleRemoveUser(user.id)}
-                  className="w-full glass-button-sm text-sm font-bold py-2 px-3 rounded-md bg-red-500/30 hover:bg-red-500/50"
+                  className="flex-1 text-center glass-button-sm text-sm font-bold py-2 px-3 rounded-md bg-red-500/30 hover:bg-red-500/50"
                 >
                   Remove
                 </button>

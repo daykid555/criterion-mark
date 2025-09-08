@@ -1,9 +1,12 @@
+// frontend/src/components/Sidebar.jsx
+
 import { useContext } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { 
   FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck,
-  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, FiPlusCircle, FiArchive, FiHome
+  FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, 
+  FiPlusCircle, FiArchive, FiHome, FiAlertTriangle
 } from 'react-icons/fi';
 
 const Logo = () => (
@@ -16,7 +19,8 @@ const Logo = () => (
 
 const SidebarLink = ({ icon, text, to, action }) => {
   const location = useLocation();
-  const isActive = location.pathname === to;
+  // Match the base path for parent routes
+  const isActive = location.pathname.startsWith(to);
 
   return (
     <li>
@@ -81,7 +85,12 @@ const navConfig = {
       { icon: <FiPlusCircle size={20} />, text: 'Add New Product', to: '/skincare/add-product' },
       { icon: <FiFileText size={20} />, text: 'Product History', to: '/skincare/history' },
   ],
-  // NOTE: I have removed the VALIDATOR role as you previously instructed.
+  // --- ADDED HEALTH ADVISOR NAVIGATION ---
+  HEALTH_ADVISOR: [
+    { icon: <FiAlertTriangle size={20} />, text: 'Action Required', to: '/health-advisor/dashboard/pending' },
+    { icon: <FiArchive size={20} />, text: 'All Content', to: '/health-advisor/dashboard/all' },
+    { icon: <FiPlusCircle size={20} />, text: 'Add New Content', to: '/health-advisor/create' },
+  ],
 };
 
 export default function Sidebar({ closeMobileNav = () => {} }) {
@@ -108,7 +117,6 @@ export default function Sidebar({ closeMobileNav = () => {} }) {
         </ul>
 
         <div className="border-t border-white/20 pt-4 mt-4">
-          {/* --- START: THIS IS THE NEW CODE BLOCK --- */}
           {user && (
             <div className="px-4 mb-4 text-left">
               <p className="text-white font-semibold text-sm truncate" title={user.companyName}>
@@ -119,8 +127,6 @@ export default function Sidebar({ closeMobileNav = () => {} }) {
               </p>
             </div>
           )}
-          {/* --- END: THIS IS THE NEW CODE BLOCK --- */}
-
           <div
             onClick={handleLogout}
             className="flex items-center py-3 px-4 my-1 font-medium rounded-md cursor-pointer transition-colors group hover:bg-red-500/20 text-gray-400"
