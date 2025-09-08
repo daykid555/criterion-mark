@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+// frontend/src/pages/RegistrationPage.jsx
+
+import React, 'useState } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api';
 import NodeBackground from '../components/NodeBackground';
@@ -20,8 +22,9 @@ function RegistrationPage() {
 
     let registrationData = { email: email.toLowerCase(), password, role };
 
-    // UPDATED to include PHARMACY
-    if (role === 'MANUFACTURER' || role === 'SKINCARE_BRAND' || role === 'PHARMACY') {
+    // --- UPDATED: Logic remains the same, but the list of roles is now clearer ---
+    const rolesRequiringCompanyInfo = ['MANUFACTURER', 'SKINCARE_BRAND', 'PHARMACY'];
+    if (rolesRequiringCompanyInfo.includes(role)) {
       registrationData.companyName = companyName;
       registrationData.companyRegNumber = companyRegNumber;
     } else {
@@ -42,8 +45,9 @@ function RegistrationPage() {
   const getPageTitle = () => {
     switch (role) {
       case 'MANUFACTURER': return 'Create Manufacturer Account';
-      case 'PHARMACY': return 'Create Pharmacy Account'; // ADDED
+      case 'PHARMACY': return 'Create Pharmacy Account';
       case 'SKINCARE_BRAND': return 'Create Skincare Brand Account';
+      case 'HEALTH_ADVISOR': return 'Create Health Advisor Account'; // <-- ADDED
       case 'DVA': return 'Create DVA Account';
       case 'PRINTING': return 'Create Printing Account';
       case 'LOGISTICS': return 'Create Logistics Account';
@@ -72,7 +76,8 @@ function RegistrationPage() {
                 <label htmlFor="role" className="block text-sm font-medium text-white/80">I am a...</label>
                 <select id="role" value={role} onChange={(e) => setRole(e.target.value)} className="mt-1 w-full px-4 py-3 glass-input bg-gray-900/50">
                   <option className="text-black" value="CUSTOMER">Customer / User</option>
-                  <option className="text-black" value="PHARMACY">Pharmacy</option> {/* ADDED */}
+                  <option className="text-black" value="PHARMACY">Pharmacy</option>
+                  <option className="text-black" value="HEALTH_ADVISOR">Health Advisor</option> {/* <-- ADDED */}
                   <option className="text-black" value="SKINCARE_BRAND">Skincare Brand</option>
                   <option className="text-black" value="MANUFACTURER">Pharmaceutical Manufacturer</option>
                   <option className="text-black" value="DVA">DVA (Regulatory Agency)</option>
@@ -81,8 +86,7 @@ function RegistrationPage() {
                 </select>
               </div>
 
-              {/* UPDATED to include PHARMACY */}
-              {(role === 'MANUFACTURER' || role === 'SKINCARE_BRAND' || role === 'PHARMACY') ? (
+              {['MANUFACTURER', 'SKINCARE_BRAND', 'PHARMACY'].includes(role) ? (
                 <>
                   <div>
                     <label htmlFor="companyName" className="block text-sm font-medium text-white/80">{getCompanyNameLabel()}</label>

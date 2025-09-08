@@ -1,3 +1,5 @@
+// frontend/src/components/CreateUserModal.jsx
+
 import React, { useState } from 'react';
 import apiClient from '../api';
 
@@ -27,8 +29,7 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
 
     const { email, password, role, companyName, companyRegNumber, fullName } = formData;
     const payload = { email, password, role };
-
-    // Corrected logic based on your new roles
+    
     const rolesRequiringCompanyInfo = ['MANUFACTURER', 'SKINCARE_BRAND', 'PHARMACY'];
     if (rolesRequiringCompanyInfo.includes(role)) {
       payload.companyName = companyName;
@@ -38,12 +39,13 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
     }
     
     try {
+      // The backend registration endpoint can be used here directly
       const response = await apiClient.post('/api/auth/register', payload);
-      setSuccessMessage(response.data.message || 'User created successfully! The account is pending your approval.');
-      onSuccess();
+      setSuccessMessage(response.data.message || 'User created successfully! The account will be inactive until approved.');
+      onSuccess(); // This will trigger a re-fetch of the user list
       setTimeout(() => {
         onClose();
-      }, 2000);
+      }, 2500);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create user.');
     } finally {
@@ -51,7 +53,6 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
     }
   };
   
-  // UPDATED to include PHARMACY
   const rolesRequiringCompanyInfo = ['MANUFACTURER', 'SKINCARE_BRAND', 'PHARMACY'];
   const showCompanyFields = rolesRequiringCompanyInfo.includes(formData.role);
 
@@ -67,7 +68,8 @@ const CreateUserModal = ({ onClose, onSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <select name="role" value={formData.role} onChange={handleChange} className="w-full p-3 glass-input text-white">
             <option value="MANUFACTURER">Manufacturer</option>
-            <option value="PHARMACY">Pharmacy</option> {/* ADDED */}
+            <option value="PHARMACY">Pharmacy</option>
+            <option value="HEALTH_ADVISOR">Health Advisor</option> {/* <-- ADDED */}
             <option value="DVA">DVA</option>
             <option value="PRINTING">Printing</option>
             <option value="LOGISTICS">Logistics</option>

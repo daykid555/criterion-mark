@@ -3,31 +3,28 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import CreateUserModal from './CreateUserModal';
+import toast from 'react-hot-toast'; // We'll use toast for better feedback
 
 function UserManagement() {
   const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // Removed the 'filter' state for now to simplify and ensure stability
   
   const fetchUsers = async () => {
     setIsLoading(true);
-    setError(''); // Reset error on fetch
+    setError('');
     try {
       const response = await apiClient.get('/api/admin/users/all');
-      // Defensive check: Ensure the response data is an array
       if (Array.isArray(response.data)) {
         setUsers(response.data);
       } else {
-        // Handle cases where the API returns a non-array response
         setUsers([]);
         setError('Received an unexpected data format from the server.');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to load users. Please check the network connection and API status.');
-      setUsers([]); // Clear users on error to prevent crashes
+      setError(err.response?.data?.error || 'Failed to load users.');
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
@@ -39,31 +36,38 @@ function UserManagement() {
 
   const handleToggleActivation = async (userId) => {
     try {
-      await apiClient.put(`/api/admin/users/${userId}/toggle-activation`);
+      const response = await apiClient.put(`/api/admin/users/${userId}/toggle-activation`);
+      toast.success(response.data.message || 'User status updated!');
       fetchUsers(); // Refresh the list
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to update user status.');
+      toast.error(err.response?.data?.error || 'Failed to update user status.');
+    }
+  };
+
+  // --- NEW FUNCTION: Handle user deletion ---
+  const handleRemoveUser = async (userId) => {
+    // Confirmation dialog to prevent accidental deletion
+    if (window.confirm('Are you sure you want to permanently delete this user? This action cannot be undone.')) {
+      const toastId = toast.loading('Deleting user...');
+      try {
+        const response = await apiClient.delete(`/api/admin/users/${userId}`);
+        toast.success(response.data.message, { id: toastId });
+        fetchUsers(); // Refresh the user list
+      } catch (err) {
+        toast.error(err.response?.data?.error || 'Failed to delete user.', { id: toastId });
+      }
     }
   };
 
   const handleUserCreationSuccess = () => {
-    fetchUsers(); // Refresh the user list after successful creation
+    fetchUsers();
   };
 
   const renderContent = () => {
-    if (isLoading) {
-      return <p className="text-white/70 text-center p-8">Loading users...</p>;
-    }
-    
-    if (error) {
-      return <p className="text-red-300 text-center p-8">{error}</p>;
-    }
+    if (isLoading) return <p className="text-white/70 text-center p-8">Loading users...</p>;
+    if (error) return <p className="text-red-300 text-center p-8">{error}</p>;
+    if (users.length === 0) return <p className="text-white/70 text-center p-8">No users found.</p>;
 
-    if (users.length === 0) {
-      return <p className="text-white/70 text-center p-8">No users found.</p>;
-    }
-
-    // If we passed all checks, render the tables/cards
     return (
       <>
         {/* --- Desktop Table View --- */}
@@ -75,7 +79,7 @@ function UserManagement() {
                 <th className="p-4">Email</th>
                 <th className="p-4">Role</th>
                 <th className="p-4">Status</th>
-                <th className="p-4 text-center">Action</th>
+                <th className="p-4 text-center">Actions</th> {/* Renamed from Action */}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -85,16 +89,23 @@ function UserManagement() {
                   <td className="p-4 text-sm">{user.email}</td>
                   <td className="p-4 text-xs font-mono">{user.role}</td>
                   <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.isActive ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.isActive ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
                       {user.isActive ? 'Active' : 'Deactivated'}
                     </span>
                   </td>
-                  <td className="p-4 text-center">
+                  {/* --- UPDATED: Added Remove button --- */}
+                  <td className="p-4 text-center space-x-2">
                     <button 
                       onClick={() => handleToggleActivation(user.id)}
-                      className={`whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md ${user.isActive ? 'bg-red-500/30 hover:bg-red-500/50' : 'bg-green-500/30 hover:bg-green-500/50'}`}
+                      className={`whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md ${user.isActive ? 'bg-yellow-500/30 hover:bg-yellow-500/50' : 'bg-green-500/30 hover:bg-green-500/50'}`}
                     >
                       {user.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button 
+                      onClick={() => handleRemoveUser(user.id)}
+                      className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-red-500/30 hover:bg-red-500/50"
+                    >
+                      Remove
                     </button>
                   </td>
                 </tr>
@@ -109,7 +120,7 @@ function UserManagement() {
             <div key={user.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
               <div className="flex justify-between items-start mb-3">
                 <h3 className="font-semibold text-white pr-2">{user.companyName}</h3>
-                <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold ${user.isActive ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold ${user.isActive ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
                   {user.isActive ? 'Active' : 'Deactivated'}
                 </span>
               </div>
@@ -117,12 +128,21 @@ function UserManagement() {
                 <div><span className="font-semibold text-white/60">Email: </span><span>{user.email}</span></div>
                 <div><span className="font-semibold text-white/60">Role: </span><span className="font-mono text-xs">{user.role}</span></div>
               </div>
-              <button 
-                onClick={() => handleToggleActivation(user.id)}
-                className={`w-full glass-button-sm text-sm font-bold py-2 px-3 rounded-md ${user.isActive ? 'bg-red-500/30 hover:bg-red-500/50' : 'bg-green-500/30 hover:bg-green-500/50'}`}
-              >
-                {user.isActive ? 'Deactivate' : 'Activate'}
-              </button>
+              {/* --- UPDATED: Added Remove button --- */}
+              <div className="grid grid-cols-2 gap-2">
+                <button 
+                  onClick={() => handleToggleActivation(user.id)}
+                  className={`w-full glass-button-sm text-sm font-bold py-2 px-3 rounded-md ${user.isActive ? 'bg-yellow-500/30 hover:bg-yellow-500/50' : 'bg-green-500/30 hover:bg-green-500/50'}`}
+                >
+                  {user.isActive ? 'Deactivate' : 'Activate'}
+                </button>
+                 <button 
+                  onClick={() => handleRemoveUser(user.id)}
+                  className="w-full glass-button-sm text-sm font-bold py-2 px-3 rounded-md bg-red-500/30 hover:bg-red-500/50"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           ))}
         </div>

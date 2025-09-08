@@ -318,10 +318,14 @@ model SkincareProduct {
 
 model HealthVideo {
   id                  Int      @id @default(autoincrement())
-  nafdacNumber        String   @unique // The drug identifier
+  nafdacNumber        String   @unique
   drugName            String
-  genuineVideoUrl     String   // URL for the "how to use" video
-  counterfeitVideoUrl String   // URL for the "what to do" safety video
+  genuineVideoUrl     String
+  counterfeitVideoUrl String
+  // --- ADD THESE TWO LINES ---
+  genuineText         String   @default("")
+  counterfeitText     String   @default("")
+  // --- END OF ADDITIONS ---
   
   uploaderId          Int
   uploader            User     @relation(fields: [uploaderId], references: [id])

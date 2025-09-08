@@ -1,4 +1,4 @@
-// frontend/src/App.jsx (CORRECTED FILE PATH)
+// frontend/src/App.jsx
 
 import { useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -25,6 +25,9 @@ import PrintingDashboard from './pages/PrintingDashboard.jsx';
 import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
 import PharmacyDashboardPage from './pages/PharmacyDashboardPage.jsx';
+// --- ADD HEALTH ADVISOR DASHBOARD ---
+import HealthAdvisorDashboardPage from './pages/HealthAdvisorDashboardPage.jsx';
+
 
 // Admin Pages
 import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
@@ -43,17 +46,19 @@ import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
 import SkincareAddProductPage from './pages/SkincareAddProductPage.jsx';
 import SkincareHistoryPage from './pages/SkincareHistoryPage.jsx';
 import PrintingQueuePage from './pages/PrintingQueuePage.jsx';
-// --- THIS IS THE CORRECTED LINE ---
 import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
 import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
 import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
 import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
+import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
 
 // Pharmacy Pages
 import PharmacyStockPage from './pages/PharmacyStockPage.jsx';
 import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
 
-import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
+// --- ADD HEALTH ADVISOR CREATE PAGE ---
+import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
+
 
 // --- ROUTING LOGIC ---
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
@@ -80,6 +85,7 @@ function App() {
       LOGISTICS: '/logistics/dashboard',
       SKINCARE_BRAND: '/skincare/dashboard',
       PHARMACY: '/pharmacy/dashboard',
+      HEALTH_ADVISOR: '/health-advisor/dashboard', // <-- Add path for new role
     };
     return paths[role] || '/login';
   };
@@ -107,6 +113,7 @@ function App() {
       <Routes>
         {isAuthenticated ? (
           <Route path="/" element={<AppLayout />}>
+            {/* Role Dashboards */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
             <Route path="/dva/dashboard" element={<DvaDashboard />} />
@@ -114,6 +121,9 @@ function App() {
             <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
             <Route path="/skincare/dashboard" element={<SkincareDashboard />} />
             <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
+            <Route path="/health-advisor/dashboard" element={<HealthAdvisorDashboardPage />} /> {/* <-- ADDED */}
+
+            {/* Admin Pages */}
             <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
             <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
             <Route path="/admin/users" element={<AdminUserManagementPage />} />
@@ -121,20 +131,37 @@ function App() {
             <Route path="/admin/settings" element={<SystemSettingsPage />} />
             <Route path="/admin/map" element={<AdminMapPage />} />
             <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
+
+            {/* Manufacturer Pages */}
             <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
             <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
             <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
+
+            {/* DVA Pages */}
             <Route path="/dva/approval-queue" element={<DvaApprovalQueuePage />} />
             <Route path="/dva/history" element={<DvaHistoryPage />} />
+
+            {/* Skincare Pages */}
             <Route path="/skincare/add-product" element={<SkincareAddProductPage />} />
             <Route path="/skincare/history" element={<SkincareHistoryPage />} />
+
+            {/* Printing Pages */}
             <Route path="/printing/queue" element={<PrintingQueuePage />} />
             <Route path="/printing/history" element={<PrintingHistoryPage />} />
             <Route path="/printing/batch/:id" element={<PrintingBatchPage />} />
+            
+            {/* Logistics Pages */}
             <Route path="/logistics/active" element={<LogisticsActiveShipmentsPage />} />
             <Route path="/logistics/history" element={<LogisticsHistoryPage />} />
+            
+            {/* Pharmacy Pages */}
             <Route path="/pharmacy/stock" element={<PharmacyStockPage />} />
             <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
+            
+            {/* Health Advisor Pages */}
+            <Route path="/health-advisor/create" element={<CreateHealthVideoPage />} /> {/* <-- ADDED */}
+            
+            {/* Fallback Route */}
             <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
           </Route>
         ) : (

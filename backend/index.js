@@ -65,12 +65,11 @@ const generateEightDigitCode = () => {
 // --- ROUTES ---
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
-// --- PUBLIC VERIFICATION ROUTE (REBUILT & FIXED) ---
+// --- PUBLIC VERIFICATION ROUTE (FINAL VERSION WITH TEXT AND VIDEO) ---
 app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     const { code } = req.params;
     const ip = req.ip;
     const useLocation = req.headers['x-use-location'] === 'true';
-
     let locationData = { ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null };
 
     if (useLocation && process.env.IPINFO_API_KEY) {
@@ -82,97 +81,68 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
                 locationData.latitude = parseFloat(lat);
                 locationData.longitude = parseFloat(lon);
             }
-        } catch (geoError) {
-            console.error('IPinfo lookup failed:', geoError.message);
-        }
+        } catch (geoError) { console.error('IPinfo lookup failed:', geoError.message); }
     }
 
     const qrCodeRecord = await prisma.qRCode.findUnique({
         where: { code: code },
         include: {
-            batch: { select: { drugName: true, manufacturer: { select: { companyName: true } }, seal_background_url: true } },
+            batch: { select: { drugName: true, nafdacNumber: true, manufacturer: { select: { companyName: true } }, seal_background_url: true } },
             scanRecords: { where: { scannedByRole: Role.CUSTOMER }, orderBy: { scannedAt: 'asc' } },
         },
     });
 
-    // --- Handle Case: QR Code Not Found ---
-    if (!qrCodeRecord) {
-        await prisma.scanRecord.create({
-            data: {
-                qrCodeId: null,
-                scannedCode: code,
-                scanOutcome: 'NOT_FOUND',
-                scannedByRole: Role.CUSTOMER,
-                ...locationData,
-            },
+    // --- FINAL HEALTH CONTENT LOGIC ---
+    let healthContent = null; 
+
+    if (qrCodeRecord && qrCodeRecord.batch.nafdacNumber) {
+        const healthVideo = await prisma.healthVideo.findUnique({
+            where: { nafdacNumber: qrCodeRecord.batch.nafdacNumber }
         });
-        return res.status(404).json({ status: 'error', message: 'This code is invalid. The product is likely counterfeit.' });
+
+        if (healthVideo) {
+            if (qrCodeRecord.status === 'UNUSED') {
+                healthContent = {
+                    text: healthVideo.genuineText,
+                    videoUrl: healthVideo.genuineVideoUrl
+                };
+            } else {
+                healthContent = {
+                    text: healthVideo.counterfeitText,
+                    videoUrl: healthVideo.counterfeitVideoUrl
+                };
+            }
+        }
+    }
+    // --- END OF LOGIC ---
+
+    if (!qrCodeRecord) {
+        await prisma.scanRecord.create({ data: { qrCodeId: null, scannedCode: code, scanOutcome: 'NOT_FOUND', scannedByRole: Role.CUSTOMER, ...locationData } });
+        const responsePayload = { status: 'error', message: 'This code is invalid. The product is likely counterfeit.' };
+        if (healthContent) responsePayload.healthContent = healthContent;
+        return res.status(404).json(responsePayload);
     }
 
-    // --- Handle QR Code Found ---
-    let scanOutcome = 'FAILURE';
-    let message = 'This code is invalid or in a non-verifiable state.';
-    let httpStatus = 400;
-    
-    // --- CORE LOGIC REVISED (NO VALIDATOR) ---
-    // SUCCESS is now when status is UNUSED.
-    // USED is a DUPLICATE error.
-    if (qrCodeRecord.status === 'UNUSED') {
-        scanOutcome = 'SUCCESS';
-        message = 'Product Verified Successfully! This is the first verification.';
-        httpStatus = 200;
-    } else if (qrCodeRecord.status === 'USED') {
-        scanOutcome = 'DUPLICATE';
-        message = 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.';
-        httpStatus = 409;
-    } else {
-        scanOutcome = 'INVALID_STATE';
-        message = `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified.`;
-        httpStatus = 400;
-    }
-
-    // --- PRISMA ERROR FIX ---
-    // Prepare the data for database insertion separately.
-    // The 'firstScanDetails' object is for the API response only, not the database.
-    const scanRecordData = {
-        qrCodeId: qrCodeRecord.id,
-        scannedCode: code,
-        scanOutcome: scanOutcome,
-        scannedByRole: Role.CUSTOMER,
-        ...locationData,
-    };
-    
-    // Prepare first scan details for the API response if it's a duplicate scan
-    const firstCustomerScan = qrCodeRecord.scanRecords[0];
-    let firstScanDetailsForResponse = null;
-    if (firstCustomerScan) {
-        firstScanDetailsForResponse = {
-            scannedAt: firstCustomerScan.scannedAt,
-            location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location',
-        };
-    }
+    let scanOutcome = qrCodeRecord.status === 'UNUSED' ? 'SUCCESS' : (qrCodeRecord.status === 'USED' ? 'DUPLICATE' : 'INVALID_STATE');
+    let message = scanOutcome === 'SUCCESS' ? 'Product Verified Successfully! This is the first verification.' : (scanOutcome === 'DUPLICATE' ? 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.' : `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified.`);
+    let httpStatus = scanOutcome === 'SUCCESS' ? 200 : (scanOutcome === 'DUPLICATE' ? 409 : 400);
 
     await prisma.$transaction(async (tx) => {
-        // Create the scan record without the problematic 'firstScanDetails' field.
-        await tx.scanRecord.create({ data: scanRecordData });
-
+        await tx.scanRecord.create({ data: { qrCodeId: qrCodeRecord.id, scannedCode: code, scanOutcome, scannedByRole: Role.CUSTOMER, ...locationData } });
         if (scanOutcome === 'SUCCESS') {
-            await tx.qRCode.update({
-                where: { id: qrCodeRecord.id },
-                data: {
-                    status: 'USED',
-                    firstVerificationTimestamp: new Date(),
-                    firstVerificationIp: locationData.ipAddress,
-                    firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null,
-                },
-            });
+            await tx.qRCode.update({ where: { id: qrCodeRecord.id }, data: { status: 'USED', firstVerificationTimestamp: new Date(), firstVerificationIp: locationData.ipAddress, firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null } });
         }
     });
 
-    // --- Send Response ---
     const responsePayload = { status: httpStatus === 200 ? 'success' : 'error', message, data: qrCodeRecord };
-    if (scanOutcome === 'DUPLICATE' && firstScanDetailsForResponse) {
-        responsePayload.firstScanDetails = firstScanDetailsForResponse;
+    if (healthContent) responsePayload.healthContent = healthContent;
+    
+    const firstCustomerScan = qrCodeRecord.scanRecords[0];
+    if (firstCustomerScan) {
+        responsePayload.firstScanDetails = {
+            scannedAt: firstCustomerScan.scannedAt,
+            location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location',
+        };
     }
 
     return res.status(httpStatus).json(responsePayload);
@@ -631,6 +601,53 @@ app.get('/api/admin/pending-batches', authenticateToken, authorizeRole([Role.ADM
     });
     res.status(200).json(pendingBatches);
 }));
+// --- NEW ROUTE: Permanently delete a user ---
+app.delete('/api/admin/users/:id', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const userIdToDelete = parseInt(req.params.id, 10);
+    const adminUserId = req.user.userId;
+
+    // Safety Check 1: Admin cannot delete themselves
+    if (userIdToDelete === adminUserId) {
+        return res.status(400).json({ error: 'You cannot delete your own account.' });
+    }
+
+    // Safety Check 2: Check for associated data that would break if the user is deleted
+    const userWithRelations = await prisma.user.findUnique({
+        where: { id: userIdToDelete },
+        include: {
+            adminApprovedBatches: true,
+            dvaApprovedBatches: true,
+            rejectedBatches: true,
+            uploadedHealthVideos: true,
+            batches: true, // Batches they created as a manufacturer
+        }
+    });
+
+    if (!userWithRelations) {
+        return res.status(404).json({ error: 'User not found.' });
+    }
+
+    // Check if any of the relation arrays are not empty
+    const hasDependencies = 
+        userWithRelations.adminApprovedBatches.length > 0 ||
+        userWithRelations.dvaApprovedBatches.length > 0 ||
+        userWithRelations.rejectedBatches.length > 0 ||
+        userWithRelations.uploadedHealthVideos.length > 0 ||
+        userWithRelations.batches.length > 0;
+    
+    if (hasDependencies) {
+        return res.status(409).json({ 
+            error: 'This user cannot be deleted because they have associated action history (e.g., approved batches, created content). Please deactivate the account instead to preserve data integrity.' 
+        });
+    }
+
+    // If all checks pass, proceed with deletion
+    await prisma.user.delete({
+        where: { id: userIdToDelete }
+    });
+
+    res.status(200).json({ message: `User ${userWithRelations.email} has been permanently deleted.` });
+}));
 
 app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -654,7 +671,7 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role
             data: {
                 status: BatchStatus.PENDING_PRINTING,
                 admin_approved_at: new Date(),
-                rejection_reason: null, rejectedById: null,
+                rejection_reason: null, rejectedById: null,ø
                 adminApproverId: adminApproverId,
             },
         });
@@ -1256,6 +1273,109 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole([Role.SKINCA
     });
     res.status(201).json(newProduct);
 }));
+
+// --- START: HEALTH ADVISOR PORTAL ROUTES ---
+
+// Endpoint for a Health Advisor to create a new video entry
+app.post('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HEALTH_ADVISOR, Role.ADMIN]), asyncHandler(async (req, res) => {
+    try {
+        // --- UPDATED: Now includes text fields ---
+        const { nafdacNumber, drugName, genuineVideoUrl, counterfeitVideoUrl, genuineText, counterfeitText } = req.body;
+        const uploaderId = req.user.userId;
+
+        if (!nafdacNumber || !drugName || !genuineVideoUrl || !counterfeitVideoUrl || !genuineText || !counterfeitText) {
+            return res.status(400).json({ error: 'All fields are required.' });
+        }
+        
+        const existingVideo = await prisma.healthVideo.findUnique({
+            where: { nafdacNumber: nafdacNumber.trim() }
+        });
+
+        if (existingVideo) {
+            return res.status(409).json({ error: 'A video entry for this NAFDAC number already exists. Please update the existing one instead.' });
+        }
+
+        const newVideo = await prisma.healthVideo.create({
+            data: {
+                nafdacNumber: nafdacNumber.trim(),
+                drugName,
+                genuineVideoUrl,
+                counterfeitVideoUrl,
+                genuineText,        // <-- Added
+                counterfeitText,    // <-- Added
+                uploaderId,
+            }
+        });
+
+        res.status(201).json({ message: 'Health content entry created successfully.', video: newVideo });
+
+    } catch (error) {
+        console.error('Error creating health video:', error);
+        res.status(500).json({ error: 'An internal server error occurred.' });
+    }
+}));
+
+// --- NEW ENDPOINT: Get a list of delivered drugs that NEED content ---
+app.get('/api/health-advisor/pending-content', authenticateToken, authorizeRole([Role.HEALTH_ADVISOR, Role.ADMIN]), asyncHandler(async (req, res) => {
+    try {
+        // Step 1: Find all NAFDAC numbers for which content has already been created.
+        const existingContentNafdacNumbers = await prisma.healthVideo.findMany({
+            select: { nafdacNumber: true }
+        });
+        const existingNafdacSet = new Set(existingContentNafdacNumbers.map(v => v.nafdacNumber));
+
+        // Step 2: Find all batches that have been delivered to the manufacturer.
+        const deliveredBatches = await prisma.batch.findMany({
+            where: {
+                status: 'DELIVERED_TO_MANUFACTURER'
+            },
+            select: {
+                drugName: true,
+                nafdacNumber: true
+            },
+            orderBy: {
+                delivered_at: 'desc'
+            }
+        });
+
+        // Step 3: Filter this list to find which ones are "pending" (i.e., don't have content yet)
+        const pendingContentMap = new Map();
+        for (const batch of deliveredBatches) {
+            if (!existingNafdacSet.has(batch.nafdacNumber) && !pendingContentMap.has(batch.nafdacNumber)) {
+                pendingContentMap.set(batch.nafdacNumber, {
+                    nafdacNumber: batch.nafdacNumber,
+                    drugName: batch.drugName
+                });
+            }
+        }
+        
+        res.status(200).json(Array.from(pendingContentMap.values()));
+
+    } catch (error) {
+        console.error('Error fetching pending content list:', error);
+        res.status(500).json({ error: 'An internal server error occurred.' });
+    }
+}));
+
+// Endpoint to get all videos uploaded by the logged-in Health Advisor
+app.get('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HEALTH_ADVISOR, Role.ADMIN]), asyncHandler(async (req, res) => {
+    try {
+        const uploaderId = req.user.userId;
+
+        const videos = await prisma.healthVideo.findMany({
+            where: { uploaderId: uploaderId },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.status(200).json(videos);
+
+    } catch (error) {
+        console.error('Error fetching health videos:', error);
+        res.status(500).json({ error: 'An internal server error occurred.' });
+    }
+}));
+
+// --- END: HEALTH ADVISOR PORTAL ROUTES ---
 
 // --- START: NEW ROUTE TO GET PRODUCT DETAILS BY QR CODE ---
 app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN]), asyncHandler(async (req, res) => {
