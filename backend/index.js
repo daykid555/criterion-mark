@@ -1458,24 +1458,6 @@ const errorHandler = (err, req, res, next) => {
 };
 app.use(errorHandler);
 
-// --- SERVE FRONTEND IN PRODUCTION ---
-// This code MUST be placed after all your API routes but before app.listen()
-
-// ES Module-safe way to get __dirname
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Serve the static files from the React app
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
-
-// Handles any requests that don't match the API routes
-// by sending back the main index.html file.
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
-});
-
-
 // --- START THE SERVER ---
 const port = process.env.PORT || 5001;
 app.listen(port, () => {
