@@ -66,7 +66,7 @@ const generateEightDigitCode = () => {
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
 // --- PUBLIC VERIFICATION ROUTE (FINAL VERSION WITH TEXT AND VIDEO) ---
-app.get('/api/verify/:code', asyncHandler(async (req, res) => {
+app.get('/api/verify/:code', authenticateTokenOptional, asyncHandler(async (req, res) => {
     const { code } = req.params;
     const ip = req.ip;
     const useLocation = req.headers['x-use-location'] === 'true';
@@ -76,11 +76,7 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         try {
             const { data } = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
             locationData = { ...locationData, city: data.city, region: data.region, country: data.country };
-            if (data.loc) {
-                const [lat, lon] = data.loc.split(',');
-                locationData.latitude = parseFloat(lat);
-                locationData.longitude = parseFloat(lon);
-            }
+            if (data.loc) { const [lat, lon] = data.loc.split(','); locationData.latitude = parseFloat(lat); locationData.longitude = parseFloat(lon); }
         } catch (geoError) { console.error('IPinfo lookup failed:', geoError.message); }
     }
 
@@ -91,44 +87,37 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
             scanRecords: { where: { scannedByRole: Role.CUSTOMER }, orderBy: { scannedAt: 'asc' } },
         },
     });
+    
+    const scanDataDefaults = {
+        scannedCode: code,
+        scannedByRole: Role.CUSTOMER,
+        ...locationData,
+        ...(req.user && { scannerId: req.user.userId })
+    };
 
-    // --- FINAL HEALTH CONTENT LOGIC ---
-    let healthContent = null; 
-
+    let healthContent = null;
     if (qrCodeRecord && qrCodeRecord.batch.nafdacNumber) {
-        const healthVideo = await prisma.healthVideo.findUnique({
-            where: { nafdacNumber: qrCodeRecord.batch.nafdacNumber }
-        });
-
+        const healthVideo = await prisma.healthVideo.findUnique({ where: { nafdacNumber: qrCodeRecord.batch.nafdacNumber } });
         if (healthVideo) {
-            if (qrCodeRecord.status === 'UNUSED') {
-                healthContent = {
-                    text: healthVideo.genuineText,
-                    videoUrl: healthVideo.genuineVideoUrl
-                };
-            } else {
-                healthContent = {
-                    text: healthVideo.counterfeitText,
-                    videoUrl: healthVideo.counterfeitVideoUrl
-                };
-            }
+            healthContent = qrCodeRecord.status === 'UNUSED' 
+                ? { text: healthVideo.genuineText, videoUrl: healthVideo.genuineVideoUrl }
+                : { text: healthVideo.counterfeitText, videoUrl: healthVideo.counterfeitVideoUrl };
         }
     }
-    // --- END OF LOGIC ---
 
     if (!qrCodeRecord) {
-        await prisma.scanRecord.create({ data: { qrCodeId: null, scannedCode: code, scanOutcome: 'NOT_FOUND', scannedByRole: Role.CUSTOMER, ...locationData } });
+        await prisma.scanRecord.create({ data: { ...scanDataDefaults, scanOutcome: 'NOT_FOUND' } });
         const responsePayload = { status: 'error', message: 'This code is invalid. The product is likely counterfeit.' };
         if (healthContent) responsePayload.healthContent = healthContent;
         return res.status(404).json(responsePayload);
     }
 
-    let scanOutcome = qrCodeRecord.status === 'UNUSED' ? 'SUCCESS' : (qrCodeRecord.status === 'USED' ? 'DUPLICATE' : 'INVALID_STATE');
-    let message = scanOutcome === 'SUCCESS' ? 'Product Verified Successfully! This is the first verification.' : (scanOutcome === 'DUPLICATE' ? 'WARNING: This code is for a genuine product but has ALREADY BEEN VERIFIED.' : `This code is in an invalid state (${qrCodeRecord.status}) and cannot be verified.`);
-    let httpStatus = scanOutcome === 'SUCCESS' ? 200 : (scanOutcome === 'DUPLICATE' ? 409 : 400);
+    const scanOutcome = qrCodeRecord.status === 'UNUSED' ? 'SUCCESS' : (qrCodeRecord.status === 'USED' ? 'DUPLICATE' : 'INVALID_STATE');
+    const message = scanOutcome === 'SUCCESS' ? 'Product Verified Successfully!' : (scanOutcome === 'DUPLICATE' ? 'WARNING: This code has ALREADY BEEN VERIFIED.' : `This code is in an invalid state (${qrCodeRecord.status}).`);
+    const httpStatus = scanOutcome === 'SUCCESS' ? 200 : (scanOutcome === 'DUPLICATE' ? 409 : 400);
 
     await prisma.$transaction(async (tx) => {
-        await tx.scanRecord.create({ data: { qrCodeId: qrCodeRecord.id, scannedCode: code, scanOutcome, scannedByRole: Role.CUSTOMER, ...locationData } });
+        await tx.scanRecord.create({ data: { ...scanDataDefaults, qrCodeId: qrCodeRecord.id, scanOutcome } });
         if (scanOutcome === 'SUCCESS') {
             await tx.qRCode.update({ where: { id: qrCodeRecord.id }, data: { status: 'USED', firstVerificationTimestamp: new Date(), firstVerificationIp: locationData.ipAddress, firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null } });
         }
@@ -138,12 +127,7 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     if (healthContent) responsePayload.healthContent = healthContent;
     
     const firstCustomerScan = qrCodeRecord.scanRecords[0];
-    if (firstCustomerScan) {
-        responsePayload.firstScanDetails = {
-            scannedAt: firstCustomerScan.scannedAt,
-            location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location',
-        };
-    }
+    if (firstCustomerScan) { responsePayload.firstScanDetails = { scannedAt: firstCustomerScan.scannedAt, location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location' }; }
 
     return res.status(httpStatus).json(responsePayload);
 }));
@@ -828,12 +812,39 @@ app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole(
 }));
 
 app.get('/api/admin/history', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
-    const processedBatches = await prisma.batch.findMany({
-        where: { NOT: { status: { in: [BatchStatus.PENDING_DVA_APPROVAL, BatchStatus.PENDING_ADMIN_APPROVAL] } } },
-        include: { manufacturer: { select: { companyName: true } } },
-        orderBy: { admin_approved_at: 'desc' },
+    const page = parseInt(req.query.page) || 1;
+    const search = req.query.search || '';
+    const take = 20;
+    const skip = (page - 1) * take;
+
+    const whereClause = {
+        NOT: { status: { in: [BatchStatus.PENDING_DVA_APPROVAL, BatchStatus.PENDING_ADMIN_APPROVAL] } },
+        OR: search ? [
+            { drugName: { contains: search, mode: 'insensitive' } },
+            { manufacturer: { companyName: { contains: search, mode: 'insensitive' } } }
+        ] : undefined,
+    };
+
+    const [batches, totalCount] = await prisma.$transaction([
+        prisma.batch.findMany({
+            where: whereClause,
+            include: { manufacturer: { select: { companyName: true } } },
+            orderBy: { admin_approved_at: 'desc' },
+            take,
+            skip,
+        }),
+        prisma.batch.count({ where: whereClause })
+    ]);
+
+    res.status(200).json({
+        data: batches,
+        pagination: {
+            currentPage: page,
+            totalCount,
+            totalPages: Math.ceil(totalCount / take),
+            hasNextPage: skip + take < totalCount,
+        }
     });
-    res.status(200).json(processedBatches);
 }));
 
 app.get('/api/admin/scans', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {

@@ -3,16 +3,34 @@ import jwt from 'jsonwebtoken';
 
 export const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
 
-  if (token == null) return res.sendStatus(401); // if there isn't any token
+  if (token == null) return res.sendStatus(401);
 
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403); // if the token is invalid
-    req.user = user; // Attach user payload (e.g., { userId: 1, role: 'ADMIN' })
+    if (err) return res.sendStatus(403);
+    req.user = user;
     next();
   });
 };
+
+// --- NEW MIDDLEWARE: Tries to authenticate but doesn't fail if no token ---
+export const authenticateTokenOptional = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (token == null) {
+    return next(); // No token, continue without a user
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (!err) {
+      req.user = user; // Token is valid, attach user
+    }
+    next(); // Token is invalid, continue without a user
+  });
+};
+
 
 export const authorizeRole = (roles) => {
   return (req, res, next) => {
