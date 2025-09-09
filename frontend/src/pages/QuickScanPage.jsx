@@ -1,206 +1,203 @@
 // frontend/src/pages/QuickScanPage.jsx
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
-import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { FiZap, FiCheckCircle, FiXCircle, FiPlayCircle, FiFileText } from 'react-icons/fi';
+import { motion, AnimatePresence } from 'framer-motion';
+import { FiCamera, FiX, FiCheckCircle, FiXCircle, FiPlayCircle, FiFileText, FiAlertTriangle, FiRepeat, FiClock } from 'react-icons/fi';
 
-// Logo for the page title
-const MyLogo = () => (
-    <h1 className="text-2xl font-bold text-white tracking-widest text-center">
-      criterion-mark
-    </h1>
-);
+// --- STYLES ---
+const fullScreenCameraStyle = `
+  #pwa-scanner-view {
+    position: absolute;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+  }
+  #pwa-scanner-view video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  #pwa-scanner-view > div {
+    display: none !important; /* Hide the library's default UI */
+  }
+`;
 
-// Animated SVG for the tapping finger
-const TappingFingerSVG = () => (
-    <svg 
-        xmlns="http://www.w3.org/2000/svg" 
-        viewBox="0 0 100 100" 
-        width="80" 
-        height="80"
-        className="animate-[tap_1.5s_infinite_ease-in-out]"
-    >
-        <style>
-            {`
-            @keyframes tap {
-                0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
-                50% { transform: translateY(-10px) scale(0.9); opacity: 0.5; }
-            }
-            `}
-        </style>
-        <path 
-            fill="#E2E8F0" 
-            d="M50 85c-11.05 0-20-8.95-20-20v-2c0-11.05 8.95-20 20-20s20 8.95 20 20v2c0 11.05-8.95 20-20 20zm0-35c-5.52 0-10 4.48-10 10v2c0 5.52 4.48 10 10 10s10-4.48 10-10v-2c0-5.52-4.48-10-10-10z"
-        />
-        <path 
-            fill="#E2E8F0" 
-            d="M50 30c-5.52 0-10 4.48-10 10v2c0 5.52 4.48 10 10 10s10-4.48 10-10v-2c0-5.52-4.48-10-10-10z"
-        />
-    </svg>
-);
+// --- RESULT MODAL COMPONENT (SCREEN 3) ---
+const ResultModal = ({ result, onScanAgain }) => {
+  const navigate = useNavigate();
+  const isSuccess = result.status === 'success';
 
-// Health Content Modal
-const HealthContentModal = ({ content, onClose }) => {
-  if (!content) return null;
+  const playVideo = (e) => {
+    e.stopPropagation(); // Prevent the main background click from firing too
+    if (result.healthContent?.videoUrl) {
+      window.open(result.healthContent.videoUrl, '_blank');
+    }
+  };
+  
+  const handleBackgroundClick = () => {
+    if (result.healthContent?.videoUrl) {
+       window.open(result.healthContent.videoUrl, '_blank');
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-30 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-md text-white shadow-xl">
-        <div className="p-6">
-          <div className="flex items-start gap-4">
-            <FiFileText className="text-3xl text-cyan-400 mt-1 flex-shrink-0" />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="absolute inset-0 z-20 flex flex-col justify-end text-white"
+    >
+      {/* Background Image/Video Tap Area */}
+      <div 
+        className="absolute inset-0 bg-black bg-cover bg-center cursor-pointer"
+        style={{ backgroundImage: `url(${result.data?.batch?.seal_background_url || '/default-bg.jpg'})` }}
+        onClick={handleBackgroundClick}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+      </div>
+      
+      {/* Content */}
+      <div className="relative z-30 p-8 space-y-4">
+        <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-xl font-bold mb-2">Health Information</h2>
-              <p className="text-gray-300 whitespace-pre-wrap">{content.text}</p>
+              <h1 className="text-4xl font-bold">{result.data?.batch?.drugName || 'Verification Result'}</h1>
+              <p className="text-white/80 font-semibold">{result.data?.dispenseRecord?.pharmacy?.companyName || 'Verified'}</p>
             </div>
-          </div>
+             {/* Top right buttons */}
+            <div className="flex items-center gap-3">
+               <button onClick={onScanAgain} className="bg-white/10 p-3 rounded-full hover:bg-white/20 transition-colors"><FiRepeat size={20} /></button>
+               {result.healthContent?.videoUrl && 
+                 <button onClick={playVideo} className="bg-white/10 p-3 rounded-full hover:bg-white/20 transition-colors"><FiPlayCircle size={20} /></button>
+               }
+            </div>
         </div>
-        
-        <div className="bg-gray-900/50 px-6 py-4 flex flex-col sm:flex-row gap-3 rounded-b-2xl">
-          {content.videoUrl && (
-            <a
-              href={content.videoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full text-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
-            >
-              <FiPlayCircle />
-              <span>Watch Video</span>
-            </a>
-          )}
-          <button
-            onClick={onClose}
-            className="w-full text-center bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+
+        {result.healthContent?.text && (
+            <p className="text-white/90 text-lg">{result.healthContent.text}</p>
+        )}
+
+        <div className="pt-4 flex items-center gap-4">
+          <div className={`w-full text-center font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 ${isSuccess ? 'bg-green-500/80' : 'bg-red-500/80'}`}>
+            {isSuccess ? <FiCheckCircle /> : <FiXCircle />}
+            <span>{isSuccess ? 'Genuine Product' : 'Verification Failed'}</span>
+          </div>
+          <button 
+             onClick={() => navigate('/report')} // Placeholder for report page
+             className={`w-full text-center font-bold py-4 px-6 rounded-lg flex items-center justify-center gap-2 transition-colors ${isSuccess ? 'bg-white/20 hover:bg-white/30' : 'bg-red-500/80 hover:bg-red-600'}`}
           >
-            Close
+             {isSuccess ? 'Reserve' : <><FiAlertTriangle/><span>Report</span></>}
           </button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
 
+// --- MAIN SCANNER PAGE (SCREEN 1) ---
 function QuickScanPage() {
   const navigate = useNavigate();
-  const [isFlashOn, setIsFlashOn] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [healthContent, setHealthContent] = useState(null);
+  const [scanResult, setScanResult] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const html5QrCodeRef = useRef(null);
+
+  const onScanSuccess = useCallback(async (decodedText) => {
+    if (isLoading || scanResult) return; // Prevent multiple scans
+
+    setIsLoading(true);
+    if (html5QrCodeRef.current?.isScanning) {
+        html5QrCodeRef.current.pause(true);
+    }
+
+    try {
+      const response = await apiClient.get(`/api/verify/${decodedText}`);
+      setScanResult(response.data);
+    } catch (error) {
+      setScanResult(error.response?.data || { status: 'error', message: 'An unknown error occurred.' });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, scanResult]);
+
+  const handleScanAgain = () => {
+    setScanResult(null);
+    if (html5QrCodeRef.current) {
+        html5QrCodeRef.current.resume();
+    }
+  };
 
   const startScanner = useCallback(() => {
     if (html5QrCodeRef.current?.isScanning) return;
-    const qrCodeInstance = new Html5Qrcode("scanner", { verbose: false });
+    const qrCodeInstance = new Html5Qrcode("pwa-scanner-view", { verbose: false });
     html5QrCodeRef.current = qrCodeInstance;
-    setIsProcessing(false); // Reset to allow scanning
-    qrCodeInstance.start({ facingMode: "environment" }, { fps: 5, qrbox: { width: 250, height: 250 } }, onScanSuccess, () => {})
-    .catch(err => toast.error('Could not start camera. Please grant permission.'));
-  }, []);
+    qrCodeInstance.start({ facingMode: "environment" }, { fps: 10 }, onScanSuccess, () => {})
+      .catch(err => console.error('Camera start failed:', err));
+  }, [onScanSuccess]);
 
-  const onScanSuccess = useCallback((decodedText) => {
-    if (isProcessing) return;
-    setIsProcessing(true);
-    setHealthContent(null);
-
-    // Stop the scanner immediately after a successful scan
-    if (html5QrCodeRef.current?.isScanning) {
-        html5QrCodeRef.current.stop().catch(() => {});
-    }
-    
-    const toastId = toast.loading('Verifying code...');
-
-    apiClient.get(`/api/verify/${decodedText}`)
-      .then(response => {
-        toast.dismiss(toastId);
-        toast.success(
-          <div className='text-center'>
-            <p className='font-bold'>{response.data.message}</p>
-            <p className='text-sm'>{response.data.data.batch.drugName}</p>
-          </div>,
-          { icon: <FiCheckCircle size={24} className="text-green-400" />, duration: 4000 }
-        );
-        if (response.data.healthContent) {
-          setTimeout(() => setHealthContent(response.data.healthContent), 1000);
-        }
-      })
-      .catch(error => {
-        toast.dismiss(toastId);
-        toast.error(
-          <div className='text-center'>
-            <p className='font-bold'>{error.response?.data?.message || 'Verification failed.'}</p>
-          </div>,
-          { icon: <FiXCircle size={24} className="text-red-400" />, duration: 4000 }
-        );
-        if (error.response?.data?.healthContent) {
-            setTimeout(() => setHealthContent(error.response.data.healthContent), 1000);
-        }
-      });
-  }, [isProcessing]);
-  
-  const handleResumeScan = () => {
-    startScanner();
-  };
-  
-  // Auto-start scanner on component mount
   useEffect(() => {
     startScanner();
     return () => {
-      // Cleanup: stop scanner when component unmounts
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(() => {});
       }
     };
   }, [startScanner]);
 
-  const toggleFlash = useCallback(async () => {
-    try {
-        const capabilities = html5QrCodeRef.current.getRunningTrackCapabilities();
-        if (capabilities.torch) {
-            await html5QrCodeRef.current.applyVideoConstraints({ advanced: [{ torch: !isFlashOn }] });
-            setIsFlashOn(!isFlashOn);
-        } else {
-            toast.error("Flashlight not available.");
-        }
-    } catch (err) {
-        toast.error("Could not control flashlight.");
-    }
-  }, [isFlashOn]);
-
-
   return (
     <>
-      {/* The camera will automatically start here */}
-      <div className="w-screen h-screen bg-black relative">
-        {/* Main scanner container and camera view */}
-        <div id="scanner" className="absolute inset-0"></div>
-        
-        {/* Top-right flash button */}
-        <div className="absolute top-0 right-0 z-10 p-6 pointer-events-auto">
-          <button onClick={toggleFlash} className={`p-3 rounded-full transition-colors ${isFlashOn ? 'bg-white text-black' : 'bg-black/40 text-white'}`}><FiZap size={24} /></button>
-        </div>
+      <style>{fullScreenCameraStyle}</style>
+      <div className="w-screen h-screen bg-black relative overflow-hidden">
+        {/* The Camera View */}
+        <div id="pwa-scanner-view" />
 
-        {/* This overlay appears after a scan, allowing for "Tap to Scan" */}
-        {isProcessing && !healthContent && (
-          <div 
-            className="absolute inset-0 z-20 bg-black/70 flex flex-col justify-center items-center text-white cursor-pointer"
-            onClick={handleResumeScan}
-          >
-            <TappingFingerSVG />
-            <p className="text-2xl font-bold mt-4">Tap to Scan Again</p>
-          </div>
-        )}
+        {/* Loading Spinner */}
+        <AnimatePresence>
+          {isLoading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center"
+            >
+              <div className="w-16 h-16 border-4 border-white/50 border-t-white rounded-full animate-spin" />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Header with logo and 'Scan Product' text */}
-        <div className="absolute top-0 left-0 w-full z-10 flex flex-col items-center pt-8 pointer-events-none">
-          <MyLogo />
-          <h1 className="text-white text-4xl mt-4 font-bold">Scan Product</h1>
-        </div>
+        {/* The Result Modal (Screen 3) */}
+        <AnimatePresence>
+            {scanResult && <ResultModal result={scanResult} onScanAgain={handleScanAgain} />}
+        </AnimatePresence>
 
+        {/* Main UI Overlay (Screen 1) */}
+        <AnimatePresence>
+            {!scanResult && !isLoading && (
+                 <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="absolute inset-0 z-20 flex flex-col justify-end text-white bg-gradient-to-t from-black/80 via-black/30 to-transparent"
+                >
+                    <div className="p-8 text-center space-y-4">
+                        <div className="mb-8">
+                            <h1 className="text-4xl font-bold">THE CRITERION MARK</h1>
+                            <p className="text-white/80 font-semibold">Authenticity Guaranteed</p>
+                        </div>
+                        <p className="text-lg">Scan the QR code on your product to instantly verify its authenticity.</p>
+                        <button 
+                            onClick={() => navigate('/history')} // Placeholder for history page
+                            className="w-full bg-white/10 backdrop-blur-md border border-white/20 font-bold py-4 px-6 rounded-lg hover:bg-white/20 transition-colors"
+                        >
+                            View Scan History
+                        </button>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
       </div>
-      
-      <HealthContentModal content={healthContent} onClose={handleResumeScan} />
     </>
   );
 }

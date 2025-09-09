@@ -1464,6 +1464,84 @@ app.get('/api/skincare/verify/:code', asyncHandler(async (req, res) => {
     res.status(200).json({ status: 'success', message: 'Product Verified Successfully!', data: product });
 }));
 
+// --- USER-SPECIFIC ROUTES ---
+app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        const scanRecords = await prisma.scanRecord.findMany({
+            where: {
+                scannerId: userId,
+                scannedByRole: 'CUSTOMER' // Only show scans made as a customer
+            },
+            orderBy: {
+                scannedAt: 'desc'
+            },
+            include: {
+                qrCode: {
+                    include: {
+                        batch: {
+                            select: {
+                                drugName: true,
+                                nafdacNumber: true,
+                                seal_background_url: true
+                            }
+                        },
+                        // Find the pharmacy that dispensed this item
+                        dispenseRecord: {
+                            include: {
+                                pharmacy: {
+                                    select: {
+                                        companyName: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // We need to fetch health content separately since it's linked by NAFDAC number, not directly to the scan
+        const nafdacNumbers = [...new Set(scanRecords.map(r => r.qrCode?.batch.nafdacNumber).filter(Boolean))];
+        
+        const healthVideos = await prisma.healthVideo.findMany({
+            where: {
+                nafdacNumber: { in: nafdacNumbers }
+            }
+        });
+
+        // Create a quick lookup map for health content
+        const healthContentMap = new Map(healthVideos.map(v => [v.nafdacNumber, v]));
+
+        // Combine all the data into a clean response
+        const history = scanRecords.map(record => {
+            const qr = record.qrCode;
+            const batch = qr?.batch;
+            const healthContent = batch ? healthContentMap.get(batch.nafdacNumber) : null;
+
+            return {
+                id: record.id,
+                scannedAt: record.scannedAt,
+                scanOutcome: record.scanOutcome,
+                drugName: batch?.drugName || 'Unknown Product',
+                productImage: batch?.seal_background_url || null,
+                activatingPharmacy: qr?.dispenseRecord?.pharmacy?.companyName || 'N/A',
+                healthContent: healthContent ? {
+                    text: record.scanOutcome === 'SUCCESS' ? healthContent.genuineText : healthContent.counterfeitText,
+                    videoUrl: record.scanOutcome === 'SUCCESS' ? healthContent.genuineVideoUrl : healthContent.counterfeitVideoUrl,
+                } : null
+            };
+        });
+
+        res.status(200).json(history);
+
+    } catch (error) {
+        console.error('Error fetching scan history:', error);
+        res.status(500).json({ error: 'An internal server error occurred while fetching your history.' });
+    }
+}));
+
 // --- AUTHENTICATION ROUTES ---
 app.post('/api/auth/login', asyncHandler(async (req, res) => {
     const { email, password } = req.body;

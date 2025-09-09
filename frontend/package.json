@@ -12,6 +12,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "axios": "^1.10.0",
+    "framer-motion": "^12.23.12",
     "html5-qrcode": "^2.3.8",
     "leaflet": "^1.9.4",
     "qr-code-styling": "^1.9.2",
