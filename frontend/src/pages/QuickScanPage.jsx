@@ -143,7 +143,7 @@ function QuickScanPage() {
         <div id="pwa-scanner-view" />
         <AnimatePresence>
           {showConsentModal && <LocationConsentModal onConfirm={confirmLocation} onCancel={cancelLocation} />}
-        </AnanimatePresence>
+        </AnimatePresence>
         {isLoading && (
             <motion.div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center">
               <div className="w-16 h-16 border-4 border-white/50 border-t-white rounded-full animate-spin" />
