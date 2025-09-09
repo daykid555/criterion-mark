@@ -15,7 +15,7 @@ import sharp from 'sharp';
 import axios from 'axios';
 import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
-import { authenticateToken, authorizeRole } from './middleware.js';
+import { authenticateToken, authenticateTokenOptional, authorizeRole } from './middleware.js';
 import { Parser } from 'json2csv';
 
 dotenv.config();
