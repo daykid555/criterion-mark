@@ -48,7 +48,6 @@ import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
 import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
 
-// --- ROUTING LOGIC ---
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
 
 function App() {
@@ -72,7 +71,7 @@ function App() {
       SKINCARE_BRAND: '/skincare/dashboard',
       PHARMACY: '/pharmacy/dashboard',
       HEALTH_ADVISOR: '/health-advisor/dashboard/pending',
-      CUSTOMER: '/scan', // <-- UPDATED: The default dashboard for customers is now the scanner
+      CUSTOMER: '/scan',
     };
     return paths[role] || '/login';
   };
@@ -87,13 +86,12 @@ function App() {
       <Routes>
         {isAuthenticated ? (
           <Route path="/" element={<AppLayout />}>
-            {/* --- ADDED CUSTOMER DASHBOARD ROUTE --- */}
-            <Route path="/scan" element={<QuickScanPage />} />
-            
+            {/* The AppLayout now intelligently decides how to render the page */}
+            {/* So we only need the routes for the pages that appear in the <Outlet /> */}
+
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/report" element={<ReportPage />} />
 
-            {/* Role Dashboards */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
             <Route path="/dva/dashboard" element={<DvaDashboard />} />
@@ -103,7 +101,6 @@ function App() {
             <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
             <Route path="/health-advisor/dashboard/:tab" element={<HealthAdvisorDashboardPage />} />
 
-            {/* All other portal pages */}
             <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
             <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
             <Route path="/admin/users" element={<AdminUserManagementPage />} />
@@ -127,11 +124,13 @@ function App() {
             <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
             <Route path="/health-advisor/create" element={<CreateHealthVideoPage />} />
             
+            {/* --- The /scan route is now handled by AppLayout, so we add a specific redirect for it --- */}
+            <Route path="/scan" element={null} />
+
             <Route path="*" element={<Navigate to={getDashboardPath(user?.role)} replace />} />
           </Route>
         ) : (
           <>
-            {/* The public PWA scanner remains on the root path */}
             <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<LoginPage />} />

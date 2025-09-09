@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiLoader, FiAlertTriangle, FiPlayCircle, FiFileText, FiMessageSquare, FiArrowLeft, FiCheckCircle, FiXCircle } from 'react-icons/fi';
-
+import { FiLoader, FiAlertTriangle, FiPlayCircle, FiFileText, FiMessageSquare, FiArrowLeft, FiCheckCircle, FiXCircle, FiClock } from 'react-icons/fi';
 // --- Text Content Modal ---
 const TextModal = ({ text, onClose }) => (
   <div 
