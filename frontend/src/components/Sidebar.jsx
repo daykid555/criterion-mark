@@ -6,7 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { 
   FiGrid, FiUsers, FiLogOut, FiMap, FiPrinter, FiTruck,
   FiCheckSquare, FiClock, FiSettings, FiUserPlus, FiPackage, FiFileText, 
-  FiPlusCircle, FiArchive, FiHome, FiAlertTriangle
+  FiPlusCircle, FiArchive, FiHome, FiAlertTriangle, FiCamera // Added FiCamera
 } from 'react-icons/fi';
 
 const Logo = () => (
@@ -19,7 +19,6 @@ const Logo = () => (
 
 const SidebarLink = ({ icon, text, to, action }) => {
   const location = useLocation();
-  // Match the base path for parent routes
   const isActive = location.pathname.startsWith(to);
 
   return (
@@ -27,15 +26,7 @@ const SidebarLink = ({ icon, text, to, action }) => {
       <Link
         to={to}
         onClick={action}
-        className={`
-          flex items-center py-3 px-4 my-1
-          font-medium rounded-md cursor-pointer
-          transition-colors group
-          ${isActive
-            ? 'bg-gradient-to-tr from-white/20 to-white/10 text-white'
-            : 'hover:bg-white/10 text-gray-400'
-          }
-      `}
+        className={`flex items-center py-3 px-4 my-1 font-medium rounded-md cursor-pointer transition-colors group ${isActive ? 'bg-gradient-to-tr from-white/20 to-white/10 text-white' : 'hover:bg-white/10 text-gray-400'}`}
       >
         {icon}
         <span className="w-40 ml-3">{text}</span>
@@ -85,11 +76,16 @@ const navConfig = {
       { icon: <FiPlusCircle size={20} />, text: 'Add New Product', to: '/skincare/add-product' },
       { icon: <FiFileText size={20} />, text: 'Product History', to: '/skincare/history' },
   ],
-  // --- ADDED HEALTH ADVISOR NAVIGATION ---
   HEALTH_ADVISOR: [
     { icon: <FiAlertTriangle size={20} />, text: 'Action Required', to: '/health-advisor/dashboard/pending' },
     { icon: <FiArchive size={20} />, text: 'All Content', to: '/health-advisor/dashboard/all' },
     { icon: <FiPlusCircle size={20} />, text: 'Add New Content', to: '/health-advisor/create' },
+  ],
+  // --- ADDED CUSTOMER NAVIGATION ---
+  CUSTOMER: [
+    { icon: <FiCamera size={20} />, text: 'Scan Product', to: '/scan' },
+    { icon: <FiClock size={20} />, text: 'Scan History', to: '/history' },
+    { icon: <FiAlertTriangle size={20} />, text: 'Report Issue', to: '/report' },
   ],
 };
 
@@ -109,13 +105,11 @@ export default function Sidebar({ closeMobileNav = () => {} }) {
         <div className="flex-shrink-0 mb-4 p-4">
           <Logo />
         </div>
-
         <ul className="flex-1 space-y-2">
           {userNavLinks.map((link) => (
             <SidebarLink key={link.text} {...link} action={closeMobileNav} />
           ))}
         </ul>
-
         <div className="border-t border-white/20 pt-4 mt-4">
           {user && (
             <div className="px-4 mb-4 text-left">

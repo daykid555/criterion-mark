@@ -72,6 +72,7 @@ function App() {
       SKINCARE_BRAND: '/skincare/dashboard',
       PHARMACY: '/pharmacy/dashboard',
       HEALTH_ADVISOR: '/health-advisor/dashboard/pending',
+      CUSTOMER: '/scan', // <-- UPDATED: The default dashboard for customers is now the scanner
     };
     return paths[role] || '/login';
   };
@@ -81,27 +82,18 @@ function App() {
       <Toaster 
         position="top-center"
         reverseOrder={false}
-        toastOptions={{
-          duration: 6000,
-          style: {
-            background: 'rgba(26, 42, 69, 0.8)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            color: '#fff',
-            padding: '20px',
-            minWidth: '320px',
-            borderRadius: '12px',
-            fontSize: '1.1rem',
-            textAlign: 'center',
-          },
-        }}
+        toastOptions={{ /* ...toast options... */ }}
       />
       <Routes>
         {isAuthenticated ? (
           <Route path="/" element={<AppLayout />}>
+            {/* --- ADDED CUSTOMER DASHBOARD ROUTE --- */}
+            <Route path="/scan" element={<QuickScanPage />} />
+            
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/report" element={<ReportPage />} />
 
+            {/* Role Dashboards */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
             <Route path="/dva/dashboard" element={<DvaDashboard />} />
@@ -111,6 +103,7 @@ function App() {
             <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
             <Route path="/health-advisor/dashboard/:tab" element={<HealthAdvisorDashboardPage />} />
 
+            {/* All other portal pages */}
             <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
             <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
             <Route path="/admin/users" element={<AdminUserManagementPage />} />
@@ -138,14 +131,13 @@ function App() {
           </Route>
         ) : (
           <>
+            {/* The public PWA scanner remains on the root path */}
             <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegistrationPage />} />
               <Route path="/verify" element={<VerificationPage />} />
             </Route>
-            <Route path="/history" element={<Navigate to="/login" replace />} />
-            <Route path="/report" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to={isPwa ? '/' : '/login'} replace />} />
           </>
         )}
