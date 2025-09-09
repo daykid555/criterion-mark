@@ -10,14 +10,11 @@ import AppLayout from './components/AppLayout.jsx';
 import Navbar from './components/Navbar.jsx';
 
 // --- PAGE IMPORTS ---
-// Public Pages
 import HomePage from './pages/HomePage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
 import QuickScanPage from './pages/QuickScanPage.jsx';
-
-// Role Dashboards
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import ManufacturerDashboard from './pages/ManufacturerDashboard.jsx';
 import DvaDashboard from './pages/DvaDashboard.jsx';
@@ -26,8 +23,6 @@ import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
 import SkincareDashboard from './pages/SkincareDashboard.jsx';
 import PharmacyDashboardPage from './pages/PharmacyDashboardPage.jsx';
 import HealthAdvisorDashboardPage from './pages/HealthAdvisorDashboardPage.jsx';
-
-// Admin Pages
 import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
 import AdminRegistrationQueuePage from './pages/AdminRegistrationQueuePage.jsx';
 import AdminUserManagementPage from './pages/AdminUserManagementPage.jsx';
@@ -35,8 +30,6 @@ import AdminHistoryPage from './pages/AdminHistoryPage.jsx';
 import SystemSettingsPage from './pages/SystemSettingsPage.jsx';
 import AdminMapPage from './pages/AdminMapPage.jsx';
 import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
-
-// Other Portal Pages
 import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
 import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
 import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
@@ -52,11 +45,8 @@ import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
 import PharmacyStockPage from './pages/PharmacyStockPage.jsx';
 import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
 import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
-
-// --- ADD NEW PAGE IMPORTS ---
 import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
-
 
 // --- ROUTING LOGIC ---
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
@@ -107,14 +97,11 @@ function App() {
         }}
       />
       <Routes>
-        {/* --- ADDED ROUTES FOR HISTORY AND REPORT OUTSIDE OF AUTHENTICATED/UNAUTHENTICATED LOGIC --- */}
-        {/* These pages can be accessed in either state, as they are part of the PWA flow */}
-        <Route path="/history" element={<ScanHistoryPage />} />
-        <Route path="/report" element={<ReportPage />} />
-
         {isAuthenticated ? (
           <Route path="/" element={<AppLayout />}>
-            {/* Role Dashboards */}
+            <Route path="/history" element={<ScanHistoryPage />} />
+            <Route path="/report" element={<ReportPage />} />
+
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
             <Route path="/dva/dashboard" element={<DvaDashboard />} />
@@ -124,7 +111,6 @@ function App() {
             <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
             <Route path="/health-advisor/dashboard/:tab" element={<HealthAdvisorDashboardPage />} />
 
-            {/* Admin Pages */}
             <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
             <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
             <Route path="/admin/users" element={<AdminUserManagementPage />} />
@@ -132,8 +118,6 @@ function App() {
             <Route path="/admin/settings" element={<SystemSettingsPage />} />
             <Route path="/admin/map" element={<AdminMapPage />} />
             <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
-
-            {/* Other Portal Pages */}
             <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
             <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
             <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
@@ -150,8 +134,7 @@ function App() {
             <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
             <Route path="/health-advisor/create" element={<CreateHealthVideoPage />} />
             
-            {/* Fallback Route */}
-            <Route path="*" element={<Navigate to={getDashboardPath(user.role)} replace />} />
+            <Route path="*" element={<Navigate to={getDashboardPath(user?.role)} replace />} />
           </Route>
         ) : (
           <>
@@ -161,7 +144,8 @@ function App() {
               <Route path="/register" element={<RegistrationPage />} />
               <Route path="/verify" element={<VerificationPage />} />
             </Route>
-            {/* The "/history" and "/report" routes are already defined above */}
+            <Route path="/history" element={<Navigate to="/login" replace />} />
+            <Route path="/report" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to={isPwa ? '/' : '/login'} replace />} />
           </>
         )}
