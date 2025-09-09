@@ -40,7 +40,6 @@ const ResultModal = ({ result, onScanAgain }) => {
   const navigate = useNavigate();
   const isSuccess = result.status === 'success';
   const isCounterfeit = result.message.toLowerCase().includes('counterfeit');
-
   const playVideo = (e) => { e.stopPropagation(); if (result.healthContent?.videoUrl) window.open(result.healthContent.videoUrl, '_blank'); };
   
   return (
@@ -82,19 +81,17 @@ function QuickScanPage() {
   const html5QrCodeRef = useRef(null);
   const [useLocation, setUseLocation] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
+  // --- BUG FIX: State to control UI visibility ---
+  const [uiVisible, setUiVisible] = useState(true);
 
   const onScanSuccess = useCallback(async (decodedText) => {
     if (isLoading || scanResult) return;
     setIsLoading(true);
+    setUiVisible(false); // Hide main UI when loading
     if (html5QrCodeRef.current?.isScanning) html5QrCodeRef.current.pause(true);
 
     try {
-      const config = { 
-        headers: { 
-          'X-Use-Location': String(useLocation),
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        } 
-      };
+      const config = { headers: { 'X-Use-Location': String(useLocation), ...(token && { 'Authorization': `Bearer ${token}` }) } };
       const response = await apiClient.get(`/api/verify/${decodedText}`, config);
       setScanResult(response.data);
     } catch (error) {
@@ -106,6 +103,7 @@ function QuickScanPage() {
 
   const handleScanAgain = () => {
     setScanResult(null);
+    setUiVisible(true); // --- BUG FIX: Show main UI again ---
     if (html5QrCodeRef.current) html5QrCodeRef.current.resume();
   };
   
@@ -145,7 +143,7 @@ function QuickScanPage() {
         <div id="pwa-scanner-view" />
         <AnimatePresence>
           {showConsentModal && <LocationConsentModal onConfirm={confirmLocation} onCancel={cancelLocation} />}
-        </AnimatePresence>
+        </AnanimatePresence>
         {isLoading && (
             <motion.div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center">
               <div className="w-16 h-16 border-4 border-white/50 border-t-white rounded-full animate-spin" />
@@ -155,7 +153,8 @@ function QuickScanPage() {
             {scanResult && <ResultModal result={scanResult} onScanAgain={handleScanAgain} />}
         </AnimatePresence>
         <AnimatePresence>
-            {!scanResult && !isLoading && (
+            {/* --- BUG FIX: Control visibility with state --- */}
+            {uiVisible && !scanResult && !isLoading && (
                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-20 flex flex-col justify-end text-white bg-gradient-to-t from-black/90 via-black/40 to-transparent">
                     <div className="p-6 text-center space-y-6">
                         <CriterionMarkLogo />
