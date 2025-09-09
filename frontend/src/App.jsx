@@ -15,38 +15,41 @@ import LoginPage from './pages/LoginPage.jsx';
 import RegistrationPage from './pages/RegistrationPage.jsx';
 import VerificationPage from './pages/VerificationPage.jsx';
 import QuickScanPage from './pages/QuickScanPage.jsx';
+// ... other page imports ...
 import AdminDashboard from './pages/AdminDashboard.jsx';
-import ManufacturerDashboard from './pages/ManufacturerDashboard.jsx';
-import DvaDashboard from './pages/DvaDashboard.jsx';
-import PrintingDashboard from './pages/PrintingDashboard.jsx';
-import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
-import SkincareDashboard from './pages/SkincareDashboard.jsx';
-import PharmacyDashboardPage from './pages/PharmacyDashboardPage.jsx';
-import HealthAdvisorDashboardPage from './pages/HealthAdvisorDashboardPage.jsx';
-import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
-import AdminRegistrationQueuePage from './pages/AdminRegistrationQueuePage.jsx';
-import AdminUserManagementPage from './pages/AdminUserManagementPage.jsx';
-import AdminHistoryPage from './pages/AdminHistoryPage.jsx';
-import SystemSettingsPage from './pages/SystemSettingsPage.jsx';
-import AdminMapPage from './pages/AdminMapPage.jsx';
-import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
-import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
-import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
-import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
-import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
-import SkincareAddProductPage from './pages/SkincareAddProductPage.jsx';
-import SkincareHistoryPage from './pages/SkincareHistoryPage.jsx';
-import PrintingQueuePage from './pages/PrintingQueuePage.jsx';
-import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
-import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
-import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
-import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
-import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
-import PharmacyStockPage from './pages/PharmacyStockPage.jsx';
-import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
-import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
-import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
+//...
 import ReportPage from './pages/ReportPage.jsx';
+import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
+import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
+import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
+import PharmacyStockPage from './pages/PharmacyStockPage.jsx';
+import LogisticsHistoryPage from './pages/LogisticsHistoryPage.jsx';
+import LogisticsActiveShipmentsPage from './pages/LogisticsActiveShipmentsPage.jsx';
+import PrintingBatchPage from './pages/PrintingBatchPage.jsx';
+import PrintingHistoryPage from './pages/PrintingHistoryPage.jsx';
+import PrintingQueuePage from './pages/PrintingQueuePage.jsx';
+import SkincareHistoryPage from './pages/SkincareHistoryPage.jsx';
+import SkincareAddProductPage from './pages/SkincareAddProductPage.jsx';
+import DvaHistoryPage from './pages/DvaHistoryPage.jsx';
+import DvaApprovalQueuePage from './pages/DvaApprovalQueuePage.jsx';
+import ManufacturerAssignPage from './pages/ManufacturerAssignPage.jsx';
+import ManufacturerBatchHistoryPage from './pages/ManufacturerBatchHistoryPage.jsx';
+import ManufacturerRequestBatchPage from './pages/ManufacturerRequestBatchPage.jsx';
+import AdminBatchDetailsPage from './pages/AdminBatchDetailsPage.jsx';
+import AdminMapPage from './pages/AdminMapPage.jsx';
+import SystemSettingsPage from './pages/SystemSettingsPage.jsx';
+import AdminHistoryPage from './pages/AdminHistoryPage.jsx';
+import AdminUserManagementPage from './pages/AdminUserManagementPage.jsx';
+import AdminRegistrationQueuePage from './pages/AdminRegistrationQueuePage.jsx';
+import AdminApprovalQueuePage from './pages/AdminApprovalQueuePage.jsx';
+import HealthAdvisorDashboardPage from './pages/HealthAdvisorDashboardPage.jsx';
+import PharmacyDashboardPage from './pages/PharmacyDashboardPage.jsx';
+import SkincareDashboard from './pages/SkincareDashboard.jsx';
+import LogisticsDashboard from './pages/LogisticsDashboard.jsx';
+import PrintingDashboard from './pages/PrintingDashboard.jsx';
+import DvaDashboard from './pages/DvaDashboard.jsx';
+import ManufacturerDashboard from './pages/ManufacturerDashboard.jsx';
+
 
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
 
@@ -85,13 +88,12 @@ function App() {
       />
       <Routes>
         {isAuthenticated ? (
+          // --- BUG FIX: The entire authenticated app now renders through the smart AppLayout ---
           <Route path="/" element={<AppLayout />}>
-            {/* The AppLayout now intelligently decides how to render the page */}
-            {/* So we only need the routes for the pages that appear in the <Outlet /> */}
-
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/report" element={<ReportPage />} />
 
+            {/* All Portal dashboards and pages are children of the layout */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
             <Route path="/dva/dashboard" element={<DvaDashboard />} />
@@ -101,6 +103,7 @@ function App() {
             <Route path="/pharmacy/dashboard" element={<PharmacyDashboardPage />} />
             <Route path="/health-advisor/dashboard/:tab" element={<HealthAdvisorDashboardPage />} />
 
+            {/* Other Portal Pages */}
             <Route path="/admin/approval-queue" element={<AdminApprovalQueuePage />} />
             <Route path="/admin/registrations" element={<AdminRegistrationQueuePage />} />
             <Route path="/admin/users" element={<AdminUserManagementPage />} />
@@ -124,9 +127,8 @@ function App() {
             <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
             <Route path="/health-advisor/create" element={<CreateHealthVideoPage />} />
             
-            {/* --- The /scan route is now handled by AppLayout, so we add a specific redirect for it --- */}
-            <Route path="/scan" element={null} />
-
+            {/* The root now redirects to the correct dashboard */}
+            <Route index element={<Navigate to={getDashboardPath(user?.role)} replace />} />
             <Route path="*" element={<Navigate to={getDashboardPath(user?.role)} replace />} />
           </Route>
         ) : (

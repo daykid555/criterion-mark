@@ -6,16 +6,15 @@ import apiClient from '../api';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
-import { FiCheckCircle, FiXCircle, FiPlayCircle, FiFileText, FiAlertTriangle } from 'react-icons/fi';
+import { FiCheckCircle, FiXCircle, FiPlayCircle, FiFileText, FiAlertTriangle, FiMapPin } from 'react-icons/fi';
 
-// --- STYLES ---
+// ... (Styles and Logo component are unchanged)
 const fullScreenCameraStyle = `
   #pwa-scanner-view { position: absolute; inset: 0; width: 100vw; height: 100vh; z-index: 1; }
   #pwa-scanner-view video { width: 100%; height: 100%; object-fit: cover; }
   #pwa-scanner-view > div { display: none !important; }
 `;
 
-// --- NEW LOGO COMPONENT ---
 const CriterionMarkLogo = () => (
   <div className="flex flex-col items-center leading-none text-white">
     <span className="text-sm font-light tracking-widest">THE</span>
@@ -24,15 +23,33 @@ const CriterionMarkLogo = () => (
   </div>
 );
 
-// --- RESULT MODAL (SCREEN 3) ---
+// --- NEW COMPONENT: Location Consent Modal ---
+const LocationConsentModal = ({ onConfirm, onCancel }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+  >
+    <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-sm text-center p-6">
+      <FiMapPin className="text-4xl text-cyan-400 mx-auto mb-4" />
+      <h2 className="text-xl font-bold text-white mb-2">Enable Location?</h2>
+      <p className="text-white/70 mb-6">Scanning with location is most useful at the pharmacy to help us track counterfeit hotspots. For your privacy, please disable location when scanning at home.</p>
+      <div className="flex flex-col gap-3">
+        <button onClick={onConfirm} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Yes, Enable Location</button>
+        <button onClick={onCancel} className="w-full text-white/60 hover:text-white text-sm font-semibold">No, Continue Without</button>
+      </div>
+    </div>
+  </motion.div>
+);
+
+
+// --- ResultModal (No changes needed) ---
 const ResultModal = ({ result, onScanAgain }) => {
+  // ... (This component remains the same as the last version)
   const navigate = useNavigate();
   const isSuccess = result.status === 'success';
-
-  const playVideo = (e) => {
-    e.stopPropagation();
-    if (result.healthContent?.videoUrl) window.open(result.healthContent.videoUrl, '_blank');
-  };
+  const playVideo = (e) => { e.stopPropagation(); if (result.healthContent?.videoUrl) window.open(result.healthContent.videoUrl, '_blank'); };
   
   return (
     <motion.div
@@ -42,13 +59,9 @@ const ResultModal = ({ result, onScanAgain }) => {
       onClick={onScanAgain}
       className="absolute inset-0 z-20 flex flex-col justify-end text-white cursor-pointer"
     >
-      <div 
-        className="absolute inset-0 bg-black bg-cover bg-center"
-        style={{ backgroundImage: result.data?.batch?.seal_background_url ? `url(${result.data.batch.seal_background_url})` : 'none' }}
-      >
+      <div className="absolute inset-0 bg-black bg-cover bg-center" style={{ backgroundImage: result.data?.batch?.seal_background_url ? `url(${result.data.batch.seal_background_url})` : 'none' }}>
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent backdrop-blur-sm" />
       </div>
-      
       <div className="relative z-30 p-6 space-y-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-start">
             <div>
@@ -56,28 +69,17 @@ const ResultModal = ({ result, onScanAgain }) => {
               <p className="text-white/70 font-semibold">{result.data?.dispenseRecord?.pharmacy?.companyName || 'Verified'}</p>
             </div>
             <div className="flex items-center gap-2">
-               {result.healthContent?.videoUrl && 
-                 <button onClick={playVideo} className="bg-white/10 p-3 rounded-full hover:bg-white/20 transition-colors"><FiPlayCircle size={18} /></button>
-               }
-               {result.healthContent?.text && 
-                 <button className="bg-white/10 p-3 rounded-full hover:bg-white/20 transition-colors"><FiFileText size={18} /></button>
-               }
+               {result.healthContent?.videoUrl && <button onClick={playVideo} className="bg-white/10 p-3 rounded-full hover:bg-white/20 transition-colors"><FiPlayCircle size={18} /></button>}
+               {result.healthContent?.text && <button className="bg-white/10 p-3 rounded-full hover:bg-white/20 transition-colors"><FiFileText size={18} /></button>}
             </div>
         </div>
-
-        {result.healthContent?.text && (
-            <p className="text-white/90 text-md leading-relaxed">{result.healthContent.text}</p>
-        )}
-
+        {result.healthContent?.text && <p className="text-white/90 text-md leading-relaxed">{result.healthContent.text}</p>}
         <div className="pt-3 flex items-center gap-3">
           <div className={`min-w-[180px] flex-grow text-center font-bold py-3 px-5 rounded-full flex items-center justify-center gap-2 ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`}>
             {isSuccess ? <FiCheckCircle /> : <FiXCircle />}
             <span>{isSuccess ? 'Genuine Product' : 'Verification Failed'}</span>
           </div>
-          <button 
-             onClick={() => navigate('/report')}
-             className="flex-shrink-0 w-32 text-center font-bold py-3 px-5 rounded-full flex items-center justify-center gap-2 transition-colors bg-white/20 hover:bg-white/30"
-          >
+          <button onClick={() => navigate('/report')} className="flex-shrink-0 w-32 text-center font-bold py-3 px-5 rounded-full flex items-center justify-center gap-2 transition-colors bg-white/20 hover:bg-white/30">
              <FiAlertTriangle size={16}/><span>Report</span>
           </button>
         </div>
@@ -87,7 +89,7 @@ const ResultModal = ({ result, onScanAgain }) => {
 };
 
 
-// --- MAIN SCANNER PAGE (SCREEN 1) ---
+// --- Main Scanner Page ---
 function QuickScanPage() {
   const navigate = useNavigate();
   const { isAuthenticated } = useContext(AuthContext);
@@ -95,20 +97,26 @@ function QuickScanPage() {
   const [isLoading, setIsLoading] = useState(false);
   const html5QrCodeRef = useRef(null);
 
+  // --- NEW STATE for location consent ---
+  const [useLocation, setUseLocation] = useState(false);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+
+  // --- UPDATED to include location header ---
   const onScanSuccess = useCallback(async (decodedText) => {
     if (isLoading || scanResult) return;
     setIsLoading(true);
     if (html5QrCodeRef.current?.isScanning) html5QrCodeRef.current.pause(true);
 
     try {
-      const response = await apiClient.get(`/api/verify/${decodedText}`);
+      const config = { headers: { 'X-Use-Location': String(useLocation) } };
+      const response = await apiClient.get(`/api/verify/${decodedText}`, config);
       setScanResult(response.data);
     } catch (error) {
       setScanResult(error.response?.data || { status: 'error', message: 'An unknown error occurred.' });
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, scanResult]);
+  }, [isLoading, scanResult, useLocation]);
 
   const handleScanAgain = () => {
     setScanResult(null);
@@ -121,9 +129,28 @@ function QuickScanPage() {
       } else {
           navigate('/login');
       }
-  }
+  };
+
+  // --- NEW logic to handle the toggle switch ---
+  const handleLocationToggle = () => {
+    if (!useLocation) { // If turning location ON
+      setShowConsentModal(true);
+    } else { // If turning location OFF
+      setUseLocation(false);
+    }
+  };
+  
+  const confirmLocation = () => {
+    setUseLocation(true);
+    setShowConsentModal(false);
+  };
+  
+  const cancelLocation = () => {
+    setShowConsentModal(false);
+  };
 
   useEffect(() => {
+    // This logic starts the camera
     const qrCodeInstance = new Html5Qrcode("pwa-scanner-view", { verbose: false });
     html5QrCodeRef.current = qrCodeInstance;
     qrCodeInstance.start({ facingMode: "environment" }, { fps: 10 }, onScanSuccess, () => {})
@@ -139,6 +166,10 @@ function QuickScanPage() {
       <style>{fullScreenCameraStyle}</style>
       <div className="w-screen h-screen bg-black relative overflow-hidden">
         <div id="pwa-scanner-view" />
+        
+        <AnimatePresence>
+          {showConsentModal && <LocationConsentModal onConfirm={confirmLocation} onCancel={cancelLocation} />}
+        </AnimatePresence>
 
         {isLoading && (
             <motion.div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center">
@@ -157,14 +188,26 @@ function QuickScanPage() {
                     animate={{ opacity: 1 }}
                     className="absolute inset-0 z-20 flex flex-col justify-end text-white bg-gradient-to-t from-black/90 via-black/40 to-transparent"
                 >
-                    <div className="p-8 text-center space-y-8">
+                    <div className="p-6 text-center space-y-6">
                         <CriterionMarkLogo />
-                        <button 
-                            onClick={handleHistoryClick}
-                            className="w-full bg-white/10 backdrop-blur-md border border-white/20 font-bold py-3 px-6 rounded-full hover:bg-white/20 transition-colors"
-                        >
-                            View Scan History
-                        </button>
+                        {/* --- NEW Location Toggle --- */}
+                        <div className="flex items-center justify-center gap-4">
+                            <button onClick={handleHistoryClick} className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 font-bold py-3 px-6 rounded-full hover:bg-white/20 transition-colors">
+                                Scan History
+                            </button>
+                            <div className="flex-shrink-0">
+                                <label htmlFor="location-toggle" className="flex items-center cursor-pointer">
+                                    <div className="relative">
+                                        <input type="checkbox" id="location-toggle" className="sr-only" checked={useLocation} onChange={handleLocationToggle} />
+                                        <div className="block bg-gray-600/50 w-14 h-8 rounded-full"></div>
+                                        <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${useLocation ? 'translate-x-6 bg-cyan-400' : ''}`}></div>
+                                    </div>
+                                    <div className="ml-3 text-white font-medium">
+                                        <FiMapPin className={useLocation ? 'text-cyan-400' : 'text-white/70'} />
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </motion.div>
             )}
