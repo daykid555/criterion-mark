@@ -1,11 +1,11 @@
 -- CreateEnum
-CREATE TYPE "Role" AS ENUM ('ADMIN', 'MANUFACTURER', 'DVA', 'CUSTOMER', 'PRINTING', 'LOGISTICS', 'LOGISTICS_DISTRIBUTOR', 'PHARMACY', 'SKINCARE_BRAND');
+CREATE TYPE "Role" AS ENUM ('ADMIN', 'MANUFACTURER', 'DVA', 'CUSTOMER', 'PRINTING', 'LOGISTICS', 'LOGISTICS_DISTRIBUTOR', 'PHARMACY', 'SKINCARE_BRAND', 'HEALTH_ADVISOR');
 
 -- CreateEnum
 CREATE TYPE "BatchStatus" AS ENUM ('PENDING_DVA_APPROVAL', 'PENDING_ADMIN_APPROVAL', 'ADMIN_REJECTED', 'DVA_REJECTED', 'PENDING_PRINTING', 'PRINTING_COMPLETE', 'READY_FOR_SEALING', 'READY_FOR_SHIPPING', 'DELIVERED', 'ON_HOLD', 'CANCELLED', 'PRINTING_IN_PROGRESS', 'IN_TRANSIT', 'PENDING_MANUFACTURER_CONFIRMATION');
 
 -- CreateEnum
-CREATE TYPE "QRCodeStatus" AS ENUM ('UNUSED', 'SEALED', 'VERIFIED_ONCE', 'FLAGGED', 'INVALID_STATE', 'USED');
+CREATE TYPE "QRCodeStatus" AS ENUM ('UNUSED', 'AWAITING_ASSIGNMENT', 'ASSIGNED_TO_MASTER', 'VERIFIED_BY_SUPPLY_CHAIN', 'SEALED', 'VERIFIED_ONCE', 'FLAGGED', 'INVALID_STATE', 'USED');
 
 -- CreateEnum
 CREATE TYPE "ShipmentStatus" AS ENUM ('PENDING_PICKUP', 'IN_TRANSIT', 'AWAITING_VERIFICATION', 'DELIVERED', 'REJECTED');
@@ -46,6 +46,13 @@ CREATE TABLE "Batch" (
     "delivery_confirmation_code" TEXT DEFAULT '',
     "manufacturer_received_quantity" INTEGER,
     "seal_background_url" TEXT,
+    "dvaApproverId" INTEGER,
+    "adminApproverId" INTEGER,
+    "rejectedById" INTEGER,
+    "printingStartedById" INTEGER,
+    "printingCompletedById" INTEGER,
+    "pickedUpById" INTEGER,
+    "finalizedDeliveryById" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "delivery_notes" TEXT,
@@ -56,9 +63,13 @@ CREATE TABLE "Batch" (
 -- CreateTable
 CREATE TABLE "QRCode" (
     "id" SERIAL NOT NULL,
-    "code" TEXT NOT NULL,
+    "innerCode" TEXT NOT NULL,
+    "outerCode" TEXT NOT NULL,
+    "smsCode" TEXT,
     "batchId" INTEGER NOT NULL,
-    "status" "QRCodeStatus" NOT NULL DEFAULT 'UNUSED',
+    "status" "QRCodeStatus" NOT NULL DEFAULT 'AWAITING_ASSIGNMENT',
+    "isMaster" BOOLEAN NOT NULL DEFAULT false,
+    "parentId" INTEGER,
     "isReinitiated" BOOLEAN NOT NULL DEFAULT false,
     "reinitiatedBy" INTEGER,
     "reinitiatedAt" TIMESTAMP(3),
@@ -86,6 +97,7 @@ CREATE TABLE "ScanRecord" (
     "country" TEXT,
     "latitude" DOUBLE PRECISION,
     "longitude" DOUBLE PRECISION,
+    "fullAddress" TEXT,
 
     CONSTRAINT "ScanRecord_pkey" PRIMARY KEY ("id")
 );
@@ -197,6 +209,22 @@ CREATE TABLE "SkincareProduct" (
     CONSTRAINT "SkincareProduct_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "HealthVideo" (
+    "id" SERIAL NOT NULL,
+    "nafdacNumber" TEXT NOT NULL,
+    "drugName" TEXT NOT NULL,
+    "genuineVideoUrl" TEXT NOT NULL,
+    "counterfeitVideoUrl" TEXT NOT NULL,
+    "genuineText" TEXT NOT NULL DEFAULT '',
+    "counterfeitText" TEXT NOT NULL DEFAULT '',
+    "uploaderId" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "HealthVideo_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -204,7 +232,13 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 CREATE UNIQUE INDEX "User_companyRegNumber_key" ON "User"("companyRegNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "QRCode_code_key" ON "QRCode"("code");
+CREATE UNIQUE INDEX "QRCode_innerCode_key" ON "QRCode"("innerCode");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "QRCode_outerCode_key" ON "QRCode"("outerCode");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "QRCode_smsCode_key" ON "QRCode"("smsCode");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Shipment_confirmationCode_key" ON "Shipment"("confirmationCode");
@@ -227,11 +261,38 @@ CREATE UNIQUE INDEX "SkincareBrand_cacNumber_key" ON "SkincareBrand"("cacNumber"
 -- CreateIndex
 CREATE UNIQUE INDEX "SkincareProduct_uniqueCode_key" ON "SkincareProduct"("uniqueCode");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "HealthVideo_nafdacNumber_key" ON "HealthVideo"("nafdacNumber");
+
 -- AddForeignKey
 ALTER TABLE "Batch" ADD CONSTRAINT "Batch_manufacturerId_fkey" FOREIGN KEY ("manufacturerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Batch" ADD CONSTRAINT "Batch_dvaApproverId_fkey" FOREIGN KEY ("dvaApproverId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Batch" ADD CONSTRAINT "Batch_adminApproverId_fkey" FOREIGN KEY ("adminApproverId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Batch" ADD CONSTRAINT "Batch_rejectedById_fkey" FOREIGN KEY ("rejectedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Batch" ADD CONSTRAINT "Batch_printingStartedById_fkey" FOREIGN KEY ("printingStartedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Batch" ADD CONSTRAINT "Batch_printingCompletedById_fkey" FOREIGN KEY ("printingCompletedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Batch" ADD CONSTRAINT "Batch_pickedUpById_fkey" FOREIGN KEY ("pickedUpById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Batch" ADD CONSTRAINT "Batch_finalizedDeliveryById_fkey" FOREIGN KEY ("finalizedDeliveryById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "QRCode" ADD CONSTRAINT "QRCode_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "Batch"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "QRCode" ADD CONSTRAINT "QRCode_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "QRCode"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- AddForeignKey
 ALTER TABLE "ScanRecord" ADD CONSTRAINT "ScanRecord_qrCodeId_fkey" FOREIGN KEY ("qrCodeId") REFERENCES "QRCode"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -274,3 +335,6 @@ ALTER TABLE "SkincareBrand" ADD CONSTRAINT "SkincareBrand_userId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "SkincareProduct" ADD CONSTRAINT "SkincareProduct_brandId_fkey" FOREIGN KEY ("brandId") REFERENCES "SkincareBrand"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "HealthVideo" ADD CONSTRAINT "HealthVideo_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

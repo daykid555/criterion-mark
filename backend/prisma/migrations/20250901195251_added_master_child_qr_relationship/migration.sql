@@ -1,6 +1,0 @@
--- AlterTable
-ALTER TABLE "QRCode" ADD COLUMN     "isMaster" BOOLEAN NOT NULL DEFAULT false,
-ADD COLUMN     "parentId" INTEGER;
-
--- AddForeignKey
-ALTER TABLE "QRCode" ADD CONSTRAINT "QRCode_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "QRCode"("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
