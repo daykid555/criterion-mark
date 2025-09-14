@@ -141,6 +141,19 @@ function QuickScanPage() {
       <style>{fullScreenCameraStyle}</style>
       <div className="w-full h-full bg-black relative overflow-hidden">
         <div id="pwa-scanner-view" />
+        {/* --- ADDED VIEWFINDER --- */}
+        <div className="viewfinder-container">
+            <div className="viewfinder-mask">
+                <div className="viewfinder-box">
+                    <div className="viewfinder-corner top-left"></div>
+                    <div className="viewfinder-corner top-right"></div>
+                    <div className="viewfinder-corner bottom-left"></div>
+                    <div className="viewfinder-corner bottom-right"></div>
+                    <div className="viewfinder-laser"></div>
+                </div>
+            </div>
+        </div>
+        {/* --- END VIEWFINDER --- */}
         <AnimatePresence>
           {showConsentModal && <LocationConsentModal onConfirm={confirmLocation} onCancel={cancelLocation} />}
         </AnimatePresence>

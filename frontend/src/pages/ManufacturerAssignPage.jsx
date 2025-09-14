@@ -173,8 +173,21 @@ function ManufacturerAssignPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="glass-panel p-6 space-y-4">
             <h2 className="text-xl font-bold text-white">Scanner</h2>
-            <div className="w-full aspect-square bg-black/30" id="scanner-container">
+            <div className="w-full aspect-square bg-black/30 relative" id="scanner-container">
               <div id="scanner" className='w-full h-full'></div>
+              {isScannerActive && (
+                <div className="viewfinder-container">
+                    <div className="viewfinder-mask">
+                        <div className="viewfinder-box">
+                            <div className="viewfinder-corner top-left"></div>
+                            <div className="viewfinder-corner top-right"></div>
+                            <div className="viewfinder-corner bottom-left"></div>
+                            <div className="viewfinder-corner bottom-right"></div>
+                            <div className="viewfinder-laser"></div>
+                        </div>
+                    </div>
+                </div>
+              )}
             </div>
             <div className="flex space-x-4">
               <button onClick={startScanner} disabled={isScannerActive} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">

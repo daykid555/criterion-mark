@@ -67,48 +67,50 @@ const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
         throw new Error('Seal background URL is missing.');
     }
 
-    const qrSize = 150;
-    const labelHeight = 50;
-    const padding = 15;
-
-    // 1. Generate QR code buffers
-    const customerQrBuffer = await qrcode.toBuffer(qrCode.code, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
-    const pharmacyQrBuffer = await qrcode.toBuffer(qrCode.outerCode, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
-
-    // 2. Generate label buffers from SVG
-    const customerLabelSvg = Buffer.from(`<svg width="${qrSize}" height="25"><text x="${qrSize/2}" y="20" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="bold">CUSTOMER</text></svg>`);
-    const customerLabelBuffer = await sharp(customerLabelSvg).png().toBuffer();
-
-    const pharmacyLabelSvg = Buffer.from(`
-    <svg width="${qrSize}" height="${labelHeight}">
-        <text x="${qrSize/2}" y="20" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold">pharmacy</text>
-        <line x1="10" y1="28" x2="${qrSize - 10}" y2="28" stroke="black" stroke-width="1" />
-        <text x="${qrSize/2}" y="45" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold">manufacturer</text>
-    </svg>`);
-    const pharmacyLabelBuffer = await sharp(pharmacyLabelSvg).png().toBuffer();
-
-    // 3. Get background and extend it
+    // 1. Get background
     const backgroundResponse = await axios({ method: 'get', url: backgroundUrl, responseType: 'arraybuffer' });
     const backgroundBuffer = backgroundResponse.data;
     const backgroundMeta = await sharp(backgroundBuffer).metadata();
+    const canvasWidth = backgroundMeta.width;
 
-    const addedHeight = (qrSize + labelHeight + padding) * 2;
-    const extendedBackground = await sharp(backgroundBuffer)
-        .extend({
-            bottom: addedHeight,
-            background: { r: 255, g: 255, b: 255, alpha: 1 } // Extend with white background
-        })
-        .toBuffer();
+    // 2. Define layout constants based on your feedback
+    const qrSize = 80; // Using a smaller QR size to fit within the design
+    const horizontalCenter = Math.floor((canvasWidth - qrSize) / 2);
+    
+    // These vertical positions are estimates to place elements on top of the background
+    const serialTextTop = 100; 
+    const customerLabelTop = serialTextTop + 30;
+    const customerQrTop = customerLabelTop + 25;
+    const pharmacyLabelTop = customerQrTop + qrSize + 15;
+    const pharmacyQrTop = pharmacyLabelTop + 45;
 
-    // 4. Composite everything together
-    const finalImageBuffer = await sharp(extendedBackground)
+    // 3. Generate QR code buffers
+    const customerQrBuffer = await qrcode.toBuffer(qrCode.code, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
+    const pharmacyQrBuffer = await qrcode.toBuffer(qrCode.outerCode, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
+
+    // 4. Generate label and text buffers from SVG to ensure transparency
+    const serialSvg = Buffer.from(`<svg width="200" height="25"><text x="100" y="20" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold" fill="black">S/N: ${nanoid(10)}</text></svg>`);
+    const serialBuffer = await sharp(serialSvg).png().toBuffer();
+
+    const customerLabelSvg = Buffer.from(`<svg width="120" height="25"><text x="60" y="20" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold">CUSTOMER</text></svg>`);
+    const customerLabelBuffer = await sharp(customerLabelSvg).png().toBuffer();
+
+    const pharmacyLabelSvg = Buffer.from(`
+    <svg width="120" height="40">
+        <text x="60" y="15" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">pharmacy</text>
+        <line x1="10" y1="22" x2="110" y2="22" stroke="black" stroke-width="1" />
+        <text x="60" y="35" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">manufacturer</text>
+    </svg>`);
+    const pharmacyLabelBuffer = await sharp(pharmacyLabelSvg).png().toBuffer();
+
+    // 5. Composite everything ON TOP of the original background
+    const finalImageBuffer = await sharp(backgroundBuffer)
         .composite([
-            // Customer Part
-            { input: customerLabelBuffer, top: backgroundMeta.height + padding, left: Math.floor((backgroundMeta.width - qrSize) / 2) },
-            { input: customerQrBuffer, top: backgroundMeta.height + padding + 25, left: Math.floor((backgroundMeta.width - qrSize) / 2) },
-            // Pharmacy Part
-            { input: pharmacyLabelBuffer, top: backgroundMeta.height + padding + 25 + qrSize + padding, left: Math.floor((backgroundMeta.width - qrSize) / 2) },
-            { input: pharmacyQrBuffer, top: backgroundMeta.height + padding + 25 + qrSize + padding + labelHeight, left: Math.floor((backgroundMeta.width - qrSize) / 2) },
+            { input: serialBuffer, top: serialTextTop, left: Math.floor((canvasWidth - 200) / 2) },
+            { input: customerLabelBuffer, top: customerLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
+            { input: customerQrBuffer, top: customerQrTop, left: horizontalCenter },
+            { input: pharmacyLabelBuffer, top: pharmacyLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
+            { input: pharmacyQrBuffer, top: pharmacyQrTop, left: horizontalCenter },
         ])
         .png()
         .toBuffer();
@@ -293,83 +295,69 @@ app.post('/api/verify/master', authenticateToken, authorizeRole([Role.MANUFACTUR
 
 // --- ADD THIS NEW ROUTE FOR PHARMACY/SUPPLY CHAIN SCANNING ---
 app.post('/api/verify/supply-chain', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN, Role.MANUFACTURER, Role.LOGISTICS]), asyncHandler(async (req, res) => {
-    try { // ADDED try...catch block
-        const { outerCode } = req.body;
-        const scannerId = req.user.userId;
-        const scannerRole = req.user.role;
+    const { outerCodes } = req.body; // Expect an array
+    const scannerId = req.user.userId;
+    const scannerRole = req.user.role;
 
-        if (!outerCode) {
-            return res.status(400).json({ error: 'Outer QR code is required.' });
+    if (!outerCodes || !Array.isArray(outerCodes) || outerCodes.length === 0) {
+        return res.status(400).json({ error: 'An array of outerCodes is required.' });
+    }
+
+    // Find all QR pairs that are valid for verification
+    const qrPairsToVerify = await prisma.qRCode.findMany({
+        where: {
+            outerCode: { in: outerCodes },
+            isMaster: false,
+            status: { notIn: ['VERIFIED_ONCE', 'USED'] } // Can be verified if it's e.g. AWAITING_ASSIGNMENT or SEALED
         }
+    });
 
-        // Find the QR code pair using the Outer Code
-        const qrPair = await prisma.qRCode.findUnique({
-            where: { outerCode: outerCode.trim() },
-            include: {
-                batch: {
-                    select: { 
-                        drugName: true,
-                        expirationDate: true,
-                        manufacturer: { select: { companyName: true } }
-                    }
-                }
-            }
+    const foundCodes = qrPairsToVerify.map(qr => qr.outerCode);
+    const notFoundCodes = outerCodes.filter(code => !foundCodes.includes(code));
+
+    if (qrPairsToVerify.length === 0) {
+        return res.status(404).json({ 
+            status: 'error', 
+            message: 'None of the scanned codes could be found or verified.',
+            details: { notFound: notFoundCodes }
         });
+    }
 
-        // --- Validation Checks ---
-        if (!qrPair) {
-            return res.status(404).json({ status: 'error', message: 'This code is not registered in our system. The product is likely counterfeit.' });
-        }
+    const idsToUpdate = qrPairsToVerify.map(qr => qr.id);
 
-        if (qrPair.isMaster) {
-            return res.status(400).json({ status: 'error', message: 'This is a Master Carton code. Please scan an individual product code.' });
-        }
-        
-        // Check if the customer has already used the inner code. If so, the supply chain should not be interacting with it.
-        if (qrPair.status === 'VERIFIED_ONCE' || qrPair.status === 'USED') {
-             return res.status(409).json({ status: 'error', message: 'This product has already been verified by a final customer.' });
-        }
-
-        // --- Create a Scan Record for Auditing ---
-        await prisma.scanRecord.create({
+    // --- Perform updates in a transaction ---
+    const [updateResult, scanRecordResult] = await prisma.$transaction([
+        // 1. Update status for all verifiable codes
+        prisma.qRCode.updateMany({
+            where: {
+                id: { in: idsToUpdate }
+            },
             data: {
-                qrCodeId: qrPair.id,
-                scannedCode: qrPair.outerCode,
+                status: 'VERIFIED_BY_SUPPLY_CHAIN'
+            }
+        }),
+        // 2. Create scan records for all verified codes
+        prisma.scanRecord.createMany({
+            data: qrPairsToVerify.map(qr => ({
+                qrCodeId: qr.id,
+                scannedCode: qr.outerCode,
                 scanOutcome: 'SUPPLY_CHAIN_VERIFICATION_SUCCESS',
                 scannedByRole: scannerRole,
                 scannerId: scannerId,
                 ipAddress: req.ip,
-            }
-        });
-        
-        // --- Update the QR Code Status ---
-        // This shows the product has been successfully handled by the pharmacy
-        const updatedQrPair = await prisma.qRCode.update({
-            where: { id: qrPair.id },
-            data: {
-                status: 'VERIFIED_BY_SUPPLY_CHAIN'
-            }
-        });
+            }))
+        })
+    ]);
 
-        res.status(200).json({
-            status: 'success',
-            message: 'Product is authentic and verified within the supply chain.',
-            data: {
-                drugName: qrPair.batch.drugName,
-                manufacturer: qrPair.batch.manufacturer.companyName,
-                expirationDate: qrPair.batch.expirationDate,
-                currentStatus: updatedQrPair.status
-            }
-        });
-
-    } catch (error) {
-        console.error('Error during supply chain verification:', error); // Log real error
-        // This is the clean, simple error message you wanted
-        if (error.message.includes('not registered')) {
-             return res.status(404).json({ status: 'error', message: 'This code is not registered in our system.' });
+    res.status(200).json({
+        status: 'success',
+        message: `Successfully verified ${updateResult.count} products.`,
+        details: {
+            verifiedCount: updateResult.count,
+            notFoundCount: notFoundCodes.length,
+            notFoundCodes: notFoundCodes
         }
-        res.status(400).json({ status: 'error', message: error.message });
-    }
+    });
 }));
 
 // --- MANUFACTURER ROUTES ---
@@ -1177,7 +1165,7 @@ app.get('/api/printing/batches/:id', authenticateToken, authorizeRole([Role.PRIN
     res.status(200).json(batchDetails);
 }));
 
-app.get('/api/printing/seal/:code', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
+app.get('/api/printing/seal/:code', authenticateToken, authorizeRole([Role.ADMIN, Role.PRINTING]), asyncHandler(async (req, res) => {
     const { code } = req.params;
     const qrCode = await prisma.qRCode.findUnique({
         where: { code },

@@ -218,3 +218,64 @@ html {
   animation-name: font-cycle-3;
   animation-duration: 8s;
 }
+
+/* ===== SCANNER VIEWFINDER ===== */
+.viewfinder-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 20; /* Ensure it's on top of the video feed */
+  pointer-events: none; /* Allows clicks to go through to the video/buttons underneath */
+}
+
+.viewfinder-mask {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.viewfinder-box {
+  position: relative;
+  width: 250px; /* Match the qrbox size */
+  height: 250px;
+  box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.3); /* The dark overlay */
+}
+
+.viewfinder-corner {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border: 6px solid white;
+  border-radius: 4px;
+  animation: viewfinder-pulse 2s infinite ease-in-out;
+}
+
+.viewfinder-corner.top-left { top: -8px; left: -8px; border-right: none; border-bottom: none; }
+.viewfinder-corner.top-right { top: -8px; right: -8px; border-left: none; border-bottom: none; }
+.viewfinder-corner.bottom-left { bottom: -8px; left: -8px; border-right: none; border-top: none; }
+.viewfinder-corner.bottom-right { bottom: -8px; right: -8px; border-left: none; border-top: none; }
+
+@keyframes viewfinder-pulse {
+  50% { border-color: #34d399; /* A nice green color */ }
+}
+
+.viewfinder-laser {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, transparent, #34d399, transparent);
+  box-shadow: 0 0 8px #34d399;
+  animation: scan-laser 3s infinite linear;
+}
+
+@keyframes scan-laser {
+  0% { top: 0; }
+  50% { top: calc(100% - 2px); }
+  100% { top: 0; }
+}

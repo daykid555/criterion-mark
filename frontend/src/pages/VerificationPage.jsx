@@ -189,6 +189,19 @@ function VerificationPage() {
                             <div className="w-full rounded-2xl overflow-hidden bg-black shadow-lg aspect-square relative">
                                 <div id={qrcodeRegionId}></div>
                                 {scanState === 'idle' && <ScanConsent onScan={startScanner} />}
+                                {scanState === 'scanning' && (
+                                    <div className="viewfinder-container">
+                                        <div className="viewfinder-mask">
+                                            <div className="viewfinder-box">
+                                                <div className="viewfinder-corner top-left"></div>
+                                                <div className="viewfinder-corner top-right"></div>
+                                                <div className="viewfinder-corner bottom-left"></div>
+                                                <div className="viewfinder-corner bottom-right"></div>
+                                                <div className="viewfinder-laser"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                                 {scanState === 'loading' && (
                                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60">
                                         <svg className="animate-spin h-10 w-10 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
