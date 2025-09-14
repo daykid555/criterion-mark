@@ -1,0 +1,220 @@
+/* frontend/src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== DYNAMIC BODY BACKGROUNDS ===== */
+
+/* Default Professional Gradient for the ENTIRE application */
+body {
+  background: linear-gradient(-45deg, #77A1D3, #79CBCA, #E684AE);
+  background-size: 400% 400%;
+  animation: gradientAnimation 15s ease infinite;
+}
+
+/* Keyframe Animations */
+@keyframes gradientAnimation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Ensure html and body take full height */
+html, body, #root {
+  height: 100%;
+}
+
+/* FIX FOR DROPDOWN TEXT VISIBILITY */
+select option {
+  color: black;
+}
+
+/* ===== Glassmorphism UI System ===== */
+
+/* Main Panel Style */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.15); 
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+/* Input Field with "Shiny Dust" Animation */
+.glass-input {
+  position: relative;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  color: white; 
+  transition: background 0.3s ease, border-color 0.3s ease;
+  overflow: hidden;
+}
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.7);
+  outline: none;
+}
+.glass-input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+.glass-input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.5);
+  cursor: pointer;
+}
+.glass-input::after {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%; width: 200%; height: 200%;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.1) 1%, transparent 1.5%);
+  background-size: 0.5rem 0.5rem;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  animation: glitter 10s linear infinite;
+}
+.glass-input:focus::after { opacity: 1; }
+@keyframes glitter {
+  0% { transform: translate(0, 0); } 25% { transform: translate(5px, 5px); } 50% { transform: translate(0, 5px); } 75% { transform: translate(5px, 0); } 100% { transform: translate(0, 0); }
+}
+
+
+/* Button with Brighter Shimmer */
+.glass-button, .glass-button-sm {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white; 
+  font-weight: 600;
+  transition: background 0.3s ease;
+  backdrop-filter: blur(5px);
+}
+.glass-button:hover, .glass-button-sm:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.glass-button::before, .glass-button-sm::before {
+  content: '';
+  position: absolute; top: 0; left: -200%; width: 150%; height: 100%;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.8) 50%, transparent 80%);
+  transform: skewX(-30deg);
+  transition: left 1s ease-in-out;
+}
+.glass-button:hover::before, .glass-button-sm:hover::before { 
+  left: 200%; 
+}
+
+/* ===== Animations & Effects ===== */
+
+/* Attention Pulse */
+.pulse-attention {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+  50% { opacity: 0.9; box-shadow: 0 0 0 0.5rem rgba(255, 255, 255, 0); }
+}
+
+/* Soft Pulse */
+.pulse-attention-soft {
+  animation: pulse-soft 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Blinking Glows */
+@keyframes blink-green { 50% { box-shadow: 0 0 25px 5px rgba(34, 197, 94, 0.6); } }
+@keyframes blink-yellow { 50% { box-shadow: 0 0 25px 5px rgba(234, 179, 8, 0.6); } }
+@keyframes blink-red { 50% { box-shadow: 0 0 25px 5px rgba(239, 68, 68, 0.6); } }
+
+
+/* ===== QR Scanner Specific Fixes ===== */
+
+#qr-reader, #qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+#qr-reader__scan_region_border, #qr-reader__scan_region_box {
+  display: none !important;
+}
+
+/* ===== Custom Scrollbar Styles ===== */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+}
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* ===== Utility ===== */
+.no-wrap {
+  white-space: nowrap;
+}
+/* ===== PASTE THIS ENTIRE BLOCK AT THE END OF YOUR index.css FILE ===== */
+
+/* ===== Animated Title ===== */
+.animated-title-text {
+  /* Responsive font size: scales from 2rem up to 5rem based on viewport width */
+  font-size: clamp(2rem, 10vw, 5rem);
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 0 5px rgba(255,255,255,0.3), 0 0 10px rgba(255,255,255,0.2);
+}
+
+.animated-letter {
+  display: inline-block; /* Necessary for transformations and animations */
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+/* Define 3 different font-cycling animations */
+@keyframes font-cycle-1 {
+  0%, 100% { font-family: 'Times New Roman', Times, serif; }
+  33% { font-family: 'Courier New', Courier, monospace; }
+  66% { font-family: 'Georgia', serif; }
+}
+
+@keyframes font-cycle-2 {
+  0%, 100% { font-family: 'Arial', Helvetica, sans-serif; }
+  33% { font-family: 'Verdana', Geneva, sans-serif; }
+  66% { font-family: 'Garamond', serif; }
+}
+
+@keyframes font-cycle-3 {
+  0%, 100% { font-family: 'Cursive', fantasy; }
+  33% { font-family: 'Impact', Haettenschweiler, 'Arial Narrow Bold', sans-serif; }
+  66% { font-family: 'Tahoma', sans-serif; }
+}
+
+/* Assign the animations to classes */
+.animate-font-1 {
+  animation-name: font-cycle-1;
+  animation-duration: 8s;
+}
+
+.animate-font-2 {
+  animation-name: font-cycle-2;
+  animation-duration: 8s;
+}
+
+.animate-font-3 {
+  animation-name: font-cycle-3;
+  animation-duration: 8s;
+}

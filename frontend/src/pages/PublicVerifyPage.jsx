@@ -1,0 +1,192 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
+import axios from 'axios';
+import { FiMapPin } from 'react-icons/fi';
+
+const qrReaderVideoStyle = `
+  #qr-reader video {
+    border-radius: 1rem !important;
+    object-fit: cover !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  }
+`;
+
+// --- VerificationResult Component (UPDATED FOR UNIVERSAL WARNING) ---
+const VerificationResult = ({ result }) => {
+  const { status, message, data, universalWarning } = result;
+
+  // Handle ALL failed scans with the universal warning
+  if (status === 'error') {
+    // Use the universal warning text from the new payload, or fall back to the main message
+    const displayText = universalWarning?.text || message;
+    return (
+      <div className="p-6 bg-red-50/80 border-l-4 border-red-500 rounded-lg shadow-md mt-6">
+        <h3 className="text-2xl font-bold text-red-800">Warning! ❌</h3>
+        <p className="mt-1 text-red-700">{displayText}</p>
+        {/* The universal video will be integrated in a future step */}
+      </div>
+    );
+  }
+
+  // This part now only handles the successful scan scenario
+  return (
+    <div className={`p-6 border-l-4 bg-green-50/80 border-green-500 rounded-lg shadow-md mt-6`}>
+      <h3 className={`text-2xl font-bold text-green-800`}>Product Verified! ✅</h3>
+      <p className="mt-1 text-gray-800">{message}</p>
+
+      {data && data.batch && (
+        <div className="mt-4 space-y-2 text-gray-700">
+          <p><strong>Drug Name:</strong> {data.batch.drugName}</p>
+          <p><strong>Manufacturer:</strong> {data.batch.manufacturer.companyName}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// --- Main Page Component ---
+function PublicVerifyPage() {
+  const [isScannerActive, setIsScannerActive] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [scanError, setScanError] = useState(null);
+
+  // --- START: NEW STATE FOR PRECISE LOCATION ---
+  const [location, setLocation] = useState({ lat: null, lon: null });
+  const [locationStatus, setLocationStatus] = useState('idle'); // 'idle', 'fetching', 'success', 'error', 'unavailable'
+  // --- END: NEW STATE FOR PRECISE LOCATION ---
+
+  const html5QrCodeRef = useRef(null);
+
+  // --- START: NEW EFFECT TO GET LOCATION ON PAGE LOAD ---
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      setLocationStatus('fetching');
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+          });
+          setLocationStatus('success');
+        },
+        (error) => {
+          console.error("Geolocation error:", error.message);
+          setLocationStatus('error');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Options for better accuracy
+      );
+    } else {
+      setLocationStatus('unavailable');
+    }
+  }, []); // Empty array ensures this runs only once on component mount
+  // --- END: NEW EFFECT TO GET LOCATION ON PAGE LOAD ---
+
+  const startScanner = () => {
+    if (html5QrCodeRef.current) {
+      setIsScannerActive(true); setScanError(null); setScanResult(null);
+      html5QrCodeRef.current.start(
+        { facingMode: "environment" }, { fps: 10 },
+        (decodedText) => handleScanSuccess(decodedText),
+        () => {}
+      ).catch(() => {
+        setScanError("Failed to start camera. Please grant permission and refresh.");
+        setIsScannerActive(false);
+      });
+    }
+  };
+
+  const stopScanner = () => {
+    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+      html5QrCodeRef.current.stop().then(() => setIsScannerActive(false)).catch(console.error);
+    }
+  };
+  
+  // --- START: UPDATED SCAN HANDLER TO SEND LOCATION ---
+  const handleScanSuccess = async (decodedText) => {
+    stopScanner();
+    setIsLoading(true);
+    setScanResult(null);
+
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+    let apiUrl = `${apiBaseUrl}/api/verify/${decodedText}`;
+
+    // If we have precise coordinates, append them to the URL
+    if (location.lat && location.lon) {
+      apiUrl += `?lat=${location.lat}&lon=${location.lon}`;
+    }
+
+    try {
+      const response = await axios.get(apiUrl);
+      setScanResult(response.data);
+    } catch (err) {
+      if (err.response) {
+        setScanResult(err.response.data);
+      } else {
+        setScanResult({ status: 'error', message: 'Network error or cannot connect to the server.' });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  // --- END: UPDATED SCAN HANDLER ---
+
+  useEffect(() => {
+    html5QrCodeRef.current = new Html5Qrcode("qr-reader");
+    return () => {
+      if (html5QrCodeRef.current?.isScanning) {
+        html5QrCodeRef.current.stop().catch(console.error);
+      }
+    };
+  }, []);
+
+  const LocationStatusIndicator = () => (
+    <div className="flex items-center justify-center text-sm text-white/80 h-5 mt-2">
+      <FiMapPin className="mr-2" />
+      {locationStatus === 'fetching' && 'Getting your precise location...'}
+      {locationStatus === 'success' && 'Precise location enabled'}
+      {locationStatus === 'error' && 'Using approximate location (permission denied)'}
+      {locationStatus === 'unavailable' && 'Using approximate location (geolocation not supported)'}
+    </div>
+  );
+
+  return (
+    <>
+      <style>{qrReaderVideoStyle}</style>
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-animated bg-[length:400%_400%] animate-gradient p-4">
+        <div className="w-full max-w-lg">
+          <div className="glass-panel p-8 space-y-4">
+            <div className="text-center text-white">
+              <h1 className="text-3xl font-bold">Verify Your Product</h1>
+              <p className="opacity-80 mt-2">Press "Start Scanning" to use your camera.</p>
+            </div>
+            
+            <div className="w-full aspect-square rounded-2xl overflow-hidden bg-black/30" id="qr-reader-container">
+              <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
+            </div>
+            
+            <div className="flex space-x-4">
+              <button onClick={startScanner} disabled={isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+                Start Scanning
+              </button>
+              <button onClick={stopScanner} disabled={!isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+                Stop Scanning
+              </button>
+            </div>
+            
+            <LocationStatusIndicator />
+
+            {scanError && <p className="text-center text-red-300 font-semibold">{scanError}</p>}
+            {isLoading && <div className="text-center text-blue-300 font-semibold">Verifying...</div>}
+            {scanResult && <VerificationResult result={scanResult} />}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default PublicVerifyPage;

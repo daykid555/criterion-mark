@@ -1,0 +1,335 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUMS ---
+
+enum Role {
+  ADMIN
+  MANUFACTURER
+  DVA
+  CUSTOMER
+  PRINTING
+  LOGISTICS
+  LOGISTICS_DISTRIBUTOR
+  PHARMACY
+  SKINCARE_BRAND
+  HEALTH_ADVISOR
+}
+
+enum BatchStatus {
+  PENDING_DVA_APPROVAL
+  PENDING_ADMIN_APPROVAL
+  ADMIN_REJECTED
+  DVA_REJECTED
+  PENDING_PRINTING
+  PRINTING_COMPLETE
+  READY_FOR_SEALING
+  READY_FOR_SHIPPING
+
+  // THIS IS THE FIX: We map the new name to the old database value
+  DELIVERED_TO_MANUFACTURER @map("DELIVERED")
+
+  // These are kept to prevent data loss errors on old records
+  ON_HOLD
+  CANCELLED
+  PRINTING_IN_PROGRESS
+  IN_TRANSIT
+  PENDING_MANUFACTURER_CONFIRMATION
+}
+
+enum QRCodeStatus {
+  UNUSED
+  AWAITING_ASSIGNMENT // New status for newly created child codes
+  ASSIGNED_TO_MASTER  // New status after being linked to a master carton
+  VERIFIED_BY_SUPPLY_CHAIN // e.g., Scanned by a Pharmacy
+  SEALED // This can represent the "live" state for the Inner QR
+  VERIFIED_ONCE
+  FLAGGED
+  INVALID_STATE
+  USED
+}
+
+enum ShipmentStatus {
+  PENDING_PICKUP
+  IN_TRANSIT
+  AWAITING_VERIFICATION
+  DELIVERED
+  REJECTED
+}
+
+// --- CORE MODELS ---
+
+model User {
+  id               Int       @id @default(autoincrement())
+  email            String    @unique
+  password         String
+  companyName      String?
+  companyRegNumber String?   @unique
+  role             Role
+  isActive         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  approvedBy       Int?
+  approvedAt       DateTime?
+
+  // --- START: ADD THESE LINES FOR COMPREHENSIVE AUDITING ---
+  dvaApprovedBatches       Batch[] @relation("DvaApprovals")
+  adminApprovedBatches     Batch[] @relation("AdminApprovals")
+  rejectedBatches          Batch[] @relation("Rejections")
+  printingStartedBatches   Batch[] @relation("PrintingStartedBy")
+  printingCompletedBatches Batch[] @relation("PrintingCompletedBy")
+  pickedUpBatches          Batch[] @relation("PickedUpBy")
+  finalizedDeliveryBatches Batch[] @relation("FinalizedBy")
+  // --- END: ADD THESE LINES ---
+
+  batches               Batch[]
+  // Correctly defined opposite relation for ScanRecord.scanner
+  scanRecords           ScanRecord[]
+  skincareBrand         SkincareBrand?
+  manufacturerShipments Shipment[]         @relation("ManufacturerShipments")
+  distributorShipments  Shipment[]         @relation("DistributorShipments")
+  pharmacyShipments     Shipment[]         @relation("PharmacyShipments")
+  dispenseRecords       DispenseRecord[]
+  reports               Report[]
+  communications        Communication[]    @relation("AuthorCommunications")
+  notifications         NotificationLog[]
+  uploadedHealthVideos  HealthVideo[]
+}
+
+model Batch {
+  id                             Int                @id @default(autoincrement())
+  drugName                       String
+  quantity                       Int
+  nafdacNumber                   String
+  expirationDate                 DateTime
+  manufacturerId                 Int
+  status                         BatchStatus        @default(PENDING_DVA_APPROVAL)
+  manufacturer                   User               @relation(fields: [manufacturerId], references: [id])
+  qrCodes                        QRCode[]
+  dva_approved_at                DateTime?
+  admin_approved_at              DateTime?
+  print_started_at               DateTime?
+  print_completed_at             DateTime?
+  picked_up_at                   DateTime?
+  delivered_at                   DateTime?
+  rejection_reason               String?
+  shipmentItems                  ShipmentItem[]
+  delivery_confirmation_code     String?            @default("")
+  manufacturer_received_quantity Int?
+  seal_background_url            String?
+
+  // --- START: ADD THESE LINES FOR COMPREHENSIVE AUDITING ---
+  dvaApproverId         Int?
+  adminApproverId       Int?
+  rejectedById          Int?
+  printingStartedById   Int?
+  printingCompletedById Int?
+  pickedUpById          Int?
+  finalizedDeliveryById Int?
+
+  dvaApprover         User? @relation("DvaApprovals", fields: [dvaApproverId], references: [id])
+  adminApprover       User? @relation("AdminApprovals", fields: [adminApproverId], references: [id])
+  rejector            User? @relation("Rejections", fields: [rejectedById], references: [id])
+  printingStartedBy   User? @relation("PrintingStartedBy", fields: [printingStartedById], references: [id])
+  printingCompletedBy User? @relation("PrintingCompletedBy", fields: [printingCompletedById], references: [id])
+  pickedUpBy          User? @relation("PickedUpBy", fields: [pickedUpById], references: [id])
+  finalizedDeliveryBy User? @relation("FinalizedBy", fields: [finalizedDeliveryById], references: [id])
+  // --- END: ADD THESE LINES ---
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Explicitly marked as nullable
+  delivery_notes String?
+}
+
+model QRCode {
+  id               Int               @id @default(autoincrement())
+  
+  // --- START: DUAL QR CODE SYSTEM ---
+  // The 'code' field is now the customer-facing, single-use Inner Code
+  code             String            @unique @map("innerCode") // This is the Inner QR (Customer)
+  outerCode        String            @unique                  // This is the Outer QR (Supply Chain)
+  smsCode          String?           @unique                  // ADD THIS LINE FOR THE NUMERIC SMS CODE
+  // --- END: DUAL QR CODE SYSTEM ---
+
+  batchId          Int
+  status           QRCodeStatus      @default(AWAITING_ASSIGNMENT)
+  batch            Batch             @relation(fields: [batchId], references: [id])
+  scanRecords      ScanRecord[]
+  dispenseRecord   DispenseRecord?
+
+  isMaster         Boolean   @default(false)
+  parentId         Int?      
+  
+  parent   QRCode?  @relation("MasterChild", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children QRCode[] @relation("MasterChild")
+
+  isReinitiated      Boolean   @default(false)
+  reinitiatedBy      Int?
+  reinitiatedAt      DateTime?
+  reinitiationReason String?
+
+  firstVerificationTimestamp DateTime?
+  firstVerificationIp        String?
+  firstVerificationLocation  String?
+
+  createdAt DateTime @default(now())
+}
+
+model ScanRecord {
+  id            Int      @id @default(autoincrement())
+  qrCodeId      Int?
+  qrCode        QRCode?  @relation(fields: [qrCodeId], references: [id])
+  scannedCode   String
+  scanOutcome   String
+  scannedAt     DateTime @default(now())
+  scannedByRole Role
+  scannerId     Int?
+  // Correctly defined opposite relation to User
+  scanner       User?    @relation(fields: [scannerId], references: [id])
+  ipAddress     String?
+  city          String?
+  region        String?
+  country       String?
+  latitude      Float?
+  longitude     Float?
+
+  // --- START: ADD THIS NEW FIELD ---
+  fullAddress   String? // To store the detailed address from reverse geocoding
+  // --- END: ADD THIS NEW FIELD ---
+}
+
+model NotificationLog {
+  id           Int      @id @default(autoincrement())
+  targetUserId Int
+  targetUser   User     @relation(fields: [targetUserId], references: [id])
+  message      String
+  isRead       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model Shipment {
+  id             Int @id @default(autoincrement())
+  manufacturerId Int
+  distributorId  Int
+  pharmacyId     Int
+
+  manufacturer User @relation("ManufacturerShipments", fields: [manufacturerId], references: [id])
+  distributor  User @relation("DistributorShipments", fields: [distributorId], references: [id])
+  pharmacy     User @relation("PharmacyShipments", fields: [pharmacyId], references: [id])
+
+  status           ShipmentStatus @default(PENDING_PICKUP)
+  confirmationCode String         @unique
+
+  shipmentItems ShipmentItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ShipmentItem {
+  id         Int @id @default(autoincrement())
+  shipmentId Int
+  batchId    Int
+  quantity   Int
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id])
+  batch    Batch    @relation(fields: [batchId], references: [id])
+
+  @@unique([shipmentId, batchId])
+}
+
+model DispenseRecord {
+  id         Int @id @default(autoincrement())
+  qrCodeId   Int @unique
+  pharmacyId Int
+
+  qrCode   QRCode @relation(fields: [qrCodeId], references: [id])
+  pharmacy User   @relation(fields: [pharmacyId], references: [id])
+
+  dispensedAt DateTime @default(now())
+}
+
+model Report {
+  id         Int  @id @default(autoincrement())
+  pharmacyId Int
+  pharmacy   User @relation(fields: [pharmacyId], references: [id])
+
+  message    String
+  imageUrl   String?
+  isResolved Boolean @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+model Communication {
+  id        Int      @id @default(autoincrement())
+  title     String
+  body      String
+  authorId  Int
+  author    User     @relation("AuthorCommunications", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model SystemSetting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model SkincareBrand {
+  id            Int               @id @default(autoincrement())
+  userId        Int               @unique
+  user          User              @relation(fields: [userId], references: [id])
+  brandName     String
+  cacNumber     String            @unique
+  isVerified    Boolean           @default(false)
+  placardQrCode String?
+  products      SkincareProduct[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model SkincareProduct {
+  id            Int           @id @default(autoincrement())
+  brandId       Int
+  brand         SkincareBrand @relation(fields: [brandId], references: [id])
+  productName   String
+  ingredients   String
+  skinReactions String?
+  nafdacNumber  String?
+  uniqueCode    String        @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+// --- HEALTH ADVISOR MODELS ---
+
+model HealthVideo {
+  id                  Int      @id @default(autoincrement())
+  nafdacNumber        String   @unique
+  drugName            String
+  genuineVideoUrl     String
+  counterfeitVideoUrl String
+  // --- ADD THESE TWO LINES ---
+  genuineText         String   @default("")
+  counterfeitText     String   @default("")
+  // --- END OF ADDITIONS ---
+  
+  uploaderId          Int
+  uploader            User     @relation(fields: [uploaderId], references: [id])
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

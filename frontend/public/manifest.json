@@ -1,0 +1,30 @@
+{
+  "name": "The Criterion Mark",
+  "short_name": "Criterion",
+  "description": "A secure system for drug authentication and verification.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#1a2a45",
+  "icons": [
+    {
+      "src": "/assets/logo-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/assets/logo-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick Scan Product",
+      "short_name": "Scan",
+      "description": "Open the camera immediately to scan a product",
+      "url": "/scan-only",
+      "icons": [{ "src": "/assets/scan-icon-96.png", "sizes": "96x96" }]
+    }
+  ]
+}
