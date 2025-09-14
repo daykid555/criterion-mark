@@ -1,13 +1,15 @@
+
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import apiClient from '../api';
 import SealUploader from '../components/SealUploader';
 import StyledQRCode from '../components/StyledQRCode';
-import { FiGrid, FiPackage } from 'react-icons/fi'; // ADDED ICONS
+import { FiGrid, FiPackage } from 'react-icons/fi';
+import Modal from '../components/Modal';
+import SealDisplay from '../components/SealDisplay';
 
-// Your original AuditTrailItem component is preserved
 function AuditTrailItem({ label, user, timestamp }) {
-  if (!user && !timestamp) return null; 
+  if (!user && !timestamp) return null;
 
   return (
     <div className="flex justify-between items-center py-3 border-b border-white/10">
@@ -27,23 +29,23 @@ function AdminBatchDetailsPage() {
   const [error, setError] = useState(null);
   const [selectedCode, setSelectedCode] = useState(null);
   const [isZipping, setIsZipping] = useState(false);
-  
-  // --- START: NEW STATE TO HOLD SEPARATED QR CODES ---
   const [masterQRs, setMasterQRs] = useState([]);
   const [childQRs, setChildQRs] = useState([]);
-  // --- END: NEW STATE ---
+
+  // State for the new seal generation
+  const [isSealModalOpen, setIsSealModalOpen] = useState(false);
+  const [newSealData, setNewSealData] = useState(null);
+  const [isGeneratingSeal, setIsGeneratingSeal] = useState(false);
 
   const fetchBatchDetails = async () => {
     setIsLoading(true);
     try {
       const response = await apiClient.get(`/api/admin/batches/${id}`);
       setBatch(response.data);
-      // --- START: NEW LOGIC TO SPLIT THE CODES ---
       if (response.data && response.data.qrCodes) {
         setMasterQRs(response.data.qrCodes.filter(qr => qr.isMaster));
         setChildQRs(response.data.qrCodes.filter(qr => !qr.isMaster));
       }
-      // --- END: NEW LOGIC ---
     } catch (err) {
       setError('Failed to load batch details.');
     } finally {
@@ -55,7 +57,6 @@ function AdminBatchDetailsPage() {
     fetchBatchDetails();
   }, [id]);
 
-  // Your original handleZipDownload function is fully preserved
   const handleZipDownload = async () => {
     setIsZipping(true);
     try {
@@ -79,9 +80,23 @@ function AdminBatchDetailsPage() {
     }
   };
 
-  // Your original handleUploadSuccess function is fully preserved
   const handleUploadSuccess = () => {
     fetchBatchDetails();
+  };
+
+  const handleGenerateSeal = async () => {
+    setIsGeneratingSeal(true);
+    try {
+      const response = await apiClient.post('/api/admin/seals/generate', { batchId: id });
+      setNewSealData(response.data);
+      setIsSealModalOpen(true);
+      // Re-fetch batch details to show the new code in the list
+      fetchBatchDetails(); 
+    } catch (err) {
+      alert('Failed to generate new seal. ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsGeneratingSeal(false);
+    }
   };
 
   if (isLoading) return <p className="text-center p-8 text-white">Loading batch details...</p>;
@@ -92,19 +107,22 @@ function AdminBatchDetailsPage() {
     <>
       <Link to="/admin/history" className="text-white/80 hover:underline mb-6 block">← Back to History</Link>
 
-      {/* Your original header is fully preserved */}
       <div className="glass-panel p-6 mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
           <h1 className="text-3xl font-bold text-white">{batch.drugName}</h1>
           <p className="text-white/70">Batch ID: {batch.id} | Status: <span className="font-bold">{batch.status}</span></p>
         </div>
-        <button onClick={handleZipDownload} disabled={isZipping || batch.qrCodes.length === 0} className="w-full sm:w-auto mt-4 sm:mt-0 font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50 disabled:cursor-not-allowed">
-          {isZipping ? 'Generating ZIP...' : 'Download All as ZIP'}
-        </button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-4 sm:mt-0">
+          <button onClick={handleGenerateSeal} disabled={isGeneratingSeal} className="w-full sm:w-auto font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50 disabled:cursor-not-allowed">
+            {isGeneratingSeal ? 'Generating...' : 'Generate Single Seal'}
+          </button>
+          <button onClick={handleZipDownload} disabled={isZipping || batch.qrCodes.length === 0} className="w-full sm:w-auto font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50 disabled:cursor-not-allowed">
+            {isZipping ? 'Generating ZIP...' : 'Download All as ZIP'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Your original Audit Trail panel is fully preserved */}
         <div className="lg:col-span-1 glass-panel p-6">
           <h2 className="text-xl font-bold mb-4 text-white">Batch History & Audit Trail</h2>
           <div className="space-y-2">
@@ -126,10 +144,8 @@ function AdminBatchDetailsPage() {
           </div>
         </div>
         
-        {/* Your original two-column layout is preserved, I have only changed the content of the first column */}
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
           
-          {/* --- START: THIS SECTION REPLACES YOUR OLD "GENERATED CODES" PANEL --- */}
           <div className="space-y-8">
             <div className="glass-panel p-6">
                 <h2 className="text-xl font-bold mb-4 text-white flex items-center"><FiGrid className="mr-2"/>Master QR Codes ({masterQRs.length})</h2>
@@ -148,9 +164,7 @@ function AdminBatchDetailsPage() {
                 </ul>
             </div>
           </div>
-          {/* --- END: REPLACEMENT SECTION --- */}
 
-          {/* Your original QR Preview and Seal Uploader panel is fully preserved */}
           <div className="space-y-8">
             <div className="glass-panel p-6 flex flex-col items-center justify-center">
               <h2 className="text-xl font-bold mb-4 text-white">QR Code Preview</h2>
@@ -176,6 +190,14 @@ function AdminBatchDetailsPage() {
           </div>
         </div>
       </div>
+
+      {isSealModalOpen && (
+        <Modal title="New Seal Generated" onClose={() => setIsSealModalOpen(false)}>
+          <div className="flex justify-center p-4">
+            <SealDisplay qrCodePair={newSealData} />
+          </div>
+        </Modal>
+      )}
     </>
   );
 }

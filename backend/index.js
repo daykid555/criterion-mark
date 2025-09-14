@@ -951,6 +951,36 @@ app.get('/api/admin/users/all', authenticateToken, authorizeRole([Role.ADMIN]), 
     res.status(200).json(users);
 }));
 
+// --- NEW ROUTE FOR GENERATING A SINGLE SEAL (DUAL QR CODE) ---
+app.post('/api/admin/seals/generate', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { batchId } = req.body;
+
+    if (!batchId) {
+        return res.status(400).json({ error: 'batchId is required.' });
+    }
+
+    // Ensure the batch exists
+    const batch = await prisma.batch.findUnique({ where: { id: parseInt(batchId, 10) } });
+    if (!batch) {
+        return res.status(404).json({ error: 'Batch not found.' });
+    }
+
+    const newQrCodePair = await prisma.qRCode.create({
+        data: {
+            batchId: batch.id,
+            code: nanoid(12),               // This will be the customerQrCodeId (inner)
+            outerCode: `SEAL-${nanoid(10)}`, // This will be the pharmacyQrCodeId (outer)
+            isMaster: false,
+            // The default status 'AWAITING_ASSIGNMENT' correctly represents the initial state as per the requirements.
+            // It implies the 'outerCode' is 'ACTIVE' for supply chain use, while the inner 'code' is 'INACTIVE' until later activation.
+            status: 'AWAITING_ASSIGNMENT', 
+        }
+    });
+
+    // The frontend will receive this object containing both codes
+    res.status(201).json(newQrCodePair);
+}));
+
 app.put('/api/admin/users/:id/activate', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const adminApproverId = req.user.userId;
