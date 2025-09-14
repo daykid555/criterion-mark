@@ -62,6 +62,60 @@ const generateEightDigitCode = () => {
     return Math.floor(10000000 + Math.random() * 90000000).toString();
 };
 
+const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
+    if (!backgroundUrl) {
+        throw new Error('Seal background URL is missing.');
+    }
+
+    const qrSize = 150;
+    const labelHeight = 50;
+    const padding = 15;
+
+    // 1. Generate QR code buffers
+    const customerQrBuffer = await qrcode.toBuffer(qrCode.code, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
+    const pharmacyQrBuffer = await qrcode.toBuffer(qrCode.outerCode, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
+
+    // 2. Generate label buffers from SVG
+    const customerLabelSvg = Buffer.from(`<svg width="${qrSize}" height="25"><text x="${qrSize/2}" y="20" text-anchor="middle" font-family="sans-serif" font-size="20" font-weight="bold">CUSTOMER</text></svg>`);
+    const customerLabelBuffer = await sharp(customerLabelSvg).png().toBuffer();
+
+    const pharmacyLabelSvg = Buffer.from(`
+    <svg width="${qrSize}" height="${labelHeight}">
+        <text x="${qrSize/2}" y="20" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold">pharmacy</text>
+        <line x1="10" y1="28" x2="${qrSize - 10}" y2="28" stroke="black" stroke-width="1" />
+        <text x="${qrSize/2}" y="45" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="bold">manufacturer</text>
+    </svg>`);
+    const pharmacyLabelBuffer = await sharp(pharmacyLabelSvg).png().toBuffer();
+
+    // 3. Get background and extend it
+    const backgroundResponse = await axios({ method: 'get', url: backgroundUrl, responseType: 'arraybuffer' });
+    const backgroundBuffer = backgroundResponse.data;
+    const backgroundMeta = await sharp(backgroundBuffer).metadata();
+
+    const addedHeight = (qrSize + labelHeight + padding) * 2;
+    const extendedBackground = await sharp(backgroundBuffer)
+        .extend({
+            bottom: addedHeight,
+            background: { r: 255, g: 255, b: 255, alpha: 1 } // Extend with white background
+        })
+        .toBuffer();
+
+    // 4. Composite everything together
+    const finalImageBuffer = await sharp(extendedBackground)
+        .composite([
+            // Customer Part
+            { input: customerLabelBuffer, top: backgroundMeta.height + padding, left: Math.floor((backgroundMeta.width - qrSize) / 2) },
+            { input: customerQrBuffer, top: backgroundMeta.height + padding + 25, left: Math.floor((backgroundMeta.width - qrSize) / 2) },
+            // Pharmacy Part
+            { input: pharmacyLabelBuffer, top: backgroundMeta.height + padding + 25 + qrSize + padding, left: Math.floor((backgroundMeta.width - qrSize) / 2) },
+            { input: pharmacyQrBuffer, top: backgroundMeta.height + padding + 25 + qrSize + padding + labelHeight, left: Math.floor((backgroundMeta.width - qrSize) / 2) },
+        ])
+        .png()
+        .toBuffer();
+    
+    return finalImageBuffer;
+};
+
 // --- ROUTES ---
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
@@ -804,24 +858,31 @@ app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole([R
         where: { id: parseInt(id, 10) },
         include: { qrCodes: true },
     });
+
     if (!batch || batch.qrCodes.length === 0) {
         return res.status(404).json({ error: 'No codes found for this batch.' });
     }
-    const zipFileName = `batch_${id}_${batch.drugName.replace(/\s+/g, '_')}_qrcodes.zip`;
+    if (!batch.seal_background_url) {
+        return res.status(400).json({ error: 'Cannot generate seals because a background image has not been uploaded for this batch.' });
+    }
+
+    const zipFileName = `batch_${id}_${batch.drugName.replace(/\s+/g, '_')}_seals.zip`;
     res.attachment(zipFileName);
     const archive = archiver('zip', { zlib: { level: 9 } });
     archive.on('error', (err) => { throw err; });
     archive.pipe(res);
-    const logoBuffer = fs.readFileSync(path.join(process.cwd(), 'assets/shield-logo.svg'));
-    for (const qr of batch.qrCodes) {
-        const qrCodeBuffer = await qrcode.toBuffer(qr.code, {
-            errorCorrectionLevel: 'H', type: 'png', width: 500, margin: 2,
-            color: { dark: '#000000', light: '#0000' },
-        });
-        const finalImageBuffer = await sharp(qrCodeBuffer)
-            .composite([{ input: logoBuffer, gravity: 'center' }])
-            .toBuffer();
-        archive.append(finalImageBuffer, { name: `qr_code_${qr.code}.png` });
+
+    // Filter out master codes, as they are not individual seals
+    const childQrs = batch.qrCodes.filter(qr => !qr.isMaster);
+
+    for (const qr of childQrs) {
+        try {
+            const finalImageBuffer = await generateDualSealBuffer(qr, batch.seal_background_url);
+            archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
+        } catch (error) {
+            console.error(`Failed to generate seal for QR code ${qr.code}:`, error.message);
+            archive.append(`Error generating seal for ${qr.code}: ${error.message}`, { name: `error_${qr.code}.txt` });
+        }
     }
     await archive.finalize();
 }));
@@ -951,35 +1012,7 @@ app.get('/api/admin/users/all', authenticateToken, authorizeRole([Role.ADMIN]), 
     res.status(200).json(users);
 }));
 
-// --- NEW ROUTE FOR GENERATING A SINGLE SEAL (DUAL QR CODE) ---
-app.post('/api/admin/seals/generate', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
-    const { batchId } = req.body;
 
-    if (!batchId) {
-        return res.status(400).json({ error: 'batchId is required.' });
-    }
-
-    // Ensure the batch exists
-    const batch = await prisma.batch.findUnique({ where: { id: parseInt(batchId, 10) } });
-    if (!batch) {
-        return res.status(404).json({ error: 'Batch not found.' });
-    }
-
-    const newQrCodePair = await prisma.qRCode.create({
-        data: {
-            batchId: batch.id,
-            code: nanoid(12),               // This will be the customerQrCodeId (inner)
-            outerCode: `SEAL-${nanoid(10)}`, // This will be the pharmacyQrCodeId (outer)
-            isMaster: false,
-            // The default status 'AWAITING_ASSIGNMENT' correctly represents the initial state as per the requirements.
-            // It implies the 'outerCode' is 'ACTIVE' for supply chain use, while the inner 'code' is 'INACTIVE' until later activation.
-            status: 'AWAITING_ASSIGNMENT', 
-        }
-    });
-
-    // The frontend will receive this object containing both codes
-    res.status(201).json(newQrCodePair);
-}));
 
 app.put('/api/admin/users/:id/activate', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -1156,15 +1189,12 @@ app.get('/api/printing/seal/:code', authenticateToken, authorizeRole([Role.PRINT
     if (!qrCode.batch.seal_background_url) {
         return res.status(400).json({ error: 'No seal background has been assigned to this batch by an admin.' });
     }
-    const qrCodeBuffer = await qrcode.toBuffer(code, { errorCorrectionLevel: 'H', type: 'png', width: 200, margin: 1 });
-    const backgroundResponse = await axios({ method: 'get', url: qrCode.batch.seal_background_url, responseType: 'arraybuffer' });
-    const finalImageBuffer = await sharp(backgroundResponse.data)
-        .composite([{ input: qrCodeBuffer, top: 50, left: 150 }])
-        .png()
-        .toBuffer();
+    
+    const finalImageBuffer = await generateDualSealBuffer(qrCode, qrCode.batch.seal_background_url);
     res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Content-Disposition', `attachment; filename="seal_${code}.png"`);
+    res.setHeader('Content-Disposition', `attachment; filename="seal_${qrCode.code}.png"`);
     res.status(200).send(finalImageBuffer);
+    
 }));
 
 app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
@@ -1176,18 +1206,23 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole([Role.P
     if (!batch || !batch.seal_background_url) {
         return res.status(404).json({ error: 'Batch or seal background not found.' });
     }
-    const backgroundResponse = await axios({ method: 'get', url: batch.seal_background_url, responseType: 'arraybuffer' });
-    res.attachment(`batch_${id}_seals.zip`);
+        res.attachment(`batch_${id}_seals.zip`);
     const archive = archiver('zip');
     archive.on('error', (err) => { throw err; });
     archive.pipe(res);
-    for (const qr of batch.qrCodes) {
-        const qrCodeBuffer = await qrcode.toBuffer(qr.code, { errorCorrectionLevel: 'H', type: 'png', width: 200, margin: 1 });
-        const finalImageBuffer = await sharp(backgroundResponse.data)
-            .composite([{ input: qrCodeBuffer, top: 50, left: 150 }])
-            .png()
-            .toBuffer();
-        archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
+
+    // Filter out master codes, as they are not individual seals
+    const childQrs = batch.qrCodes.filter(qr => !qr.isMaster);
+
+    for (const qr of childQrs) {
+        try {
+            const finalImageBuffer = await generateDualSealBuffer(qr, batch.seal_background_url);
+            archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
+        } catch (error) {
+            console.error(`Failed to generate seal for QR code ${qr.code}:`, error.message);
+            // Optionally, append an error placeholder to the zip
+            archive.append(`Error generating seal for ${qr.code}: ${error.message}`, { name: `error_${qr.code}.txt` });
+        }
     }
     await archive.finalize();
 }));
