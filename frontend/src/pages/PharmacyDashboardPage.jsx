@@ -35,6 +35,9 @@ function PharmacyDashboardPage() {
           description="View a complete log of all products your pharmacy has dispensed."
         />
       </div>
+
+      {/* TODO: Integrate a section here for Pharmacy users to view reports assigned to them or reports with 'FORWARDED' status. */}
+
     </div>
   );
 }

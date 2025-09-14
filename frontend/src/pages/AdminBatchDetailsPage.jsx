@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import apiClient from '../api';
 import SealUploader from '../components/SealUploader';
 import DualSealPreview from '../components/DualSealPreview';
-import { FiGrid, FiPackage } from 'react-icons/fi'; // ADDED ICONS
+import { FiGrid, FiPackage } from 'react-icons/fi';
+import BackButton from '../components/BackButton';
 
 // Your original AuditTrailItem component is preserved
 function AuditTrailItem({ label, user, timestamp }) {
@@ -90,12 +91,13 @@ function AdminBatchDetailsPage() {
 
   return (
     <>
-      <Link to="/admin/history" className="text-white/80 hover:underline mb-6 block">← Back to History</Link>
+      <div className="flex items-center gap-4 mb-6">
+        <BackButton />
+        <h1 className="text-3xl font-bold text-white">{batch.drugName}</h1>
+      </div>
 
-      {/* Your original header is fully preserved */}
       <div className="glass-panel p-6 mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
-          <h1 className="text-3xl font-bold text-white">{batch.drugName}</h1>
           <p className="text-white/70">Batch ID: {batch.id} | Status: <span className="font-bold">{batch.status}</span></p>
         </div>
         <button onClick={handleZipDownload} disabled={isZipping || batch.qrCodes.length === 0} className="w-full sm:w-auto mt-4 sm:mt-0 font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50 disabled:cursor-not-allowed">

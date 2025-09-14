@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { Link } from 'react-router-dom';
 import Modal from './Modal'; // Import the Modal component
+import Table from './Table'; // Import the new Table component
 
 const STATUS_STYLES = { PENDING_ADMIN_APPROVAL: 'bg-blue-400/20 text-blue-200 border border-blue-400/30' };
 
@@ -13,6 +14,13 @@ const AdminApprovalQueue = () => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [currentBatchToReject, setCurrentBatchToReject] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+
+  const headers = [
+    "Drug Name",
+    "Manufacturer",
+    "Status",
+    "Action"
+  ];
 
   const fetchPendingBatches = async () => {
     setIsLoading(true);
@@ -77,26 +85,17 @@ const AdminApprovalQueue = () => {
             </div>
         ) : (
             <div className="overflow-x-auto">
-                <table className="w-full text-left text-white">
-                <thead>
-                    <tr className="border-b border-white/20">
-                    <th className="p-4 text-sm font-semibold opacity-80">Drug Name</th>
-                    <th className="p-4 text-sm font-semibold opacity-80">Manufacturer</th>
-                    <th className="p-4 text-sm font-semibold opacity-80">Status</th>
-                    <th className="p-4 text-sm font-semibold opacity-80 whitespace-nowrap">Action</th>
-                    </tr>
-                </thead>
-                <tbody>
+                <Table headers={headers}>
                     {pendingBatches.map(batch => (
-                    <tr key={batch.id} className="border-b border-white/10">
+                    <tr key={batch.id} className="border-b border-white/10 hover:bg-white/5">
                         <td className="p-4 font-medium">
                             <Link to={`/admin/batches/${batch.id}`} className="hover:underline">{batch.drugName}</Link>
                         </td>
                         <td className="p-4 opacity-70">{batch.manufacturer.companyName}</td>
                         <td className="p-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${STATUS_STYLES[batch.status]}`}>
+                        <div className={`glass-button-sm text-xs font-bold py-1 px-3 rounded-md text-center ${STATUS_STYLES[batch.status]}`}>
                             {batch.status.replace(/_/g, ' ')}
-                        </span>
+                        </div>
                         </td>
                         <td className="p-4 whitespace-nowrap flex space-x-2">
                             <button onClick={() => handleApprove(batch.id)} className="text-xs font-bold py-2 px-3 rounded-lg glass-button pulse-attention">
@@ -111,9 +110,7 @@ const AdminApprovalQueue = () => {
                         </td>
                     </tr>
                     ))}
-                </tbody>
-                </table>
-            </div>
+                </Table>
         )}
 
         {showRejectModal && (

@@ -1,17 +1,32 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import apiClient from '../api';
+import Table from './Table'; // Import the new Table component
 
 const STATUS_STYLES = {
-  PENDING_ADMIN_APPROVAL: 'bg-blue-400/20 text-blue-200 border border-blue-400/30',
-  PENDING_PRINTING: 'bg-purple-400/20 text-purple-200 border border-purple-400/30',
-  DELIVERED: 'bg-green-400/20 text-green-200 border border-green-400/30',
+  PENDING_ADMIN_APPROVAL: 'text-blue-300',
+  PENDING_PRINTING: 'text-purple-300',
+  DELIVERED: 'text-green-300',
+  ADMIN_REJECTED: 'text-red-300',
+  DVA_REJECTED: 'text-red-300',
+  PRINTING_COMPLETE: 'text-blue-300',
+  DELIVERED_TO_MANUFACTURER: 'text-green-300',
+  IN_TRANSIT: 'text-cyan-300',
+  PENDING_MANUFACTURER_CONFIRMATION: 'text-orange-300'
 };
 
 const DvaHistory = () => {
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState(''); // New state for search term
+
+  const headers = [
+    "Drug Name",
+    "Manufacturer",
+    "Status After Your Action",
+    "Date Approved"
+  ];
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -27,44 +42,51 @@ const DvaHistory = () => {
     fetchHistory();
   }, []);
 
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
+  };
+
+  const filteredHistory = history.filter(batch =>
+    batch.drugName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    batch.manufacturer.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    batch.status.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (isLoading) return <p className="text-white p-4">Loading history...</p>;
   if (error) return <p className="text-red-300 p-4">{error}</p>;
 
   return (
     <div className="glass-panel p-4">
-      {history.length === 0 ? (
+        <div className="mb-4">
+            <input
+                type="text"
+                placeholder="Search history..."
+                className="w-full glass-input px-3 py-2"
+                value={searchTerm}
+                onChange={handleSearchChange}
+            />
+        </div>
+      {filteredHistory.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-white/70">No processed batches found in your history.</p>
+          <p className="text-white/70">No processed batches found matching your search.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-white">
-            <thead>
-              <tr className="border-b border-white/20">
-                <th className="p-4 text-sm font-semibold opacity-80">Drug Name</th>
-                <th className="p-4 text-sm font-semibold opacity-80">Manufacturer</th>
-                <th className="p-4 text-sm font-semibold opacity-80">Status After Your Action</th>
-                <th className="p-4 text-sm font-semibold opacity-80 no-wrap">Date Approved</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map(batch => (
-                <tr key={batch.id} className="border-b border-white/10">
-                  <td className="p-4 font-medium">{batch.drugName}</td>
-                  <td className="p-4 opacity-70">{batch.manufacturer.companyName}</td>
-                  <td className="p-4 no-wrap">
-                    <span className={`px-3 py-1 text-xs font-medium rounded-full ${STATUS_STYLES[batch.status] || 'bg-gray-400/20 text-gray-200'}`}>
-                      {batch.status.replace(/_/g, ' ')}
-                    </span>
-                  </td>
-                  <td className="p-4 opacity-70 no-wrap">
-                    {new Date(batch.dva_approved_at || batch.createdAt).toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table headers={headers}>
+          {filteredHistory.map(batch => (
+            <tr key={batch.id} className="border-b border-white/10 hover:bg-white/5">
+              <td className="p-4 font-medium">{batch.drugName}</td>
+              <td className="p-4 opacity-70">{batch.manufacturer.companyName}</td>
+              <td className="p-4 no-wrap">
+                <div className={`glass-button-sm text-xs font-bold py-1 px-3 rounded-md text-center ${STATUS_STYLES[batch.status] || 'text-white/70'}`}>
+                  {batch.status.replace(/_/g, ' ')}
+                </div>
+              </td>
+              <td className="p-4 opacity-70 no-wrap">
+                {new Date(batch.dva_approved_at || batch.createdAt).toLocaleString()}
+              </td>
+            </tr>
+          ))}
+        </Table>
       )}
     </div>
   );

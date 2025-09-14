@@ -66,6 +66,14 @@ enum ShipmentStatus {
   REJECTED
 }
 
+// --- NEW ENUM FOR REPORT STATUS ---
+enum ReportStatus {
+  NEW
+  IN_REVIEW
+  FORWARDED
+  RESOLVED
+}
+
 // --- CORE MODELS ---
 
 model User {
@@ -103,6 +111,7 @@ model User {
   communications        Communication[]    @relation("AuthorCommunications")
   notifications         NotificationLog[]
   uploadedHealthVideos  HealthVideo[]
+  assignedReports       Report[]           @relation("AssignedReports")
 }
 
 model Batch {
@@ -126,6 +135,11 @@ model Batch {
   delivery_confirmation_code     String?            @default("")
   manufacturer_received_quantity Int?
   seal_background_url            String?
+
+  // New fields for product-specific content
+  productInstructionVideoUrl String?
+  productInstructionText     String?
+  productSealImageUrl        String?
 
   // --- START: ADD THESE LINES FOR COMPREHENSIVE AUDITING ---
   dvaApproverId         Int?
@@ -261,15 +275,18 @@ model DispenseRecord {
 }
 
 model Report {
-  id         Int  @id @default(autoincrement())
-  pharmacyId Int
-  pharmacy   User @relation(fields: [pharmacyId], references: [id])
-
-  message    String
-  imageUrl   String?
-  isResolved Boolean @default(false)
-
-  createdAt DateTime @default(now())
+  id               Int          @id @default(autoincrement())
+  userId           Int?
+  user             User?        @relation(fields: [userId], references: [id])
+  productName      String
+  qrCode           String?
+  issueDescription String
+  attachments      String[]
+  status           ReportStatus @default(NEW) // New status field
+  assigneeId       Int?
+  assignee         User?        @relation("AssignedReports", fields: [assigneeId], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt // New updatedAt field
 }
 
 model Communication {

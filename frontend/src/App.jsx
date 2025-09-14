@@ -47,6 +47,7 @@ import PharmacyHistoryPage from './pages/PharmacyHistoryPage.jsx';
 import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
 import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
+import AdminReportManagementPage from './pages/AdminReportManagementPage.jsx';
 
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
 
@@ -108,6 +109,7 @@ function App() {
             <Route path="/admin/settings" element={<SystemSettingsPage />} />
             <Route path="/admin/map" element={<AdminMapPage />} />
             <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
+            <Route path="/admin/reports" element={<AdminReportManagementPage />} />
             <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
             <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
             <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />

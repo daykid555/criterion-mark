@@ -41,6 +41,7 @@ const navConfig = {
     { icon: <FiCheckSquare size={20} />, text: 'Approval Queue', to: '/admin/approval-queue' },
     { icon: <FiUserPlus size={20} />, text: 'Pending Registrations', to: '/admin/registrations' },
     { icon: <FiUsers size={20} />, text: 'Manage Users', to: '/admin/users' },
+    { icon: <FiFileText size={20} />, text: 'Reports Management', to: '/admin/reports' },
     { icon: <FiMap size={20} />, text: 'Scan Map', to: '/admin/map' },
     { icon: <FiClock size={20} />, text: 'Action History', to: '/admin/history' },
     { icon: <FiSettings size={20} />, text: 'System Settings', to: '/admin/settings' },
@@ -60,6 +61,7 @@ const navConfig = {
     { icon: <FiHome size={20} />, text: 'Dashboard', to: '/pharmacy/dashboard' },
     { icon: <FiCheckSquare size={20} />, text: 'Stock Management', to: '/pharmacy/stock' },
     { icon: <FiClock size={20} />, text: 'Dispense History', to: '/pharmacy/history' },
+    { icon: <FiAlertTriangle size={20} />, text: 'Report Issue', to: '/report' },
   ],
   PRINTING: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/printing/dashboard' },

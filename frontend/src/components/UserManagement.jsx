@@ -1,9 +1,9 @@
 // frontend/src/components/UserManagement.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../api';
 import CreateUserModal from './CreateUserModal';
 import toast from 'react-hot-toast';
-import { FiAlertCircle, FiX } from 'react-icons/fi';
+import { FiAlertCircle, FiX, FiSearch, FiLoader } from 'react-icons/fi';
 
 // Custom Modal for Confirmation (replacing window.confirm)
 const ConfirmationModal = ({ isOpen, onConfirm, onCancel, message }) => {
@@ -38,40 +38,79 @@ const ConfirmationModal = ({ isOpen, onConfirm, onCancel, message }) => {
 
 function UserManagement() {
   const [users, setUsers] = useState([]);
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   
-  const fetchUsers = async () => {
-    setIsLoading(true);
-    setError('');
+  // Debounce effect for search input
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500); // Wait 500ms after user stops typing
+    return () => clearTimeout(timerId);
+  }, [searchTerm]);
+
+  const fetchUsers = useCallback(async (isNewSearch) => {
+    if (isNewSearch) {
+      setIsLoading(true);
+      setUsers([]); 
+    } else {
+      setIsLoadingMore(true); 
+    }
+    setError(null);
+
     try {
-      const response = await apiClient.get('/api/admin/users/all');
-      if (Array.isArray(response.data)) {
-        setUsers(response.data);
-      } else {
-        setUsers([]);
-        setError('Received an unexpected data format from the server.');
-      }
+      const response = await apiClient.get('/api/admin/users/all', {
+        params: {
+          page: isNewSearch ? 1 : page,
+          search: debouncedSearchTerm,
+        }
+      });
+      
+      const { data, pagination } = response.data;
+      
+      setUsers(prev => isNewSearch ? data : [...prev, ...data]);
+      setHasNextPage(pagination.hasNextPage);
+
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load users.');
-      setUsers([]);
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [page, debouncedSearchTerm]);
+
+  // Effect to handle initial load and new searches
+  useEffect(() => {
+    setPage(1); // Reset page to 1 on a new search
+    fetchUsers(true); // 'true' indicates it's a new search
+  }, [debouncedSearchTerm]);
+  
+  // Effect to handle loading more data
+  useEffect(() => {
+    if (page > 1) {
+      fetchUsers(false); // 'false' indicates we are loading more, not a new search
+    }
+  }, [page]);
+
+  const handleLoadMore = () => {
+    if (hasNextPage && !isLoadingMore) {
+      setPage(prevPage => prevPage + 1);
     }
   };
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
 
   const handleToggleActivation = async (userId) => {
     try {
       const response = await apiClient.put(`/api/admin/users/${userId}/toggle-activation`);
       toast.success(response.data.message || 'User status updated!');
-      fetchUsers();
+      fetchUsers(true); // Re-fetch all users to update status and potentially re-sort/filter
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to update user status.');
     }
@@ -91,7 +130,7 @@ function UserManagement() {
     try {
       const response = await apiClient.delete(`/api/admin/users/${userId}`);
       toast.success(response.data.message, { id: toastId });
-      fetchUsers();
+      fetchUsers(true); // Re-fetch all users after deletion
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to delete user.', { id: toastId });
     } finally {
@@ -100,11 +139,11 @@ function UserManagement() {
   };
 
   const handleUserCreationSuccess = () => {
-    fetchUsers();
+    fetchUsers(true); // Re-fetch all users after creation
   };
 
   const renderContent = () => {
-    if (isLoading) return <p className="text-white/70 text-center p-8">Loading users...</p>;
+    if (isLoading && users.length === 0) return <p className="text-white/70 text-center p-8">Loading users...</p>;
     if (error) return <p className="text-red-300 text-center p-8">{error}</p>;
     if (users.length === 0) return <p className="text-white/70 text-center p-8">No users found.</p>;
 
@@ -112,8 +151,8 @@ function UserManagement() {
       <>
         {/* --- Desktop Table View --- */}
         <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-left text-white">
-            <thead className="border-b border-white/20 text-sm text-white/70">
+          <table className="w-full text-left text-sm text-white/90">
+            <thead className="bg-white/10 text-xs uppercase">
               <tr>
                 <th className="p-4">Name / Company</th>
                 <th className="p-4">Email</th>
@@ -122,19 +161,18 @@ function UserManagement() {
                 <th className="p-4 text-center">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody>
               {users.map(user => (
-                <tr key={user.id}>
+                <tr key={user.id} className="border-b border-white/10 hover:bg-white/5">
                   <td className="p-4 font-semibold">{user.companyName}</td>
                   <td className="p-4 text-sm">{user.email}</td>
                   <td className="p-4 text-xs font-mono">{user.role}</td>
                   <td className="p-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.isActive ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
+                    <div className={`glass-button-sm text-xs font-bold py-1 px-3 rounded-md text-center ${user.isActive ? 'text-green-300' : 'text-yellow-300'}`}>
                       {user.isActive ? 'Active' : 'Deactivated'}
-                    </span>
+                    </div>
                   </td>
                   <td className="p-4">
-                    {/* FIXED: Use flexbox to keep buttons side-by-side */}
                     <div className="flex gap-2 justify-center">
                         <button 
                           onClick={() => handleToggleActivation(user.id)}
@@ -162,16 +200,15 @@ function UserManagement() {
             <div key={user.id} className="bg-white/5 p-4 rounded-lg border border-white/10">
               <div className="flex justify-between items-start mb-3">
                 <h3 className="font-semibold text-white pr-2">{user.companyName}</h3>
-                <span className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold ${user.isActive ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
+                <div className={`glass-button-sm text-xs font-bold py-1 px-3 rounded-md text-center ${user.isActive ? 'text-green-300' : 'text-yellow-300'}`}>
                   {user.isActive ? 'Active' : 'Deactivated'}
-                </span>
+                </div>
               </div>
               <div className="text-sm text-white/80 space-y-1 mb-4">
                 <div><span className="font-semibold text-white/60">Email: </span><span>{user.email}</span></div>
                 <div><span className="font-semibold text-white/60">Role: </span><span className="font-mono text-xs">{user.role}</span></div>
               </div>
               
-              {/* FIXED: Use a grid to ensure consistent two-column layout */}
               <div className="grid grid-cols-2 gap-2">
                 <button 
                   onClick={() => handleToggleActivation(user.id)}
@@ -194,7 +231,28 @@ function UserManagement() {
   };
 
   return (
-    <div>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-semibold text-white">Manage All Users</h2>
+        <div className="flex items-center space-x-4">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="glass-input w-72 pl-10"
+            />
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
+          </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="glass-button font-bold py-2 px-4 rounded-lg"
+          >
+            Create New User
+          </button>
+        </div>
+      </div>
       <ConfirmationModal
         isOpen={isConfirmModalOpen}
         onConfirm={handleRemoveUser}
@@ -207,18 +265,27 @@ function UserManagement() {
           onSuccess={handleUserCreationSuccess} 
         />
       )}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4">
-        <h2 className="text-2xl font-semibold text-white">Manage All Users</h2>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="glass-button mt-3 sm:mt-0 font-bold py-2 px-4 rounded-lg"
-        >
-          Create New User
-        </button>
-      </div>
       <div className="glass-panel p-4">
         {renderContent()}
       </div>
+      {hasNextPage && (
+        <div className="flex justify-center">
+          <button 
+            onClick={handleLoadMore} 
+            disabled={isLoadingMore} 
+            className="font-bold py-3 px-6 rounded-lg glass-button flex items-center justify-center disabled:opacity-50"
+          >
+            {isLoadingMore ? (
+              <>
+                <FiLoader className="animate-spin mr-2" />
+                Loading...
+              </>
+            ) : (
+              'Load More'
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

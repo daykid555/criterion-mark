@@ -2,7 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient, Role, BatchStatus } from '@prisma/client';
+import { PrismaClient, Role, BatchStatus, ReportStatus } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -78,8 +78,7 @@ const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
     const horizontalCenter = Math.floor((canvasWidth - qrSize) / 2);
     
     // These vertical positions are estimates to place elements on top of the background
-    const serialTextTop = 100; 
-    const customerLabelTop = serialTextTop + 30;
+    const customerLabelTop = 100; // Adjusted to be relative to top
     const customerQrTop = customerLabelTop + 25;
     const pharmacyLabelTop = customerQrTop + qrSize + 15;
     const pharmacyQrTop = pharmacyLabelTop + 45;
@@ -88,25 +87,21 @@ const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
     const customerQrBuffer = await qrcode.toBuffer(qrCode.code, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
     const pharmacyQrBuffer = await qrcode.toBuffer(qrCode.outerCode, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
 
-    // 4. Generate label and text buffers from SVG to ensure transparency
-    const serialSvg = Buffer.from(`<svg width="200" height="25"><text x="100" y="20" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold" fill="black">S/N: ${nanoid(10)}</text></svg>`);
-    const serialBuffer = await sharp(serialSvg).png().toBuffer();
-
-    const customerLabelSvg = Buffer.from(`<svg width="120" height="25"><text x="60" y="20" text-anchor="middle" font-family="sans-serif" font-size="16" font-weight="bold">CUSTOMER</text></svg>`);
+    // 4. Generate label buffers from SVG to ensure transparency
+    const customerLabelSvg = Buffer.from(`<svg width="120" height="20"><text x="60" y="15" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">CUSTOMER</text></svg>`);
     const customerLabelBuffer = await sharp(customerLabelSvg).png().toBuffer();
 
     const pharmacyLabelSvg = Buffer.from(`
-    <svg width="120" height="40">
-        <text x="60" y="15" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">pharmacy</text>
-        <line x1="10" y1="22" x2="110" y2="22" stroke="black" stroke-width="1" />
-        <text x="60" y="35" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">manufacturer</text>
+    <svg width="120" height="35">
+        <text x="60" y="12" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">PHARMACY</text>
+        <line x1="10" y1="18" x2="110" y2="18" stroke="black" stroke-width="1" />
+        <text x="60" y="30" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">MANUFACTURER</text>
     </svg>`);
     const pharmacyLabelBuffer = await sharp(pharmacyLabelSvg).png().toBuffer();
 
     // 5. Composite everything ON TOP of the original background
     const finalImageBuffer = await sharp(backgroundBuffer)
         .composite([
-            { input: serialBuffer, top: serialTextTop, left: Math.floor((canvasWidth - 200) / 2) },
             { input: customerLabelBuffer, top: customerLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
             { input: customerQrBuffer, top: customerQrTop, left: horizontalCenter },
             { input: pharmacyLabelBuffer, top: pharmacyLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
@@ -122,99 +117,959 @@ const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
 app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark API!' }));
 
 // --- PUBLIC VERIFICATION ROUTE (FINAL VERSION WITH TEXT AND VIDEO) ---
-app.get('/api/verify/:code', authenticateTokenOptional, asyncHandler(async (req, res) => {
-    // --- START: NEW UNIVERSAL ERROR HANDLING LOGIC ---
-    // 1. Fetch the universal error content from the database in one go.
+app.post('/api/admin/system-reset', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { adminCode } = req.body;
+    if (!adminCode) {
+        return res.status(400).json({ error: 'Admin code is required for this action.' });
+    }
+    const codeSetting = await prisma.systemSetting.findUnique({ where: { key: 'admin_creation_code' } });
+    if (!codeSetting || !(await bcrypt.compare(adminCode, codeSetting.value))) {
+        return res.status(401).json({ error: 'Invalid Admin Code.' });
+    }
+
+    const backupData = {
+        batches: await prisma.batch.findMany({ include: { manufacturer: true } }),
+        users: await prisma.user.findMany(),
+        qrCodes: await prisma.qRCode.findMany(),
+        scanRecords: await prisma.scanRecord.findMany(),
+        skincareBrands: await prisma.skincareBrand.findMany({ include: { user: true } }),
+        skincareProducts: await prisma.skincareProduct.findMany({ include: { brand: true } }),
+    };
+
+    const json2csvParser = new Parser();
+    const archive = archiver('zip');
+    const cloudinaryUpload = new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "system-backups", resource_type: "raw", public_id: `criterion_mark_backup_${new Date().toISOString()}` },
+            (error, result) => error ? reject(error) : resolve(result)
+        );
+        archive.pipe(uploadStream);
+    });
+
+    for (const [key, data] of Object.entries(backupData)) {
+        if (data.length > 0) {
+            archive.append(json2csvParser.parse(data), { name: `${key}_backup.csv` });
+        }
+    }
+
+    await archive.finalize();
+    const uploadResult = await cloudinaryUpload;
+    console.log('System backup uploaded to Cloudinary:', uploadResult.secure_url);
+
+    await prisma.$transaction([
+        prisma.scanRecord.deleteMany(),
+        prisma.qRCode.deleteMany(),
+        prisma.batch.deleteMany(),
+        prisma.skincareProduct.deleteMany(),
+        prisma.skincareBrand.deleteMany(),
+    ]);
+
+    res.status(200).json({ message: `System data has been backed up and reset successfully.` });
+}));
+
+// --- ADMIN SETTINGS ROUTES ---
+app.get('/api/admin/settings', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const settings = await prisma.systemSetting.findMany({
         where: { key: { in: ['universal_warning_text', 'universal_warning_video_url'] } },
     });
-    const universalWarningText = settings.find(s => s.key === 'universal_warning_text')?.value || 'Warning: This product could not be verified. Do not use. Please contact the seller immediately.';
-    const universalWarningVideoUrl = settings.find(s => s.key === 'universal_warning_video_url')?.value || null;
+    const result = settings.reduce((acc, setting) => {
+        acc[setting.key] = setting.value;
+        return acc;
+    }, {});
+    res.status(200).json(result);
+}));
 
-    const universalErrorPayload = {
-        status: 'error',
-        message: universalWarningText, // Use the universal text as the primary message
-        universalWarning: {
-            text: universalWarningText,
-            videoUrl: universalWarningVideoUrl,
-        }
-    };
-    // --- END: NEW UNIVERSAL ERROR HANDLING LOGIC ---
+app.post('/api/admin/settings', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { universalWarningText, universalWarningVideoUrl } = req.body;
 
-    const { code } = req.params;
-    const ip = req.ip;
-    const useLocation = req.headers['x-use-location'] === 'true';
-    let locationData = { ipAddress: ip, city: null, region: null, country: null, latitude: null, longitude: null };
-
-    if (useLocation && process.env.IPINFO_API_KEY) {
-        try {
-            const { data } = await axios.get(`https://ipinfo.io/${ip}?token=${process.env.IPINFO_API_KEY}`);
-            locationData = { ...locationData, city: data.city, region: data.region, country: data.country };
-            if (data.loc) { const [lat, lon] = data.loc.split(','); locationData.latitude = parseFloat(lat); locationData.longitude = parseFloat(lon); }
-        } catch (geoError) { console.error('IPinfo lookup failed:', geoError.message); }
+    if (universalWarningText !== undefined) {
+        await prisma.systemSetting.upsert({
+            where: { key: 'universal_warning_text' },
+            update: { value: universalWarningText },
+            create: { key: 'universal_warning_text', value: universalWarningText },
+        });
+    }
+    if (universalWarningVideoUrl !== undefined) {
+        await prisma.systemSetting.upsert({
+            where: { key: 'universal_warning_video_url' },
+            update: { value: universalWarningVideoUrl },
+            create: { key: 'universal_warning_video_url', value: universalWarningVideoUrl },
+        });
     }
 
-    const qrCodeRecord = await prisma.qRCode.findUnique({
-        where: { code: code },
-        include: {
-            batch: { select: { drugName: true, nafdacNumber: true, manufacturer: { select: { companyName: true } }, seal_background_url: true } },
-            scanRecords: { where: { scannedByRole: Role.CUSTOMER }, orderBy: { scannedAt: 'asc' } },
+    res.status(200).json({ message: 'Settings updated successfully.' });
+}));
+
+// --- PRINTING PORTAL ROUTES ---
+app.get('/api/printing/pending', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
+    const pendingBatches = await prisma.batch.findMany({
+        where: { status: BatchStatus.PENDING_PRINTING },
+        include: { manufacturer: { select: { companyName: true } } },
+        orderBy: { admin_approved_at: 'asc' },
+    });
+    res.status(200).json(pendingBatches);
+}));
+
+app.get('/api/printing/in-progress', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
+    const inProgressBatches = await prisma.batch.findMany({
+        where: { status: BatchStatus.PRINTING_IN_PROGRESS },
+        include: { manufacturer: { select: { companyName: true } } },
+        orderBy: { print_started_at: 'asc' },
+    });
+    res.status(200).json(inProgressBatches);
+}));
+
+app.put('/api/printing/batches/:id/start', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const printingUserId = req.user.userId; // CAPTURE ID
+
+    const updatedBatch = await prisma.batch.update({
+        where: { id: parseInt(id, 10) },
+        data: { 
+            status: BatchStatus.PRINTING_IN_PROGRESS, 
+            print_started_at: new Date(),
+            printingStartedById: printingUserId, // SAVE ID
         },
     });
+    res.status(200).json(updatedBatch);
+}));
+
+app.put('/api/printing/batches/:id/complete', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const printingUserId = req.user.userId; // CAPTURE ID
+
+    const updatedBatch = await prisma.batch.update({
+        where: { id: parseInt(id, 10) },
+        data: { 
+            status: BatchStatus.PRINTING_COMPLETE, 
+            print_completed_at: new Date(),
+            printingCompletedById: printingUserId, // SAVE ID
+        },
+    });
+    res.status(200).json(updatedBatch);
+}));
+
+// --- PRINTING HISTORY ROUTE (FIXED) ---
+app.get('/api/printing/history', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
+    const completedBatches = await prisma.batch.findMany({
+        where: {
+            status: {
+                in: [
+                    BatchStatus.PRINTING_COMPLETE,
+                    BatchStatus.IN_TRANSIT,
+                    BatchStatus.PENDING_MANUFACTURER_CONFIRMATION,
+                    BatchStatus.DELIVERED_TO_MANUFACTURER
+                ]
+            }
+        },
+        include: { manufacturer: { select: { companyName: true } } },
+        orderBy: { id: 'desc' },
+    });
+    res.status(200).json(completedBatches);
+}));
+
+app.get('/api/printing/batches/:id', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const batchDetails = await prisma.batch.findUnique({
+        where: { id: parseInt(id, 10) },
+        include: {
+            manufacturer: { select: { companyName: true } },
+            qrCodes: { orderBy: { id: 'asc' } },
+        },
+    });
+    if (!batchDetails) {
+        return res.status(404).json({ error: 'Batch not found.' });
+    }
+    res.status(200).json(batchDetails);
+}));
+
+app.get('/api/printing/seal/:code', authenticateToken, authorizeRole([Role.ADMIN, Role.PRINTING]), asyncHandler(async (req, res) => {
+    const { code } = req.params;
+    const qrCode = await prisma.qRCode.findUnique({
+        where: { code },
+        include: { batch: { select: { seal_background_url: true } } },
+    });
+    if (!qrCode) {
+        return res.status(404).json({ error: 'QR Code not found.' });
+    }
+    if (!qrCode.batch.seal_background_url) {
+        return res.status(400).json({ error: 'No seal background has been assigned to this batch by an admin.' });
+    }
     
-    const scanDataDefaults = {
-        scannedCode: code,
-        scannedByRole: Role.CUSTOMER,
-        ...locationData,
-        ...(req.user && { scannerId: req.user.userId })
-    };
+    const finalImageBuffer = await generateDualSealBuffer(qrCode, qrCode.batch.seal_background_url);
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Disposition', `attachment; filename="seal_${qrCode.code}.png"`);
+    res.status(200).send(finalImageBuffer);
+    
+}));
 
-    let healthContent = null;
-    if (qrCodeRecord && qrCodeRecord.batch.nafdacNumber) {
-        const healthVideo = await prisma.healthVideo.findUnique({ where: { nafdacNumber: qrCodeRecord.batch.nafdacNumber } });
-        if (healthVideo) {
-            healthContent = qrCodeRecord.status === 'UNUSED' 
-                ? { text: healthVideo.genuineText, videoUrl: healthVideo.genuineVideoUrl }
-                : { text: healthVideo.counterfeitText, videoUrl: healthVideo.counterfeitVideoUrl };
+app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const batch = await prisma.batch.findUnique({
+        where: { id: parseInt(id, 10) },
+        include: { qrCodes: true },
+    });
+    if (!batch || !batch.seal_background_url) {
+        return res.status(404).json({ error: 'Batch or seal background not found.' });
+    }
+        res.attachment(`batch_${id}_seals.zip`);
+    const archive = archiver('zip');
+    archive.on('error', (err) => { throw err; });
+    archive.pipe(res);
+
+    // Filter out master codes, as they are not individual seals
+    const childQrs = batch.qrCodes.filter(qr => !qr.isMaster);
+
+    for (const qr of childQrs) {
+        try {
+            const finalImageBuffer = await generateDualSealBuffer(qr, batch.seal_background_url);
+            archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
+        } catch (error) {
+            console.error(`Failed to generate seal for QR code ${qr.code}:`, error.message);
+            // Optionally, append an error placeholder to the zip
+            archive.append(`Error generating seal for ${qr.code}: ${error.message}`, { name: `error_${qr.code}.txt` });
         }
     }
+    await archive.finalize();
+}));
 
-    if (!qrCodeRecord) {
-        await prisma.scanRecord.create({ data: { ...scanDataDefaults, scanOutcome: 'NOT_FOUND' } });
-        // --- USE UNIVERSAL PAYLOAD ---
-        return res.status(404).json(universalErrorPayload);
+// --- LOGISTICS PORTAL ROUTES ---
+app.get('/api/logistics/pending-pickup', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
+    const readyBatches = await prisma.batch.findMany({
+        where: { status: BatchStatus.PRINTING_COMPLETE },
+        include: { manufacturer: { select: { companyName: true } } },
+        orderBy: { print_completed_at: 'asc' },
+    });
+    res.status(200).json(readyBatches);
+}));
+
+app.get('/api/logistics/in-transit', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
+    const inTransitBatches = await prisma.batch.findMany({
+        where: { status: { in: [BatchStatus.IN_TRANSIT, BatchStatus.PENDING_MANUFACTURER_CONFIRMATION] } },
+        include: { manufacturer: { select: { companyName: true } } },
+        orderBy: { picked_up_at: 'desc' },
+    });
+    res.status(200).json(inTransitBatches);
+}));
+
+app.put('/api/logistics/batches/:id/pickup', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
+    if (!batch) return res.status(404).json({ error: 'Batch not found.' });
+    if (batch.status !== BatchStatus.PRINTING_COMPLETE) {
+        return res.status(400).json({ error: `Batch status is '${batch.status}', expected 'PRINTING_COMPLETE'.` });
+    }
+    const updatedBatch = await prisma.batch.update({
+        where: { id: parseInt(id, 10) },
+        data: { status: BatchStatus.IN_TRANSIT, picked_up_at: new Date() },
+    });
+    res.status(200).json(updatedBatch);
+}));
+
+app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { delivery_notes } = req.body;
+    const safeDeliveryNotes = (typeof delivery_notes === 'string' && delivery_notes.trim()) || null;
+
+    const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
+    if (!batch) {
+        return res.status(404).json({ error: 'Batch not found.' });
+    }
+    if (batch.status !== BatchStatus.IN_TRANSIT) {
+        return res.status(400).json({ error: `Batch status is '${batch.status}', expected 'IN_TRANSIT'.` });
+    }
+    const updatedBatch = await prisma.batch.update({
+        where: { id: parseInt(id, 10) },
+        data: {
+            status: BatchStatus.PENDING_MANUFACTURER_CONFIRMATION,
+            delivery_notes: safeDeliveryNotes
+        },
+    });
+    res.status(200).json(updatedBatch);
+}));
+
+app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { confirmation_code } = req.body;
+
+    if (!confirmation_code || typeof confirmation_code !== 'string' || confirmation_code.length !== 6) {
+        return res.status(400).json({ error: 'A valid 6-digit confirmation code is required.' });
     }
 
-    // If the code is anything other than UNUSED, it's a failure.
-    if (qrCodeRecord.status !== 'UNUSED') {
-        const scanOutcome = qrCodeRecord.status === 'USED' ? 'DUPLICATE' : 'INVALID_STATE';
-        // Create the record of the failed scan
-        await prisma.scanRecord.create({ data: { ...scanDataDefaults, qrCodeId: qrCodeRecord.id, scanOutcome } });
-        // --- USE UNIVERSAL PAYLOAD ---
-        const httpStatus = scanOutcome === 'DUPLICATE' ? 409 : 400;
-        return res.status(httpStatus).json(universalErrorPayload);
+    const batchId = parseInt(id, 10);
+    const batch = await prisma.batch.findUnique({ where: { id: batchId } });
+
+    if (!batch) {
+        return res.status(404).json({ error: 'Batch not found.' });
+    }
+    if (batch.status !== BatchStatus.PENDING_MANUFACTURER_CONFIRMATION) {
+        return res.status(400).json({ error: 'This batch is not awaiting finalization.' });
+    }
+    if (!batch.delivery_confirmation_code) {
+        return res.status(500).json({ error: 'Server error: Cannot find a confirmation code for this batch.' });
+    }
+    if (batch.delivery_confirmation_code !== confirmation_code.trim()) {
+        return res.status(400).json({ error: 'Invalid confirmation code.' });
     }
 
-    // --- This part below only runs on a successful, 'UNUSED' scan ---
-    const scanOutcome = 'SUCCESS';
-    const message = 'Product Verified Successfully!';
-    const httpStatus = 200;
-
-    await prisma.$transaction(async (tx) => {
-        await tx.scanRecord.create({ data: { ...scanDataDefaults, qrCodeId: qrCodeRecord.id, scanOutcome } });
-        if (scanOutcome === 'SUCCESS') {
-            await tx.qRCode.update({ where: { id: qrCodeRecord.id }, data: { status: 'USED', firstVerificationTimestamp: new Date(), firstVerificationIp: locationData.ipAddress, firstVerificationLocation: locationData.city ? `${locationData.city}, ${locationData.country}` : null } });
-        }
+    const updatedBatch = await prisma.batch.update({
+        where: { id: batchId },
+        data: {
+            status: BatchStatus.DELIVERED_TO_MANUFACTURER,
+            delivered_at: new Date()
+        },
     });
 
-    const responsePayload = { status: httpStatus === 200 ? 'success' : 'error', message, data: qrCodeRecord };
-    if (healthContent) responsePayload.healthContent = healthContent;
-    
-    const firstCustomerScan = qrCodeRecord.scanRecords[0];
-    if (firstCustomerScan) { responsePayload.firstScanDetails = { scannedAt: firstCustomerScan.scannedAt, location: firstCustomerScan.city && firstCustomerScan.country ? `${firstCustomerScan.city}, ${firstCustomerScan.country}` : 'Unknown Location' }; }
-
-    return res.status(httpStatus).json(responsePayload);
+    res.status(200).json(updatedBatch);
 }));
+
+app.get('/api/logistics/history', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
+    const deliveredBatches = await prisma.batch.findMany({
+        where: { status: BatchStatus.DELIVERED_TO_MANUFACTURER },
+        include: { manufacturer: { select: { companyName: true } } },
+        orderBy: { delivered_at: 'desc' },
+    });
+    res.status(200).json(deliveredBatches);
+}));
+
+// --- SKINCARE BRAND PORTAL ROUTES ---
+const getSkincareBrand = async (req, res, next) => {
+    const userId = req.user.userId;
+
+    try {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return res.status(404).json({ error: "User not found." });
+
+        const skincareBrand = await prisma.skincareBrand.upsert({
+            where: { userId: userId },
+            update: {},
+            create: {
+                userId: userId,
+                brandName: user.companyName,
+                cacNumber: user.companyRegNumber,
+                isVerified: true,
+            }
+        });
+
+        if (!skincareBrand) return res.status(403).json({ error: 'Could not find or create a skincare brand profile.' });
+        req.brand = skincareBrand;
+        next();
+    } catch (error) {
+        next(error);
+    }
+};
+
+app.get('/api/skincare/products', authenticateToken, authorizeRole([Role.SKINCARE_BRAND]), getSkincareBrand, asyncHandler(async (req, res) => {
+    const products = await prisma.skincareProduct.findMany({
+        where: { brandId: req.brand.id },
+        orderBy: { createdAt: 'desc' },
+    });
+    res.status(200).json(products);
+}));
+
+app.post('/api/skincare/products', authenticateToken, authorizeRole([Role.SKINCARE_BRAND]), getSkincareBrand, asyncHandler(async (req, res) => {
+    const { productName, ingredients, skinReactions, nafdacNumber } = req.body;
+    if (!productName || !ingredients) {
+        return res.status(400).json({ error: 'Product Name and Ingredients are required.' });
+    }
+    const newProduct = await prisma.skincareProduct.create({
+        data: {
+            brandId: req.brand.id,
+            productName,
+            ingredients,
+            skinReactions,
+            nafdacNumber,
+            uniqueCode: nanoid(10).toUpperCase(),
+        },
+    });
+    res.status(201).json(newProduct);
+}));
+
+// --- START: HEALTH ADVISOR PORTAL ROUTES ---
+
+// Endpoint for a Health Advisor to create a new video entry
+app.post('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HEALTH_ADVISOR, Role.ADMIN]), asyncHandler(async (req, res) => {
+    try {
+        // --- UPDATED: Now includes text fields ---
+        const { nafdacNumber, drugName, genuineVideoUrl, counterfeitVideoUrl, genuineText, counterfeitText } = req.body;
+        const uploaderId = req.user.userId;
+
+        if (!nafdacNumber || !drugName || !genuineVideoUrl || !counterfeitVideoUrl || !genuineText || !counterfeitText) {
+            return res.status(400).json({ error: 'All fields are required.' });
+        }
+        
+        const existingVideo = await prisma.healthVideo.findUnique({
+            where: { nafdacNumber: nafdacNumber.trim() }
+        });
+
+        if (existingVideo) {
+            return res.status(409).json({ error: 'A video entry for this NAFDAC number already exists. Please update the existing one instead.' });
+        }
+
+        const newVideo = await prisma.healthVideo.create({
+            data: {
+                nafdacNumber: nafdacNumber.trim(),
+                drugName,
+                genuineVideoUrl,
+                counterfeitVideoUrl,
+                genuineText,        // <-- Added
+                counterfeitText,    // <-- Added
+                uploaderId,
+            }
+        });
+
+        res.status(201).json({ message: 'Health content entry created successfully.', video: newVideo });
+
+    } catch (error) {
+        console.error('Error creating health video:', error);
+        res.status(500).json({ error: 'An internal server error occurred.' });
+    }
+}));
+
+// --- NEW ENDPOINT: Get a list of delivered drugs that NEED content ---
+app.get('/api/health-advisor/pending-content', authenticateToken, authorizeRole([Role.HEALTH_ADVISOR, Role.ADMIN]), asyncHandler(async (req, res) => {
+    try {
+        // Step 1: Find all NAFDAC numbers for which content has already been created.
+        const existingContentNafdacNumbers = await prisma.healthVideo.findMany({
+            select: { nafdacNumber: true }
+        });
+        const existingNafdacSet = new Set(existingContentNafdacNumbers.map(v => v.nafdacNumber));
+
+        // Step 2: Find all batches that have been delivered to the manufacturer.
+        const deliveredBatches = await prisma.batch.findMany({
+            where: {
+                status: 'DELIVERED_TO_MANUFACTURER'
+            },
+            select: {
+                drugName: true,
+                nafdacNumber: true
+            },
+            orderBy: {
+                delivered_at: 'desc'
+            }
+        });
+
+        // Step 3: Filter this list to find which ones are "pending" (i.e., don't have content yet)
+        const pendingContentMap = new Map();
+        for (const batch of deliveredBatches) {
+            if (!existingNafdacSet.has(batch.nafdacNumber) && !pendingContentMap.has(batch.nafdacNumber)) {
+                pendingContentMap.set(batch.nafdacNumber, {
+                    nafdacNumber: batch.nafdacNumber,
+                    drugName: batch.drugName
+                });
+            }
+        }
+        
+        res.status(200).json(Array.from(pendingContentMap.values()));
+
+    } catch (error) {
+        console.error('Error fetching pending content list:', error);
+        res.status(500).json({ error: 'An internal server error occurred.' });
+    }
+}));
+
+// Endpoint to get all videos uploaded by the logged-in Health Advisor
+app.get('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HEALTH_ADVISOR, Role.ADMIN]), asyncHandler(async (req, res) => {
+    try {
+        const uploaderId = req.user.userId;
+
+        const videos = await prisma.healthVideo.findMany({
+            where: { uploaderId: uploaderId },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.status(200).json(videos);
+
+    } catch (error) {
+        console.error('Error fetching health videos:', error);
+        res.status(500).json({ error: 'An internal server error occurred.' });
+    }
+}));
+
+// --- END: HEALTH ADVISOR PORTAL ROUTES ---
+
+// --- START: NEW ROUTE TO GET PRODUCT DETAILS BY QR CODE ---
+app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN]), asyncHandler(async (req, res) => {
+    try {
+        const { outerCode } = req.params;
+
+        if (!outerCode) {
+            return res.status(400).json({ error: 'Outer code parameter is required.' });
+        }
+
+        const qrCodeDetails = await prisma.qRCode.findUnique({
+            where: { outerCode: outerCode.trim() },
+            include: {
+                batch: {
+                    select: {
+                        drugName: true,
+                    }
+                }
+            }
+        });
+
+        if (!qrCodeDetails) {
+            return res.status(404).json({ error: 'Product code not found in the system.' });
+        }
+
+        if (!qrCodeDetails.batch || !qrCodeDetails.batch.drugName) {
+            return res.status(404).json({ error: 'Could not find product details associated with this code.' });
+        }
+
+        res.status(200).json({
+            drugName: qrCodeDetails.batch.drugName,
+            outerCode: qrCodeDetails.outerCode, // Return the code for confirmation
+        });
+
+    } catch (error) {
+        console.error('Error fetching QR code details:', error);
+        res.status(500).json({ error: 'An internal server error occurred while fetching product details.' });
+    }
+}));
+
+// --- ADD THIS NEW ROUTE TO THE PHARMACY SECTION ---
+
+app.get('/api/pharmacy/dispense-history', authenticateToken, authorizeRole([Role.PHARMACY]), asyncHandler(async (req, res) => {
+    const pharmacyId = req.user.userId;
+    const { startDate, endDate, search } = req.query;
+
+    let dateFilter = {};
+    if (startDate && endDate) {
+        dateFilter = {
+            dispensedAt: {
+                gte: new Date(startDate),
+                lte: new Date(endDate),
+            },
+        };
+    } else {
+        // Default to today's records
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        dateFilter = {
+            dispensedAt: {
+                gte: today,
+                lt: tomorrow,
+            },
+        };
+    }
+
+    const whereClause = {
+        pharmacyId: pharmacyId,
+        ...dateFilter,
+        ...(search && {
+            qrCode: {
+                batch: {
+                    drugName: {
+                        contains: search,
+                        mode: 'insensitive',
+                    },
+                },
+            },
+        }),
+    };
+
+    const history = await prisma.dispenseRecord.findMany({
+        where: whereClause,
+        orderBy: { dispensedAt: 'desc' },
+        select: { // Select only necessary fields
+            dispensedAt: true,
+            qrCode: {
+                select: {
+                    batch: {
+                        select: {
+                            drugName: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    // Group by date and format
+    const groupedHistory = history.reduce((acc, record) => {
+        const date = new Date(record.dispensedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        if (!acc[date]) {
+            acc[date] = [];
+        }
+        acc[date].push({
+            productName: record.qrCode.batch.drugName,
+            dispensedAt: record.dispensedAt,
+        });
+        return acc;
+    }, {});
+
+    res.status(200).json(groupedHistory);
+}));
+
+// --- PUBLIC SKINCARE VERIFICATION ROUTE ---
+app.get('/api/skincare/verify/:code', asyncHandler(async (req, res) => {
+    const { code } = req.params;
+    if (!code) {
+        return res.status(400).json({ status: 'error', message: 'A verification code is required.' });
+    }
+    const product = await prisma.skincareProduct.findUnique({
+        where: { uniqueCode: code.toUpperCase() },
+        include: {
+            brand: { select: { brandName: true, isVerified: true } }
+        }
+    });
+    if (!product) {
+        return res.status(404).json({ status: 'error', message: 'This code is invalid. The product is not registered in our system.' });
+    }
+    if (!product.brand.isVerified) {
+        return res.status(403).json({ status: 'error', message: `This product is from '${product.brand.brandName}', which is not yet a verified brand in our system.` });
+    }
+    res.status(200).json({ status: 'success', message: 'Product Verified Successfully!', data: product });
+}));
+
+// --- USER-SPECIFIC ROUTES ---
+app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, res) => {
+    try {
+        const userId = req.user.userId;
+
+        const scanRecords = await prisma.scanRecord.findMany({
+            where: {
+                scannerId: userId,
+                scannedByRole: 'CUSTOMER' // Only show scans made as a customer
+            },
+            orderBy: {
+                scannedAt: 'desc'
+            },
+            include: {
+                qrCode: {
+                    include: {
+                        batch: {
+                            select: {
+                                drugName: true,
+                                nafdacNumber: true,
+                                seal_background_url: true
+                            }
+                        },
+                        // Find the pharmacy that dispensed this item
+                        dispenseRecord: {
+                            include: {
+                                pharmacy: {
+                                    select: {
+                                        companyName: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // We need to fetch health content separately since it's linked by NAFDAC number, not directly to the scan
+        const nafdacNumbers = [...new Set(scanRecords.map(r => r.qrCode?.batch.nafdacNumber).filter(Boolean))];
+        
+        const healthVideos = await prisma.healthVideo.findMany({
+            where: {
+                nafdacNumber: { in: nafdacNumbers }
+            }
+        });
+
+        // Create a quick lookup map for health content
+        const healthContentMap = new Map(healthVideos.map(v => [v.nafdacNumber, v]));
+
+        // Combine all the data into a clean response
+        const history = scanRecords.map(record => {
+            const qr = record.qrCode;
+            const batch = qr?.batch;
+            const healthContent = batch ? healthContentMap.get(batch.nafdacNumber) : null;
+
+            return {
+                id: record.id,
+                scannedAt: record.scannedAt,
+                scanOutcome: record.scanOutcome,
+                drugName: batch?.drugName || 'Unknown Product',
+                productImage: batch?.seal_background_url || null,
+                activatingPharmacy: qr?.dispenseRecord?.pharmacy?.companyName || 'N/A',
+                healthContent: healthContent ? {
+                    text: record.scanOutcome === 'SUCCESS' ? healthContent.genuineText : healthContent.counterfeitText,
+                    videoUrl: record.scanOutcome === 'SUCCESS' ? healthContent.genuineVideoUrl : healthContent.counterfeitVideoUrl,
+                } : null
+            };
+        });
+
+        res.status(200).json(history);
+
+    } catch (error) {
+        console.error('Error fetching scan history:', error);
+        res.status(500).json({ error: 'An internal server error occurred while fetching your history.' });
+    }
+}));
+
+// --- AUTHENTICATION ROUTES ---
+app.post('/api/auth/login', asyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Email and password are required.' });
+    }
+    const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase() },
+    });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+        return res.status(401).json({ error: 'Invalid credentials.' });
+    }
+    if (!user.isActive) {
+        return res.status(403).json({ error: 'Your account has not been approved by an administrator yet.' });
+    }
+    const payload = { userId: user.id, role: user.role, email: user.email };
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+    res.status(200).json({
+        message: 'Login successful!',
+        token: token,
+        user: { id: user.id, role: user.role, companyName: user.companyName, email: user.email },
+    });
+}));
+
+app.post('/api/auth/register', asyncHandler(async (req, res) => {
+    const { email, password, role, companyName, companyRegNumber, fullName } = req.body;
+
+    if (!email || !password || !role) {
+      return res.status(400).json({ error: 'Email, password, and role are required.' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existingUser) {
+      return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+
+    const dataToCreate = { email: email.toLowerCase(), password: await bcrypt.hash(password, 10), role };
+    let successMessage = '';
+
+    switch (role) {
+        case Role.MANUFACTURER:
+            if (!companyName || !companyRegNumber) return res.status(400).json({ error: 'Company Name and Registration Number are required.' });
+            const existingCompany = await prisma.user.findFirst({ where: { companyRegNumber } });
+            if (existingCompany) return res.status(409).json({ error: 'A company with this registration number already exists.' });
+            dataToCreate.companyName = companyName;
+            dataToCreate.companyRegNumber = companyRegNumber;
+            dataToCreate.isActive = false;
+            successMessage = 'Registration successful! Your account is pending approval.';
+            break;
+
+        case Role.SKINCARE_BRAND:
+            if (!companyName || !companyRegNumber) {
+                return res.status(400).json({ error: 'Brand Name and CAC Registration Number are required.' });
+            }
+            const existingBrand = await prisma.user.findFirst({ where: { companyRegNumber } });
+            if (existingBrand) {
+                return res.status(409).json({ error: 'A brand with this registration number already exists.' });
+            }
+            dataToCreate.companyName = companyName;
+            dataToCreate.companyRegNumber = companyRegNumber;
+            dataToCreate.isActive = false;
+            successMessage = 'Registration successful! Your brand is pending approval from an administrator.';
+            break;
+
+        case Role.CUSTOMER:
+            if (!fullName) return res.status(400).json({ error: 'Full Name is required.' });
+            dataToCreate.companyName = fullName;
+            dataToCreate.isActive = true;
+            successMessage = 'Registration successful! You can now log in.';
+            break;
+
+        // --- START: ADD THIS NEW CASE FOR PHARMACY ---
+        case Role.PHARMACY:
+            if (!companyName || !companyRegNumber) return res.status(400).json({ error: 'Pharmacy Name and Registration Number are required.' });
+            const existingPharmacy = await prisma.user.findFirst({ where: { companyRegNumber } });
+            if (existingPharmacy) return res.status(409).json({ error: 'A pharmacy with this registration number already exists.' });
+            dataToCreate.companyName = companyName;
+            dataToCreate.companyRegNumber = companyRegNumber;
+            dataToCreate.isActive = false; // Pharmacies must be approved by an Admin
+            successMessage = 'Registration successful! Your pharmacy account is pending approval from an administrator.';
+            break;
+           
+        case Role.HEALTH_ADVISOR:
+            if (!fullName) return res.status(400).json({ error: 'Full Name is required for Health Advisors.' });
+            dataToCreate.companyName = fullName;
+            dataToCreate.isActive = false; // Health Advisors must be approved by an Admin
+            successMessage = 'Registration successful! Your Health Advisor account is pending approval from an administrator.';
+            break;
+        // --- End of new code block ---
+        
+
+        case Role.DVA:
+        case Role.PRINTING:
+        case Role.LOGISTICS:
+            if (!fullName) return res.status(400).json({ error: 'Full Name / Company Name is required.' });
+            dataToCreate.companyName = fullName;
+            dataToCreate.isActive = false;
+            successMessage = 'Registration successful! Your account is pending approval.';
+            break;
+
+        default:
+            return res.status(400).json({ error: 'Invalid user role specified.' });
+    }
+
+    await prisma.user.create({ data: dataToCreate });
+    res.status(201).json({ message: successMessage });
+}));
+
+// --- REPORTING ROUTE ---
+const reportUpload = multer({ storage: multer.memoryStorage() });
+
+app.post('/api/reports', authenticateTokenOptional, reportUpload.array('attachments', 5), asyncHandler(async (req, res) => {
+    const { productName, qrCode, issueDescription } = req.body;
+    const userId = req.user ? req.user.userId : null; // Get userId if authenticated
+
+    if (!productName || !issueDescription) {
+        return res.status(400).json({ error: 'Product Name and Issue Description are required.' });
+    }
+
+    let attachmentUrls = [];
+    if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+            // Upload to Cloudinary
+            const b64 = Buffer.from(file.buffer).toString("base64");
+            let dataURI = "data:" + file.mimetype + ";base64," + b64;
+            const uploadResult = await cloudinary.uploader.upload(dataURI, {
+                folder: "criterion-mark-reports",
+            });
+            attachmentUrls.push(uploadResult.secure_url);
+        }
+    }
+
+    const newReport = await prisma.report.create({
+        data: {
+            userId: userId,
+            productName: productName,
+            qrCode: qrCode || null,
+            issueDescription: issueDescription,
+            attachments: attachmentUrls,
+            status: ReportStatus.NEW, // Set initial status
+        },
+    });
+
+    res.status(201).json({ message: 'Report submitted successfully!', report: newReport });
+}));
+
+// --- ADMIN REPORT MANAGEMENT ROUTES ---
+app.get('/api/reports', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { status, reporterType, assigneeId, productName, startDate, endDate, page = 1, pageSize = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(pageSize);
+    const take = parseInt(pageSize);
+
+    let whereClause = {};
+
+    if (status) {
+        whereClause.status = status; // e.g., NEW, IN_REVIEW, FORWARDED, RESOLVED
+    }
+    if (assigneeId) {
+        whereClause.assigneeId = parseInt(assigneeId);
+    }
+    if (reporterType) {
+        if (reporterType === 'PUBLIC') {
+            whereClause.userId = null;
+        } else if (reporterType === 'USER') {
+            whereClause.userId = { not: null };
+        }
+    }
+    if (productName) {
+        whereClause.productName = { contains: productName, mode: 'insensitive' };
+    }
+    if (startDate && endDate) {
+        whereClause.createdAt = {
+            gte: new Date(startDate),
+            lte: new Date(endDate),
+        };
+    } else if (startDate) {
+        whereClause.createdAt = { gte: new Date(startDate) };
+    } else if (endDate) {
+        whereClause.createdAt = { lte: new Date(endDate) };
+    }
+
+    const [reports, totalCount] = await prisma.$transaction([
+        prisma.report.findMany({
+            where: whereClause,
+            include: {
+                user: { select: { id: true, email: true, companyName: true, role: true } },
+                assignee: { select: { id: true, email: true, companyName: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take,
+        }),
+        prisma.report.count({ where: whereClause }),
+    ]);
+
+    res.status(200).json({
+        data: reports,
+        pagination: {
+            totalCount,
+            currentPage: parseInt(page),
+            pageSize: parseInt(pageSize),
+            totalPages: Math.ceil(totalCount / take),
+        },
+    });
+}));
+
+app.patch('/api/reports/:id', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { status, assigneeId } = req.body;
+
+    const reportId = parseInt(id);
+    if (isNaN(reportId)) {
+        return res.status(400).json({ error: 'Invalid report ID.' });
+    }
+
+    const updateData = {};
+    if (status) {
+        if (!Object.values(ReportStatus).includes(status)) {
+            return res.status(400).json({ error: 'Invalid report status.' });
+        }
+        updateData.status = status;
+    }
+    if (assigneeId !== undefined) { // Allow setting to null to unassign
+        if (assigneeId !== null) {
+            const assigneeExists = await prisma.user.findUnique({ where: { id: assigneeId } });
+            if (!assigneeExists) {
+                return res.status(404).json({ error: 'Assignee user not found.' });
+            }
+        }
+        updateData.assigneeId = assigneeId;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: 'No valid update fields provided.' });
+    }
+
+    const updatedReport = await prisma.report.update({
+        where: { id: reportId },
+        data: updateData,
+        include: {
+            user: { select: { id: true, email: true, companyName: true, role: true } },
+            assignee: { select: { id: true, email: true, companyName: true } },
+        },
+    });
+
+    res.status(200).json({ message: 'Report updated successfully!', report: updatedReport });
+}));
+
+// --- ERROR HANDLING MIDDLEWARE ---
+const errorHandler = (err, req, res, next) => {
+    console.error('ERROR:', err.stack);
+    const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+    res.status(statusCode).json({
+        status: 'error',
+        message: err.message || 'An internal server error occurred.',
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    });
+};
+app.use(errorHandler);
+
+// --- START THE SERVER ---
+const port = process.env.PORT || 5001;
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
 
 // --- ADD THIS NEW ROUTE FOR MASTER QR CODE SCANNING ---
 
@@ -346,7 +1201,17 @@ app.post('/api/verify/supply-chain', authenticateToken, authorizeRole([Role.PHAR
                 scannerId: scannerId,
                 ipAddress: req.ip,
             }))
-        })
+        }),
+        // 3. Create dispense records for all verified codes (only if scanned by PHARMACY role)
+        ...(scannerRole === Role.PHARMACY ? [
+            prisma.dispenseRecord.createMany({
+                data: qrPairsToVerify.map(qr => ({
+                    qrCodeId: qr.id,
+                    pharmacyId: scannerId, // The ID of the pharmacist
+                    dispensedAt: new Date(),
+                }))
+            })
+        ] : []),
     ]);
 
     res.status(200).json({
@@ -992,12 +1857,39 @@ app.get('/api/admin/pending-users', authenticateToken, authorizeRole([Role.ADMIN
 }));
 
 app.get('/api/admin/users/all', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
-    const users = await prisma.user.findMany({
-        where: { role: { not: Role.ADMIN } },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, email: true, companyName: true, role: true, isActive: true }
+    const page = parseInt(req.query.page) || 1;
+    const search = req.query.search || '';
+    const take = 20; // Or another appropriate default limit
+    const skip = (page - 1) * take;
+
+    const whereClause = {
+        role: { not: Role.ADMIN },
+        OR: search ? [
+            { email: { contains: search, mode: 'insensitive' } },
+            { companyName: { contains: search, mode: 'insensitive' } }
+        ] : undefined,
+    };
+
+    const [users, totalCount] = await prisma.$transaction([
+        prisma.user.findMany({
+            where: whereClause,
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, email: true, companyName: true, role: true, isActive: true },
+            take,
+            skip,
+        }),
+        prisma.user.count({ where: whereClause })
+    ]);
+
+    res.status(200).json({
+        data: users,
+        pagination: {
+            currentPage: page,
+            totalCount,
+            totalPages: Math.ceil(totalCount / take),
+            hasNextPage: skip + take < totalCount,
+        }
     });
-    res.status(200).json(users);
 }));
 
 
@@ -1513,26 +2405,76 @@ app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Rol
 
 app.get('/api/pharmacy/dispense-history', authenticateToken, authorizeRole([Role.PHARMACY]), asyncHandler(async (req, res) => {
     const pharmacyId = req.user.userId;
+    const { startDate, endDate, search } = req.query;
+
+    let dateFilter = {};
+    if (startDate && endDate) {
+        dateFilter = {
+            dispensedAt: {
+                gte: new Date(startDate),
+                lte: new Date(endDate),
+            },
+        };
+    } else {
+        // Default to today's records
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        dateFilter = {
+            dispensedAt: {
+                gte: today,
+                lt: tomorrow,
+            },
+        };
+    }
+
+    const whereClause = {
+        pharmacyId: pharmacyId,
+        ...dateFilter,
+        ...(search && {
+            qrCode: {
+                batch: {
+                    drugName: {
+                        contains: search,
+                        mode: 'insensitive',
+                    },
+                },
+            },
+        }),
+    };
 
     const history = await prisma.dispenseRecord.findMany({
-        where: { pharmacyId: pharmacyId },
+        where: whereClause,
         orderBy: { dispensedAt: 'desc' },
-        include: {
-            // Include details about the QR code and the product itself
+        select: { // Select only necessary fields
+            dispensedAt: true,
             qrCode: {
-                include: {
+                select: {
                     batch: {
                         select: {
                             drugName: true,
-                            manufacturer: { select: { companyName: true } }
-                        }
-                    }
-                }
-            }
-        }
+                        },
+                    },
+                },
+            },
+        },
     });
 
-    res.status(200).json(history);
+    // Group by date and format
+    const groupedHistory = history.reduce((acc, record) => {
+        const date = new Date(record.dispensedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        if (!acc[date]) {
+            acc[date] = [];
+        }
+        acc[date].push({
+            productName: record.qrCode.batch.drugName,
+            dispensedAt: record.dispensedAt,
+        });
+        return acc;
+    }, {});
+
+    res.status(200).json(groupedHistory);
 }));
 
 // --- PUBLIC SKINCARE VERIFICATION ROUTE ---
@@ -1743,6 +2685,146 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
 
     await prisma.user.create({ data: dataToCreate });
     res.status(201).json({ message: successMessage });
+}));
+
+// --- REPORTING ROUTE ---
+const reportUpload = multer({ storage: multer.memoryStorage() });
+
+app.post('/api/reports', authenticateTokenOptional, reportUpload.array('attachments', 5), asyncHandler(async (req, res) => {
+    const { productName, qrCode, issueDescription } = req.body;
+    const userId = req.user ? req.user.userId : null; // Get userId if authenticated
+
+    if (!productName || !issueDescription) {
+        return res.status(400).json({ error: 'Product Name and Issue Description are required.' });
+    }
+
+    let attachmentUrls = [];
+    if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+            // Upload to Cloudinary
+            const b64 = Buffer.from(file.buffer).toString("base64");
+            let dataURI = "data:" + file.mimetype + ";base64," + b64;
+            const uploadResult = await cloudinary.uploader.upload(dataURI, {
+                folder: "criterion-mark-reports",
+            });
+            attachmentUrls.push(uploadResult.secure_url);
+        }
+    }
+
+    const newReport = await prisma.report.create({
+        data: {
+            userId: userId,
+            productName: productName,
+            qrCode: qrCode || null,
+            issueDescription: issueDescription,
+            attachments: attachmentUrls,
+            status: ReportStatus.NEW, // Set initial status
+        },
+    });
+
+    res.status(201).json({ message: 'Report submitted successfully!', report: newReport });
+}));
+
+// --- ADMIN REPORT MANAGEMENT ROUTES ---
+app.get('/api/reports', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { status, reporterType, assigneeId, productName, startDate, endDate, page = 1, pageSize = 10 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(pageSize);
+    const take = parseInt(pageSize);
+
+    let whereClause = {};
+
+    if (status) {
+        whereClause.status = status; // e.g., NEW, IN_REVIEW, FORWARDED, RESOLVED
+    }
+    if (assigneeId) {
+        whereClause.assigneeId = parseInt(assigneeId);
+    }
+    if (reporterType) {
+        if (reporterType === 'PUBLIC') {
+            whereClause.userId = null;
+        } else if (reporterType === 'USER') {
+            whereClause.userId = { not: null };
+        }
+    }
+    if (productName) {
+        whereClause.productName = { contains: productName, mode: 'insensitive' };
+    }
+    if (startDate && endDate) {
+        whereClause.createdAt = {
+            gte: new Date(startDate),
+            lte: new Date(endDate),
+        };
+    } else if (startDate) {
+        whereClause.createdAt = { gte: new Date(startDate) };
+    } else if (endDate) {
+        whereClause.createdAt = { lte: new Date(endDate) };
+    }
+
+    const [reports, totalCount] = await prisma.$transaction([
+        prisma.report.findMany({
+            where: whereClause,
+            include: {
+                user: { select: { id: true, email: true, companyName: true, role: true } },
+                assignee: { select: { id: true, email: true, companyName: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take,
+        }),
+        prisma.report.count({ where: whereClause }),
+    ]);
+
+    res.status(200).json({
+        data: reports,
+        pagination: {
+            totalCount,
+            currentPage: parseInt(page),
+            pageSize: parseInt(pageSize),
+            totalPages: Math.ceil(totalCount / take),
+        },
+    });
+}));
+
+app.patch('/api/reports/:id', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { status, assigneeId } = req.body;
+
+    const reportId = parseInt(id);
+    if (isNaN(reportId)) {
+        return res.status(400).json({ error: 'Invalid report ID.' });
+    }
+
+    const updateData = {};
+    if (status) {
+        if (!Object.values(ReportStatus).includes(status)) {
+            return res.status(400).json({ error: 'Invalid report status.' });
+        }
+        updateData.status = status;
+    }
+    if (assigneeId !== undefined) { // Allow setting to null to unassign
+        if (assigneeId !== null) {
+            const assigneeExists = await prisma.user.findUnique({ where: { id: assigneeId } });
+            if (!assigneeExists) {
+                return res.status(404).json({ error: 'Assignee user not found.' });
+            }
+        }
+        updateData.assigneeId = assigneeId;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: 'No valid update fields provided.' });
+    }
+
+    const updatedReport = await prisma.report.update({
+        where: { id: reportId },
+        data: updateData,
+        include: {
+            user: { select: { id: true, email: true, companyName: true, role: true } },
+            assignee: { select: { id: true, email: true, companyName: true } },
+        },
+    });
+
+    res.status(200).json({ message: 'Report updated successfully!', report: updatedReport });
 }));
 
 // --- ERROR HANDLING MIDDLEWARE ---

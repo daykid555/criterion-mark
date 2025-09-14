@@ -1,30 +1,27 @@
-// frontend/src/pages/ManufacturerDashboard.jsx
 import React, { useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
+import ManufacturerOverviewWidget from '../components/ManufacturerOverviewWidget';
 
 function ManufacturerDashboard() {
   const { user } = useContext(AuthContext);
 
-  // Use the user's company name from the authentication context, with a fallback.
   const companyName = user?.companyName || 'Manufacturer Portal';
 
   return (
-    // Flex container to center the content panel vertically and horizontally
-    <div className="flex items-center justify-center h-full p-4">
-      
-      {/* The content panel with a maximum width for better layout control */}
-      <div className="glass-panel w-full max-w-4xl p-8 sm:p-12 text-center">
-        
-        {/* Simple, non-animated title displaying the user's company name */}
-        <h1 className="text-4xl sm:text-5xl font-bold text-white drop-shadow-lg">
-          {companyName}
+    <div className="flex flex-col items-center justify-center h-full p-4">
+      {/* Main content area */}
+      <div className="glass-panel w-full max-w-4xl p-8 sm:p-12 text-center mb-8">
+        <h1 className="text-4xl sm:text-5xl font-bold text-white drop-shadow-lg mb-4">
+          {companyName} Dashboard
         </h1>
-
-        {/* Informational text for the upcoming chat feature */}
-        <p className="text-white/70 mt-6 max-w-md mx-auto">
-          This dashboard will host the secure communication channel for your brand. Chat functionality is pending implementation.
+        <p className="text-white/70 max-w-md mx-auto">
+          Welcome to your Manufacturer Dashboard. Here's a quick overview of your operations.
         </p>
+      </div>
 
+      {/* Manufacturer Overview Widget */}
+      <div className="w-full max-w-4xl">
+        <ManufacturerOverviewWidget />
       </div>
     </div>
   );

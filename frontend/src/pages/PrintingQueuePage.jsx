@@ -2,32 +2,49 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { Link } from 'react-router-dom'; // Import Link
+import Table from '../components/Table'; // Import the new Table component
 
 // Re-using the table component structure from the original dashboard
-const STATUS_STYLES = { PENDING_PRINTING: 'bg-purple-200 text-purple-800 pulse-attention-soft', PRINTING_IN_PROGRESS: 'bg-blue-200 text-blue-800 animate-pulse' };
+const STATUS_STYLES = {
+    PENDING_PRINTING: 'text-purple-300 pulse-attention-soft',
+    PRINTING_IN_PROGRESS: 'text-blue-300 animate-pulse'
+};
 const PrintingJobsTable = ({ jobs, onUpdateStatus }) => {
     if (jobs.length === 0) return <p className="text-center py-10 text-white/70">No active jobs in the queue.</p>;
+
+    const headers = [
+        "Batch ID",
+        "Product",
+        "Manufacturer",
+        "Quantity",
+        "Status",
+        "Downloads",
+        "Action"
+    ];
+
     return (
-        <div className="overflow-x-auto">
-            <table className="w-full text-left text-white min-w-[900px]">
-                <thead className="border-b border-white/20 text-sm text-white/70">
-                    <tr><th className="p-4">Batch ID</th><th className="p-4">Product</th><th className="p-4">Manufacturer</th><th className="p-4">Quantity</th><th className="p-4">Status</th><th className="p-4 text-center">Downloads</th><th className="p-4 text-center">Action</th></tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                    {jobs.map(job => (
-                        <tr key={job.id}>
-                            <td className="p-4 font-mono">#{job.id}</td><td className="p-4 font-semibold">{job.drugName}</td><td className="p-4">{job.manufacturer.companyName}</td><td className="p-4">{job.quantity.toLocaleString()}</td>
-                            <td className="p-4"><span className={`whitespace-nowrap px-2 py-1 rounded-full text-xs font-bold ${STATUS_STYLES[job.status] || ''}`}>{job.status.replace(/_/g, ' ')}</span></td>
-                            <td className="p-4 text-center"><Link to={`/printing/batch/${job.id}`} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-green-500/30">View/Download</Link></td>
-                            <td className="p-4 text-center">
-                                {job.status === 'PENDING_PRINTING' && <button onClick={() => onUpdateStatus(job.id, 'start')} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md">Start Printing</button>}
-                                {job.status === 'PRINTING_IN_PROGRESS' && <button onClick={() => onUpdateStatus(job.id, 'complete')} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-blue-500/30">Mark Complete</button>}
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+        <Table headers={headers}>
+            {jobs.map(job => (
+                <tr key={job.id} className="border-b border-white/10 hover:bg-white/5">
+                    <td className="p-4 font-mono">#{job.id}</td>
+                    <td className="p-4 font-semibold">{job.drugName}</td>
+                    <td className="p-4">{job.manufacturer.companyName}</td>
+                    <td className="p-4">{job.quantity.toLocaleString()}</td>
+                    <td className="p-4">
+                        <div className={`glass-button-sm text-xs font-bold py-1 px-3 rounded-md text-center ${STATUS_STYLES[job.status] || 'text-white/70'}`}>
+                            {job.status.replace(/_/g, ' ')}
+                        </div>
+                    </td>
+                    <td className="p-4 text-center">
+                        <Link to={`/printing/batch/${job.id}`} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-green-500/30">View/Download</Link>
+                    </td>
+                    <td className="p-4 text-center">
+                        {job.status === 'PENDING_PRINTING' && <button onClick={() => onUpdateStatus(job.id, 'start')} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md">Start Printing</button>}
+                        {job.status === 'PRINTING_IN_PROGRESS' && <button onClick={() => onUpdateStatus(job.id, 'complete')} className="whitespace-nowrap glass-button-sm text-xs font-bold py-1 px-3 rounded-md bg-blue-500/30">Mark Complete</button>}
+                    </td>
+                </tr>
+            ))}
+        </Table>
     );
 };
 

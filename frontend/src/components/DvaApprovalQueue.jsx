@@ -5,7 +5,7 @@ import apiClient from '../api';
 import Modal from './Modal'; // Import the Modal component
 
 const STATUS_STYLES = {
-    PENDING_DVA_APPROVAL: 'bg-yellow-400/20 text-yellow-200 border border-yellow-400/30',
+    PENDING_DVA_APPROVAL: 'text-yellow-300 pulse-attention',
 };
 
 function DvaApprovalQueue() {
@@ -21,8 +21,6 @@ function DvaApprovalQueue() {
         try {
             const response = await apiClient.get('/api/dva/pending-batches');
             setPendingBatches(response.data);
-        } catch (_error) { // eslint-disable-line no-unused-vars
-            setError('Failed to load pending batches.');
         } finally {
             setIsLoading(false);
         }
@@ -79,34 +77,34 @@ function DvaApprovalQueue() {
                 </div>
             ) : (
                 <div className="overflow-x-auto sm:overflow-x-visible">
-                    <table className="w-full text-left text-white table-auto">
-                        <thead>
-                            <tr className="border-b border-white/20">
-                                <th className="p-1 text-xs font-semibold opacity-80">Drug Name</th>
-                                <th className="p-1 text-xs font-semibold opacity-80">Manufacturer</th>
-                                <th className="p-1 text-xs font-semibold opacity-80">Quantity</th>
-                                <th className="p-1 text-xs font-semibold opacity-80">Status</th>
-                                <th className="p-1 text-xs font-semibold opacity-80">Action</th>
+                    <table className="w-full text-left text-sm text-white/90">
+                        <thead className="bg-white/10 text-xs uppercase">
+                            <tr>
+                                <th className="p-4">Drug Name</th>
+                                <th className="p-4">Manufacturer</th>
+                                <th className="p-4">Quantity</th>
+                                <th className="p-4">Status</th>
+                                <th className="p-4">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             {pendingBatches.map(batch => (
-                                <tr key={batch.id} className="border-b border-white/10">
-                                    <td className="p-1 text-sm font-medium">{batch.drugName}</td>
-                                    <td className="p-1 text-sm opacity-70">{batch.manufacturer.companyName}</td>
-                                    <td className="p-1 text-sm">{batch.quantity.toLocaleString()}</td>
-                                    <td className="p-1">
-                                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_STYLES[batch.status]}`}>
+                                <tr key={batch.id} className="border-b border-white/10 hover:bg-white/5">
+                                    <td className="p-4 font-medium">{batch.drugName}</td>
+                                    <td className="p-4 opacity-70">{batch.manufacturer.companyName}</td>
+                                    <td className="p-4">{batch.quantity.toLocaleString()}</td>
+                                    <td className="p-4">
+                                        <div className={`glass-button-sm text-xs font-bold py-1 px-3 rounded-md text-center ${STATUS_STYLES[batch.status]}`}>
                                             {batch.status.replace(/_/g, ' ')}
-                                        </span>
+                                        </div>
                                     </td>
-                                    <td className="p-1 flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-2">
-                                        <button onClick={() => handleApprove(batch.id)} className="text-xs font-bold py-1 px-2 rounded-lg glass-button pulse-attention">
+                                    <td className="p-4 flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-2">
+                                        <button onClick={() => handleApprove(batch.id)} className="text-xs font-bold py-2 px-3 rounded-lg glass-button pulse-attention">
                                             Approve
                                         </button>
                                         <button
                                             onClick={() => handleRejectClick(batch)}
-                                            className="text-xs font-bold py-1 px-2 rounded-lg bg-red-600/40 text-red-200 border border-red-600/50 hover:bg-red-700/50 transition-colors"
+                                            className="text-xs font-bold py-2 px-3 rounded-lg bg-red-600/40 text-red-200 border border-red-600/50 hover:bg-red-700/50 transition-colors"
                                         >
                                             Reject
                                         </button>

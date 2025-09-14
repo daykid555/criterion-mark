@@ -6,6 +6,18 @@ import apiClient from '../api';
 import { FiSearch, FiLoader } from 'react-icons/fi';
 
 // The BatchHistoryTable component is now updated to include the link
+const STATUS_STYLES = {
+  PENDING_DVA_APPROVAL: 'text-yellow-300',
+  PENDING_ADMIN_APPROVAL: 'text-yellow-300',
+  ADMIN_REJECTED: 'text-red-300',
+  DVA_REJECTED: 'text-red-300',
+  PENDING_PRINTING: 'text-purple-300',
+  PRINTING_COMPLETE: 'text-blue-300',
+  DELIVERED_TO_MANUFACTURER: 'text-green-300',
+  IN_TRANSIT: 'text-cyan-300',
+  PENDING_MANUFACTURER_CONFIRMATION: 'text-orange-300'
+};
+
 const BatchHistoryTable = ({ batches }) => (
   <div className="overflow-x-auto">
     <table className="min-w-full text-sm text-left text-white/90">
@@ -33,7 +45,11 @@ const BatchHistoryTable = ({ batches }) => (
             </td>
             {/* --- End of Change --- */}
             <td className="px-6 py-4">{batch.manufacturer.companyName}</td>
-            <td className="px-6 py-4">{batch.status}</td>
+            <td className="px-6 py-4">
+              <div className={`glass-button-sm text-xs font-bold py-1 px-3 rounded-md text-center ${STATUS_STYLES[batch.status] || 'text-white/70'}`}>
+                {batch.status.replace(/_/g, ' ')}
+              </div>
+            </td>
             <td className="px-6 py-4">{new Date(batch.admin_approved_at).toLocaleDateString()}</td>
           </tr>
         ))}

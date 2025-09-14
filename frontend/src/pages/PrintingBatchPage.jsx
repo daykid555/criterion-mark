@@ -1,8 +1,9 @@
 // frontend/src/pages/PrintingBatchPage.jsx - THE FINAL, ARCHITECTURALLY CORRECT FIX
 
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import apiClient from '../api';
+import BackButton from '../components/BackButton';
 
 function PrintingBatchPage() {
   const { id } = useParams();
@@ -120,9 +121,11 @@ function PrintingBatchPage() {
 
   return (
     <div>
-      <Link to="/printing/dashboard" className="text-white/80 hover:underline mb-6 block">← Back to Printing Queue</Link>
-      <div className="glass-panel p-6 mb-8">
+      <div className="flex items-center gap-4 mb-6">
+        <BackButton />
         <h1 className="text-3xl font-bold text-white">{batch.drugName}</h1>
+      </div>
+      <div className="glass-panel p-6 mb-8">
         <p className="text-white/70">Batch ID: {id} | Seals to generate: {batch.qrCodes.length}</p>
         {error && <p className="text-red-400 text-sm mt-2 whitespace-pre-wrap">{error}</p>}
       </div>

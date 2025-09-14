@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { Link } from 'react-router-dom';
+import Table from './Table'; // Import the new Table component
 
 const STATUS_STYLES = {
   PENDING_DVA_APPROVAL: 'bg-yellow-400/20 text-yellow-200 border border-yellow-400/30',
@@ -15,6 +16,14 @@ const AdminHistory = () => {
   const [history, setHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState(''); // New state for search term
+
+  const headers = [
+    "Drug Name",
+    "Manufacturer",
+    "Final Status",
+    "Date Processed"
+  ];
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -30,54 +39,62 @@ const AdminHistory = () => {
     fetchHistory();
   }, []);
 
+  const handleSearchChange = (event) => {
+    setSearchTerm(event.target.value);
+  };
+
+  const filteredHistory = history.filter(batch =>
+    batch.drugName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    batch.manufacturer.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    batch.status.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (isLoading) return <p className="text-white p-4">Loading history...</p>;
   if (error) return <p className="text-red-300 p-4">{error}</p>;
 
   return (
     <div className="glass-panel p-4">
-         {history.length === 0 ? (
+        <div className="mb-4">
+            <input
+                type="text"
+                placeholder="Search history..."
+                className="w-full glass-input px-3 py-2"
+                value={searchTerm}
+                onChange={handleSearchChange}
+            />
+        </div>
+         {filteredHistory.length === 0 ? (
              <div className="text-center py-8">
-                <p className="text-white/70">No processed batches found in the history.</p>
+                <p className="text-white/70">No processed batches found matching your search.</p>
             </div>
          ) : (
-            <div className="overflow-x-auto">
-                <table className="w-full text-left text-white">
-                    <thead>
-                        <tr className="border-b border-white/20">
-                        <th className="p-4 text-sm font-semibold opacity-80">Drug Name</th>
-                        <th className="p-4 text-sm font-semibold opacity-80">Manufacturer</th>
-                        <th className="p-4 text-sm font-semibold opacity-80">Final Status</th>
-                        <th className="p-4 text-sm font-semibold opacity-80 no-wrap">Date Processed</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {history.map(batch => (
-                        <tr key={batch.id} className="border-b border-white/10">
-                            <td className="p-4 font-medium">
-                                <Link to={`/admin/batches/${batch.id}`} className="hover:underline">{batch.drugName}</Link>
-                            </td>
-                            <td className="p-4 opacity-70">{batch.manufacturer.companyName}</td>
-                            <td className="p-4 no-wrap">
-                                <span className={`
-                                    px-3 py-1 text-xs font-medium rounded-full 
-                                    ${STATUS_STYLES[batch.status]}
-                                    ${(batch.status.includes('PENDING')) ? 'pulse-attention' : ''}
-                                `}>
-                                    {batch.status.replace(/_/g, ' ')}
-                                </span>
-                            </td>
-                            <td className="p-4 opacity-70 no-wrap">
-                                {/* We show the admin approval date, or the creation date as a fallback */}
-                                {new Date(batch.admin_approved_at || batch.createdAt).toLocaleString()}
-                            </td>
-                        </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+            <Table headers={headers}>
+                {filteredHistory.map(batch => (
+                <tr key={batch.id} className="border-b border-white/10 hover:bg-white/5">
+                    <td className="p-4 font-medium">
+                        <Link to={`/admin/batches/${batch.id}`} className="hover:underline">{batch.drugName}</Link>
+                    </td>
+                    <td className="p-4 opacity-70">{batch.manufacturer.companyName}</td>
+                    <td className="p-4 no-wrap">
+                        <span className={`
+                            px-3 py-1 text-xs font-medium rounded-full 
+                            ${STATUS_STYLES[batch.status]}
+                            ${(batch.status.includes('PENDING')) ? 'pulse-attention' : ''}
+                        `}>
+                            {batch.status.replace(/_/g, ' ')}
+                        </span>
+                    </td>
+                    <td className="p-4 opacity-70 no-wrap">
+                        {/* We show the admin approval date, or the creation date as a fallback */}
+                        {new Date(batch.admin_approved_at || batch.createdAt).toLocaleString()}
+                    </td>
+                </tr>
+                ))}
+            </Table>
          )}
     </div>
   );
 };
 
-export default AdminHistory; 
+export default AdminHistory;
+ 

@@ -2,18 +2,34 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 
-const STATUS_STYLES = { DELIVERED: 'bg-gray-200 text-gray-800' };
+const STATUS_STYLES = {
+  DELIVERED_TO_MANUFACTURER: 'text-green-300',
+  PENDING_DVA_APPROVAL: 'text-yellow-300',
+  PENDING_ADMIN_APPROVAL: 'text-yellow-300',
+  ADMIN_REJECTED: 'text-red-300',
+  DVA_REJECTED: 'text-red-300',
+  PENDING_PRINTING: 'text-purple-300',
+  PRINTING_COMPLETE: 'text-blue-300',
+  IN_TRANSIT: 'text-cyan-300',
+  PENDING_MANUFACTURER_CONFIRMATION: 'text-orange-300'
+};
 const HistoryTable = ({ jobs }) => {
     if (jobs.length === 0) return <p className="text-center py-10 text-white/70">No delivery history found.</p>;
     return (
         <div className="overflow-x-auto">
-            <table className="w-full text-left text-white min-w-[800px]">
-                <thead className="border-b border-white/20 text-sm text-white/70"><tr><th className="p-4">Batch ID</th><th className="p-4">Product</th><th className="p-4">Manufacturer</th><th className="p-4">Quantity</th><th className="p-4">Status</th></tr></thead>
-                <tbody className="divide-y divide-white/10">
+            <table className="w-full text-left text-sm text-white/90 min-w-[800px]">
+                <thead className="bg-white/10 text-xs uppercase">
+                    <tr><th className="p-4">Batch ID</th><th className="p-4">Product</th><th className="p-4">Manufacturer</th><th className="p-4">Quantity</th><th className="p-4">Status</th></tr>
+                </thead>
+                <tbody>
                     {jobs.map(job => (
-                        <tr key={job.id}>
+                        <tr key={job.id} className="border-b border-white/10 hover:bg-white/5">
                             <td className="p-4 font-mono">#{job.id}</td><td className="p-4 font-semibold">{job.drugName}</td><td className="p-4">{job.manufacturer.companyName}</td><td className="p-4">{job.quantity.toLocaleString()}</td>
-                            <td className="p-4"><span className={`whitespace-nowrap px-2 py-1 rounded-full text-xs font-bold ${STATUS_STYLES[job.status] || ''}`}>{job.status.replace(/_/g, ' ')}</span></td>
+                            <td className="p-4">
+                                <div className={`glass-button-sm text-xs font-bold py-1 px-3 rounded-md text-center ${STATUS_STYLES[job.status] || 'text-white/70'}`}>
+                                    {job.status.replace(/_/g, ' ')}
+                                </div>
+                            </td>
                         </tr>
                     ))}
                 </tbody>

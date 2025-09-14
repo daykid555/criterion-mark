@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiAlertTriangle } from 'react-icons/fi';
+import { FiArrowLeft } from 'react-icons/fi';
+import ReportForm from '../components/ReportForm';
 
 function ReportPage() {
   const navigate = useNavigate();
@@ -16,21 +17,8 @@ function ReportPage() {
         <h1 className="text-2xl font-bold">Report an Issue</h1>
       </header>
       
-      <main className="flex flex-col items-center justify-center text-center h-[60vh]">
-        <div className="glass-panel p-8 rounded-2xl max-w-md">
-            <FiAlertTriangle className="text-5xl mx-auto mb-4 text-yellow-400" />
-            <h2 className="text-xl font-bold mb-2">Reporting Feature Coming Soon</h2>
-            <p className="text-white/70">
-              This is where you will be able to report counterfeit products or issues directly.
-              This functionality is currently under development.
-            </p>
-            <button
-              onClick={() => navigate(-1)}
-              className="mt-6 w-full glass-button font-bold py-3 px-6 rounded-lg"
-            >
-              Go Back
-            </button>
-        </div>
+      <main className="flex flex-col items-center justify-center w-full">
+        <ReportForm />
       </main>
     </div>
   );
