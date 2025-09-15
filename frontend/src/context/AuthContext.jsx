@@ -1,6 +1,6 @@
 // frontend/src/context/AuthContext.jsx
 
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 
 export const AuthContext = createContext(null);
 
@@ -35,9 +35,6 @@ export const AuthProvider = ({ children }) => {
 
   const value = { user, token, login, logout, isLoading, isAuthenticated: !!token };
   
-  return (
-    <AuthContext.Provider value={value}>
-      {!isLoading && children}
-    </AuthContext.Provider>
-  );
+  export const useAuth = () => {
+  return useContext(AuthContext);
 };
