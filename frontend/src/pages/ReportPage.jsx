@@ -14,7 +14,7 @@ function ReportPage() {
     <div className="p-4 sm:p-6 lg:p-8 flex flex-col items-center">
       <div className="w-full max-w-3xl">
         <div className="flex items-center mb-8">
-          {!hideBackButton && <BackButton />} {/* Conditionally render BackButton */}
+          {!hideBackButton && <BackButton className="sm:hidden" />} {/* Conditionally render BackButton and hide on mobile */}
           <h1 className="text-3xl sm:text-4xl font-bold text-white ml-4 drop-shadow-lg">Report an Issue</h1>
         </div>
         <ReportForm />

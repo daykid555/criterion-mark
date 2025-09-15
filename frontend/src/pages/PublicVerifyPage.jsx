@@ -20,6 +20,8 @@ function PublicVerifyPage() {
   const [scanResult, setScanResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [scanError, setScanError] = useState(null);
+  const [cameraAutoStart, setCameraAutoStart] = useState(true); // New state for camera auto-start setting
+  const [hasUserTappedToStart, setHasUserTappedToStart] = useState(false); // New state for manual camera start
 
   // --- START: NEW STATE FOR PRECISE LOCATION ---
   const [location, setLocation] = useState({ lat: null, lon: null });
@@ -54,7 +56,10 @@ function PublicVerifyPage() {
 
   const startScanner = () => {
     if (html5QrCodeRef.current) {
-      setIsScannerActive(true); setScanError(null); setScanResult(null);
+      setIsScannerActive(true);
+      setScanError(null);
+      setScanResult(null);
+      setHasUserTappedToStart(true); // Set to true when scanner starts
       html5QrCodeRef.current.start(
         { facingMode: "environment" }, { fps: 10 },
         (decodedText) => handleScanSuccess(decodedText),
@@ -103,15 +108,30 @@ function PublicVerifyPage() {
 
   useEffect(() => {
     html5QrCodeRef.current = new Html5Qrcode("qr-reader");
+
+    // Load cameraAutoStart setting from localStorage
+    const storedCameraAutoStart = localStorage.getItem('cameraAutoStart');
+    if (storedCameraAutoStart !== null) {
+      setCameraAutoStart(JSON.parse(storedCameraAutoStart));
+      // If auto-start is enabled, start the scanner immediately
+      if (JSON.parse(storedCameraAutoStart)) {
+        startScanner();
+      }
+    } else {
+      // If no setting is found, default to auto-start and start scanner
+      setCameraAutoStart(true);
+      startScanner();
+    }
+
     return () => {
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(console.error);
       }
     };
-  }, []);
+  }, []); // Empty dependency array to run only once on mount
 
-  const LocationStatusIndicator = () => (
-    <div className="flex items-center justify-center text-sm text-white/80 h-5 mt-2">
+  const LocationStatusIndicator = ({ isCameraActive }) => (
+    <div className={`flex items-center justify-center text-white/80 h-5 mt-2 ${isCameraActive ? 'text-xs' : 'text-sm'}`}>
       <FiMapPin className="mr-2" />
       {locationStatus === 'fetching' && 'Getting your precise location...'}
       {locationStatus === 'success' && 'Precise location enabled'}
@@ -131,25 +151,36 @@ function PublicVerifyPage() {
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-animated bg-[length:400%_400%] animate-gradient p-4">
         <div className="w-full max-w-lg">
           <div className="glass-panel p-8 space-y-4">
-            <div className="text-center text-white">
-              <h1 className="text-3xl font-bold">Verify Your Product</h1>
-              <p className="opacity-80 mt-2">Press "Start Scanning" to use your camera.</p>
-            </div>
-            
-            <div className="w-full aspect-square rounded-2xl overflow-hidden bg-black/30" id="qr-reader-container">
-              <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
-            </div>
-            
-            <div className="flex space-x-4">
-              <button onClick={startScanner} disabled={isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                Start Scanning
-              </button>
-              <button onClick={stopScanner} disabled={!isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                Stop Scanning
-              </button>
-            </div>
-            
-            <LocationStatusIndicator />
+            {/* Conditional rendering for camera or text logo */}
+            {(cameraAutoStart || hasUserTappedToStart) ? (
+              <>
+                <div className="text-center text-white">
+                  <h1 className={`font-bold drop-shadow-lg ${isScannerActive ? 'text-2xl' : 'text-3xl'}`}>Verify Your Product</h1>
+                  <p className={`opacity-80 mt-2 ${isScannerActive ? 'text-sm' : ''}`}>Press "Start Scanning" to use your camera.</p>
+                </div>
+                <div className="w-full aspect-square rounded-2xl overflow-hidden bg-black/30" id="qr-reader-container">
+                  <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
+                </div>
+                <div className="flex space-x-4">
+                  <button onClick={startScanner} disabled={isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+                    Start Scanning
+                  </button>
+                  <button onClick={stopScanner} disabled={!isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+                    Stop Scanning
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div
+                className="flex flex-col items-center justify-center w-full aspect-square rounded-2xl bg-black/30 text-white cursor-pointer"
+                onClick={startScanner}
+              >
+                <h1 className="text-3xl font-bold">Tap to Start Camera</h1>
+                <p className="text-sm opacity-80 mt-2">Camera is currently off.</p>
+              </div>
+            )}
+
+            <LocationStatusIndicator isCameraActive={isScannerActive} /> {/* Pass prop for conditional styling */}
 
             {scanError && <p className="text-center text-red-300 font-semibold">{scanError}</p>}
             {isLoading && <div className="text-center text-blue-300 font-semibold">Verifying...</div>}

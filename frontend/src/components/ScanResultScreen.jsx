@@ -52,21 +52,21 @@ const ScanResultScreen = ({ scanResult, onScanAgain }) => {
   }
 
   const isSuccess = scanResult.status === 'success';
-  const product = isSuccess ? scanResult.data.batch : null;
+  const product = isSuccess ? scanResult.data?.batch : null;
   const healthContent = isSuccess ? scanResult.healthContent : null;
   const universalWarning = !isSuccess ? scanResult.universalWarning : null;
 
-  const mainText = isSuccess ? product.drugName : universalWarning.text;
-  const videoUrl = isSuccess ? product.productInstructionVideoUrl : universalWarning.videoUrl;
-  const imageUrl = isSuccess ? product.productSealImageUrl : null; // No specific image for error state
-  const modalContent = isSuccess ? product.productInstructionText : universalWarning.text;
-  const modalTitle = isSuccess ? `Instructions for ${product.drugName}` : 'Warning Details';
+  const mainText = isSuccess ? product?.drugName : universalWarning?.text;
+  const videoUrl = isSuccess ? product?.productInstructionVideoUrl : universalWarning?.videoUrl;
+  const imageUrl = isSuccess ? product?.productSealImageUrl : null;
+  const modalContent = isSuccess ? product?.productInstructionText : universalWarning?.text;
+  const modalTitle = isSuccess ? `Instructions for ${product?.drugName}` : 'Warning Details';
 
   const showVideo = videoUrl && !videoError;
   const showImage = imageUrl && !imageError;
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center p-4 overflow-hidden">
+    <div className="relative w-full h-full flex items-center justify-center p-4 overflow-hidden bg-gray-900">
       {/* Background Video/Image */}
       {(showVideo && !videoLoading) ? (
         <video

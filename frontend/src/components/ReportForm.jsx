@@ -83,7 +83,7 @@ const ReportForm = () => {
           <input
             type="text"
             id="productName"
-            className="w-full glass-input px-3 py-2 text-base"
+            className="w-full glass-input px-3 py-3 text-lg"
             value={productName}
             onChange={(e) => setProductName(e.target.value)}
           />
@@ -97,7 +97,7 @@ const ReportForm = () => {
           <input
             type="text"
             id="qrCode"
-            className="w-full glass-input px-3 py-2 text-base"
+            className="w-full glass-input px-3 py-3 text-lg"
             value={qrCode}
             onChange={(e) => setQrCode(e.target.value)}
           />
@@ -110,7 +110,7 @@ const ReportForm = () => {
           <textarea
             id="issueDescription"
             rows="5"
-            className="w-full glass-input px-3 py-2 text-base"
+            className="w-full glass-input px-3 py-3 text-lg"
             value={issueDescription}
             onChange={(e) => setIssueDescription(e.target.value)}
           ></textarea>
