@@ -22,20 +22,13 @@ const DvaOverviewWidget = () => {
       }
 
       try {
-        const [
-          pendingVerificationsRes,
-          reportsForReviewRes,
-          verificationThroughputRes,
-        ] = await Promise.all([
-          apiClient.get(`/api/dva/${user.id}/verifications/pending/count`),
-          apiClient.get(`/api/dva/${user.id}/reports/pending`),
-          apiClient.get(`/api/dva/${user.id}/verifications/throughput`),
-        ]);
+        const pendingBatchesRes = await apiClient.get(`/api/dva/pending-batches`);
+        const pendingBatches = pendingBatchesRes.data;
 
         setData({
-          pendingVerifications: pendingVerificationsRes.data.count,
-          reportsForReview: reportsForReviewRes.data.reports,
-          verificationThroughput: verificationThroughputRes.data,
+          pendingVerifications: pendingBatches.length,
+          reportsForReview: [], // Placeholder data
+          verificationThroughput: { today: 0, week: 0 }, // Placeholder data
         });
       } catch (err) {
         console.error('Error fetching DVA data:', err);

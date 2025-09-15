@@ -22,20 +22,24 @@ const ManufacturerOverviewWidget = () => {
       }
 
       try {
-        const [
-          pendingBatchRequestsRes,
-          activeBatchesRes,
-          scanAnalyticsRes,
-        ] = await Promise.all([
-          apiClient.get(`/api/manufacturer/${user.id}/batch-requests/pending/count`),
-          apiClient.get(`/api/manufacturer/${user.id}/batches/active`),
-          apiClient.get(`/api/manufacturer/${user.id}/products/scan-analytics`),
-        ]);
+        const batchesRes = await apiClient.get(`/api/manufacturer/batches`);
+        const allBatches = batchesRes.data;
+
+        const activeBatches = allBatches.filter(batch => 
+          batch.status === 'PRINTING_IN_PROGRESS' || 
+          batch.status === 'IN_TRANSIT' ||
+          batch.status === 'PENDING_MANUFACTURER_CONFIRMATION'
+        );
+
+        const pendingBatchRequests = allBatches.filter(batch =>
+          batch.status === 'PENDING_DVA_APPROVAL' ||
+          batch.status === 'PENDING_ADMIN_APPROVAL'
+        ).length;
 
         setData({
-          pendingBatchRequests: pendingBatchRequestsRes.data.count,
-          activeBatches: activeBatchesRes.data.batches,
-          scanAnalytics: scanAnalyticsRes.data,
+          pendingBatchRequests: pendingBatchRequests,
+          activeBatches: activeBatches,
+          scanAnalytics: { totalScans: 0, uniqueScans: 0, recentScans: [] }, // Placeholder data
         });
       } catch (err) {
         console.error('Error fetching manufacturer data:', err);

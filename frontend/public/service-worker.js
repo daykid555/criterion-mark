@@ -5,7 +5,7 @@ const urlsToCache = [
   '/src/main.jsx',
   '/src/App.jsx',
   '/src/index.css',
-  '/logo.svg',
+  '/vite.svg',
   '/manifest.json',
   // Add other critical assets here that should be cached for offline use
 ];

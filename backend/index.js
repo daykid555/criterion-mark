@@ -825,6 +825,68 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
 }));
 
 // --- REPORTING ROUTE ---
+app.get('/api/reports', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { page = 1, pageSize = 10, status, reporterType, productName, startDate, endDate } = req.query;
+    const pageNum = parseInt(page, 10);
+    const pageSizeNum = parseInt(pageSize, 10);
+    const skip = (pageNum - 1) * pageSizeNum;
+
+    const where = {};
+    if (status) where.status = status;
+    if (productName) where.productName = { contains: productName, mode: 'insensitive' };
+    if (reporterType) {
+        if (reporterType === 'USER') where.userId = { not: null };
+        if (reporterType === 'PUBLIC') where.userId = null;
+    }
+    if (startDate && endDate) {
+        where.createdAt = {
+            gte: new Date(startDate),
+            lte: new Date(endDate),
+        };
+    }
+
+    const [reports, totalCount] = await prisma.$transaction([
+        prisma.report.findMany({
+            where,
+            include: {
+                assignee: { select: { id: true, companyName: true } },
+                user: { select: { id: true, companyName: true, email: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: pageSizeNum,
+        }),
+        prisma.report.count({ where }),
+    ]);
+
+    res.status(200).json({
+        data: reports,
+        pagination: {
+            totalCount,
+            currentPage: pageNum,
+            pageSize: pageSizeNum,
+            totalPages: Math.ceil(totalCount / pageSizeNum),
+        },
+    });
+}));
+
+app.patch('/api/reports/:id', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { status, assigneeId } = req.body;
+    const reportId = parseInt(id, 10);
+
+    const dataToUpdate = {};
+    if (status) dataToUpdate.status = status;
+    if (assigneeId !== undefined) dataToUpdate.assigneeId = assigneeId;
+
+    const updatedReport = await prisma.report.update({
+        where: { id: reportId },
+        data: dataToUpdate,
+    });
+
+    res.status(200).json(updatedReport);
+}));
+
 const reportUpload = multer({ storage: multer.memoryStorage() });
 
 app.post('/api/reports', authenticateTokenOptional, reportUpload.array('attachments', 5), asyncHandler(async (req, res) => {

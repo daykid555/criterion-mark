@@ -1,25 +1,19 @@
 // frontend/src/pages/ReportPage.jsx
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft } from 'react-icons/fi';
 import ReportForm from '../components/ReportForm';
+import BackButton from '../components/BackButton';
 
 function ReportPage() {
-  const navigate = useNavigate();
-
   return (
-    <div className="bg-gray-900 min-h-screen text-white p-4">
-      <header className="flex items-center mb-6">
-        <button onClick={() => navigate(-1)} className="p-2 mr-2">
-          <FiArrowLeft size={24} />
-        </button>
-        <h1 className="text-2xl font-bold">Report an Issue</h1>
-      </header>
-      
-      <main className="flex flex-col items-center justify-center w-full">
+    <div className="p-4 sm:p-6 lg:p-8 flex flex-col items-center">
+      <div className="w-full max-w-3xl">
+        <div className="flex items-center mb-8">
+          <BackButton />
+          <h1 className="text-3xl sm:text-4xl font-bold text-white ml-4 drop-shadow-lg">Report an Issue</h1>
+        </div>
         <ReportForm />
-      </main>
+      </div>
     </div>
   );
 }

@@ -7,16 +7,7 @@
 
 /* Default Professional Gradient for the ENTIRE application */
 body {
-  background: linear-gradient(90deg, hsla(154, 53%, 82%, 1) 0%, hsla(24, 88%, 65%, 1) 50%, hsla(216, 56%, 16%, 1) 100%);
-  background-size: 400% 400%;
-  animation: gradientAnimation 15s ease infinite;
-}
-
-/* Keyframe Animations */
-@keyframes gradientAnimation {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  background: linear-gradient(to right, #a1c4fd, #c2e9fb);
 }
 
 /* Ensure html and body take full height */

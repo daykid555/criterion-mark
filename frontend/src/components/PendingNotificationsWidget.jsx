@@ -17,17 +17,15 @@ const PendingNotificationsWidget = () => {
         const [
           registrationsRes,
           approvalsRes,
-          reportsRes,
         ] = await Promise.all([
-          apiClient.get('/api/admin/registrations/pending/count'),
-          apiClient.get('/api/admin/approvals/pending/count'),
-          apiClient.get('/api/admin/reports/pending/count'),
+          apiClient.get('/api/admin/pending-users'),
+          apiClient.get('/api/admin/pending-batches'),
         ]);
 
         setPendingCounts({
-          registrations: registrationsRes.data.count,
-          approvals: approvalsRes.data.count,
-          reports: reportsRes.data.count,
+          registrations: registrationsRes.data.length,
+          approvals: approvalsRes.data.length,
+          reports: 0, // Placeholder
         });
       } catch (err) {
         console.error('Error fetching pending counts:', err);

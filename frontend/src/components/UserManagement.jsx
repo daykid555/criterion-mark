@@ -234,24 +234,12 @@ function UserManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold text-white">Manage All Users</h2>
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="glass-input w-72 pl-10"
-            />
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
-          </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="glass-button font-bold py-2 px-4 rounded-lg"
-          >
-            Create New User
-          </button>
-        </div>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="glass-button font-bold py-2 px-4 rounded-lg"
+        >
+          Create New User
+        </button>
       </div>
       <ConfirmationModal
         isOpen={isConfirmModalOpen}
@@ -266,6 +254,15 @@ function UserManagement() {
         />
       )}
       <div className="glass-panel p-4">
+        <div className="mb-4">
+            <input
+                type="text"
+                placeholder="Search users..."
+                className="w-full glass-input px-3 py-2"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+            />
+        </div>
         {renderContent()}
       </div>
       {hasNextPage && (
