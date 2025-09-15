@@ -62,11 +62,9 @@ function BatchHistoryTable({ batches, onRefreshData }) {
 
   return (
     <>
-        {/* --- Using the new modal to display the code --- */}
-        {modalOpen && selectedBatch && (
-            <ConfirmationCodeDisplayModal batch={selectedBatch} onClose={() => setModalOpen(false)} />
-        )}
         import Table from './Table'; // Import the new Table component
+import React, { useState } from 'react';
+import apiClient from '../api';
 
 const STATUS_STYLES = {
     PENDING_DVA_APPROVAL: 'text-yellow-300',
@@ -187,10 +185,6 @@ function BatchHistoryTable({ batches, onRefreshData }) {
             ))}
           </Table>
         </div>
-    </>
-  );
-}
-export default BatchHistoryTable;
     </>
   );
 }
