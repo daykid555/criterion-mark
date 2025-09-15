@@ -37,7 +37,7 @@ const LocationConsentModal = ({ onConfirm, onCancel }) => (
   </motion.div>
 );
 
-function QuickScanPage() {
+export default function QuickScanPage() {
   const navigate = useNavigate();
   const { isAuthenticated, token } = useContext(AuthContext);
   const [scanResult, setScanResult] = useState(null);
