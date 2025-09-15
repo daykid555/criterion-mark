@@ -914,7 +914,7 @@ app.get('/api/reports', authenticateToken, authorizeRole([Role.ADMIN]), asyncHan
         }),
         prisma.report.count({ where }),
     ]);
-    res.status(200).json({n        data: reports,
+    res.status(200).json({ data: reports,
         pagination: {
             totalCount,
             currentPage: pageNum,
