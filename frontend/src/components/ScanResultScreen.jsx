@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { FiPlay, FiPause, FiFileText, FiAlertTriangle, FiCheckCircle, FiXCircle, FiLoader } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import Modal from './Modal';
-import sealg from '../assets/sealg.png'; // Assuming sealg.png is in src/assets
+import sealg from '../assets/seal6.png'; // Assuming sealg.png is in src/assets
 
 const ScanResultScreen = ({ scanResult, onScanAgain }) => {
   const [isPlaying, setIsPlaying] = useState(true);
