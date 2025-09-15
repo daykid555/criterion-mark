@@ -944,7 +944,7 @@ app.post('/api/reports/:id/forward', authenticateToken, authorizeRole([Role.ADMI
     const reportId = parseInt(id, 10);
 
     if (!target || (target !== 'dva' && target !== 'store')) {
-        return res.status(400).json({ error: 'Invalid target specified. Must be 'dva' or 'store'.' });
+        return res.status(400).json({ error: 'Invalid target specified. Must be \'dva\' or \'store\'.' });
     }
 
     let newStatus;
