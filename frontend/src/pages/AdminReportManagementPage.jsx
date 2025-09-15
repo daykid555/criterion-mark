@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft } from 'react-icons/fi';
+import BackButton from '../components/BackButton';
 import ReportTable from '../components/ReportTable'; // We will create this component next
 import { useAuth } from '../context/AuthContext';
+import apiClient from '../api';
 
 const AdminReportManagementPage = () => {
   const navigate = useNavigate();
@@ -29,25 +30,15 @@ const AdminReportManagementPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const queryParams = new URLSearchParams({
-        page: page,
-        pageSize: pageSize,
-        ...currentFilters,
-      }).toString();
-
-      const response = await fetch(`/api/reports?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await apiClient.get('/api/reports', {
+        params: {
+          page: page,
+          pageSize: pageSize,
+          ...currentFilters,
+        }
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setReports(data.data);
-      setPagination(data.pagination);
+      setReports(response.data.data);
+      setPagination(response.data.pagination);
     } catch (err) {
       console.error("Failed to fetch reports:", err);
       setError('Failed to load reports. Please try again.');
@@ -81,18 +72,7 @@ const AdminReportManagementPage = () => {
 
   const handleStatusChange = async (reportId, newStatus) => {
     try {
-      const response = await fetch(`/api/reports/${reportId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      await apiClient.patch(`/api/reports/${reportId}`, { status: newStatus });
       // Refresh reports after successful update
       fetchReports(pagination.currentPage, pagination.pageSize, filters);
     } catch (err) {
@@ -103,18 +83,7 @@ const AdminReportManagementPage = () => {
 
   const handleAssigneeChange = async (reportId, newAssigneeId) => {
     try {
-      const response = await fetch(`/api/reports/${reportId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ assigneeId: newAssigneeId ? parseInt(newAssigneeId) : null }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      await apiClient.patch(`/api/reports/${reportId}`, { assigneeId: newAssigneeId ? parseInt(newAssigneeId) : null });
       // Refresh reports after successful update
       fetchReports(pagination.currentPage, pagination.pageSize, filters);
     } catch (err) {
@@ -127,25 +96,23 @@ const AdminReportManagementPage = () => {
   if (error) return <div className="text-red-500 text-center p-4">Error: {error}</div>;
 
   return (
-    <div className="bg-gray-900 min-h-screen text-white p-4">
-      <header className="flex items-center mb-6">
-        <button onClick={() => navigate(-1)} className="p-2 mr-2">
-          <FiArrowLeft size={24} />
-        </button>
-        <h1 className="text-2xl font-bold">Reports Management</h1>
-      </header>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="flex items-center mb-8">
+        <BackButton />
+        <h1 className="text-3xl sm:text-4xl font-bold text-white ml-4 drop-shadow-lg">Reports Management</h1>
+      </div>
 
-      <div className="mb-6 p-4 bg-gray-800 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-4">Filters</h2>
+      <div className="glass-panel p-4 sm:p-6 mb-8">
+        <h2 className="text-xl font-semibold mb-4 text-white">Filters</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label htmlFor="status" className="block text-sm font-medium text-gray-300">Status</label>
+            <label htmlFor="status" className="block text-sm font-medium text-white/80">Status</label>
             <select
               id="status"
               name="status"
               value={filters.status}
               onChange={handleFilterChange}
-              className="mt-1 block w-full rounded-md border-gray-700 shadow-sm bg-gray-700 text-white focus:border-indigo-500 focus:ring-indigo-500"
+              className="w-full glass-input"
             >
               <option value="">All</option>
               <option value="NEW">New</option>
@@ -155,13 +122,13 @@ const AdminReportManagementPage = () => {
             </select>
           </div>
           <div>
-            <label htmlFor="reporterType" className="block text-sm font-medium text-gray-300">Reporter Type</label>
+            <label htmlFor="reporterType" className="block text-sm font-medium text-white/80">Reporter Type</label>
             <select
               id="reporterType"
               name="reporterType"
               value={filters.reporterType}
               onChange={handleFilterChange}
-              className="mt-1 block w-full rounded-md border-gray-700 shadow-sm bg-gray-700 text-white focus:border-indigo-500 focus:ring-indigo-500"
+              className="w-full glass-input"
             >
               <option value="">All</option>
               <option value="USER">User (Logged In)</option>
@@ -169,41 +136,43 @@ const AdminReportManagementPage = () => {
             </select>
           </div>
           <div>
-            <label htmlFor="productName" className="block text-sm font-medium text-gray-300">Product Name</label>
+            <label htmlFor="productName" className="block text-sm font-medium text-white/80">Product Name</label>
             <input
               type="text"
               id="productName"
               name="productName"
               value={filters.productName}
               onChange={handleFilterChange}
-              className="mt-1 block w-full rounded-md border-gray-700 shadow-sm bg-gray-700 text-white focus:border-indigo-500 focus:ring-indigo-500"
+              className="w-full glass-input"
               placeholder="Filter by product name"
             />
           </div>
           <div>
-            <label htmlFor="startDate" className="block text-sm font-medium text-gray-300">Start Date</label>
-            <input type="date" id="startDate" name="startDate" value={filters.startDate} onChange={handleFilterChange} className="mt-1 block w-full rounded-md border-gray-700 shadow-sm bg-gray-700 text-white" />
+            <label htmlFor="startDate" className="block text-sm font-medium text-white/80">Start Date</label>
+            <input type="date" id="startDate" name="startDate" value={filters.startDate} onChange={handleFilterChange} className="w-full glass-input" />
           </div>
           <div>
-            <label htmlFor="endDate" className="block text-sm font-medium text-gray-300">End Date</label>
-            <input type="date" id="endDate" name="endDate" value={filters.endDate} onChange={handleFilterChange} className="mt-1 block w-full rounded-md border-gray-700 shadow-sm bg-gray-700 text-white" />
+            <label htmlFor="endDate" className="block text-sm font-medium text-white/80">End Date</label>
+            <input type="date" id="endDate" name="endDate" value={filters.endDate} onChange={handleFilterChange} className="w-full glass-input" />
           </div>
         </div>
         <button
           onClick={applyFilters}
-          className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          className="mt-4 glass-button font-bold py-2 px-4 rounded-lg"
         >
           Apply Filters
         </button>
       </div>
 
-      <ReportTable
-        reports={reports}
-        pagination={pagination}
-        onPageChange={handlePageChange}
-        onStatusChange={handleStatusChange}
-        onAssigneeChange={handleAssigneeChange}
-      />
+      <div className="glass-panel p-1 sm:p-2">
+        <ReportTable
+          reports={reports}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          onStatusChange={handleStatusChange}
+          onAssigneeChange={handleAssigneeChange}
+        />
+      </div>
     </div>
   );
 };

@@ -1,8 +1,7 @@
 // frontend/src/pages/AdminDashboard.jsx
 import React from 'react';
 import PendingNotificationsWidget from '../components/PendingNotificationsWidget';
-import SystemHealthOverview from '../components/SystemHealthOverview';
-import RecentSystemLogs from '../components/RecentSystemLogs';
+
 
 function AdminDashboard() {
   return (
@@ -22,15 +21,7 @@ function AdminDashboard() {
         <PendingNotificationsWidget />
       </div>
 
-      {/* System Health Overview */}
-      <div className="w-full max-w-4xl mb-8">
-        <SystemHealthOverview />
-      </div>
-
-      {/* Recent System Logs */}
-      <div className="w-full max-w-4xl">
-        <RecentSystemLogs />
-      </div>
+      
     </div>
   );
 }

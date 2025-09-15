@@ -90,30 +90,29 @@ const PendingNotificationsWidget = () => {
 };
 
 const NotificationCard = ({ title, count, link, color }) => {
-  const baseClasses = "flex flex-col items-center justify-center p-4 rounded-lg shadow-lg transition-all duration-300 ease-in-out transform hover:scale-105";
-  let bgColorClass = "";
-  let textColorClass = "text-white";
+  const baseClasses = "glass-panel flex flex-col items-center justify-center p-6 rounded-2xl transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-2xl";
+  let colorClass = "";
 
   switch (color) {
     case "blue":
-      bgColorClass = "bg-blue-600/50 hover:bg-blue-500/70";
+      colorClass = "text-blue-400";
       break;
     case "yellow":
-      bgColorClass = "bg-yellow-600/50 hover:bg-yellow-500/70";
+      colorClass = "text-yellow-400";
       break;
     case "red":
-      bgColorClass = "bg-red-600/50 hover:bg-red-500/70";
+      colorClass = "text-red-400";
       break;
     default:
-      bgColorClass = "bg-gray-600/50 hover:bg-gray-500/70";
+      colorClass = "text-white";
   }
 
   return (
-    <Link to={link} className={`${baseClasses} ${bgColorClass}`}>
-      <div className="text-5xl font-bold">{count}</div>
-      <div className="text-lg mt-2">{title}</div>
+    <Link to={link} className={`${baseClasses}`}>
+      <div className={`text-6xl font-bold ${colorClass}`}>{count}</div>
+      <div className="text-xl mt-2 font-semibold text-white">{title}</div>
       {count > 0 && (
-        <div className="mt-2 text-sm animate-pulse">View Pending</div>
+        <div className="mt-3 text-sm text-white/70 animate-pulse">View Pending</div>
       )}
     </Link>
   );
