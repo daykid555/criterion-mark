@@ -48,6 +48,7 @@ import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
 import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
 import AdminReportManagementPage from './pages/AdminReportManagementPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx'; // Import SettingsPage
 
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
 
@@ -125,6 +126,7 @@ function App() {
             <Route path="/pharmacy/stock" element={<PharmacyStockPage />} />
             <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
             <Route path="/health-advisor/create" element={<CreateHealthVideoPage />} />
+            <Route path="/settings" element={<SettingsPage />} /> {/* New Settings Page Route */}
             
             {/* The root now redirects to the correct dashboard */}
             <Route index element={<Navigate to={getDashboardPath(user?.role)} replace />} />

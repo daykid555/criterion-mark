@@ -670,7 +670,81 @@ app.get('/api/skincare/verify/:code', asyncHandler(async (req, res) => {
     res.status(200).json({ status: 'success', message: 'Product Verified Successfully!', data: product });
 }));
 
-// --- USER-SPECIFIC ROUTES ---
+// --- NEW PUBLIC VERIFICATION ROUTE FOR QR CODES ---
+app.get('/api/verify/:code', asyncHandler(async (req, res) => {
+    const { code } = req.params;
+    const { lat, lon } = req.query; // Optional: latitude and longitude
+
+    // 1. Find the QR Code in the database
+    const qrCode = await prisma.qRCode.findUnique({
+        where: { code: code },
+        include: {
+            batch: {
+                include: {
+                    manufacturer: {
+                        select: { companyName: true }
+                    }
+                }
+            }
+        }
+    });
+
+    // 2. Record the scan attempt
+    await prisma.scanRecord.create({
+        data: {
+            qrCodeId: qrCode ? qrCode.id : null,
+            scannedAt: new Date(),
+            scanOutcome: qrCode ? 'SUCCESS' : 'FAILED',
+            ipAddress: req.ip, // Capture IP address
+            latitude: lat ? parseFloat(lat) : null,
+            longitude: lon ? parseFloat(lon) : null,
+            scannedByRole: 'PUBLIC', // Indicate it's a public scan
+        }
+    });
+
+    // 3. Handle invalid/non-existent QR codes
+    if (!qrCode) {
+        const universalWarning = await prisma.systemSetting.findMany({
+            where: { key: { in: ['universal_warning_text', 'universal_warning_video_url'] } },
+        });
+        const warningMap = universalWarning.reduce((acc, setting) => {
+            acc[setting.key] = setting.value;
+            return acc;
+        }, {});
+
+        return res.status(404).json({
+            status: 'error',
+            message: 'This product code is invalid or not found in our system. It might be counterfeit.',
+            universalWarning: {
+                text: warningMap.universal_warning_text || 'Warning: This product could not be verified.',
+                videoUrl: warningMap.universal_warning_video_url || null,
+            }
+        });
+    }
+
+    // 4. Handle genuine product
+    // Fetch health content based on NAFDAC number
+    const healthContent = await prisma.healthVideo.findUnique({
+        where: { nafdacNumber: qrCode.batch.nafdacNumber },
+    });
+
+    res.status(200).json({
+        status: 'success',
+        message: 'Product verified successfully!',
+        data: {
+            batch: {
+                drugName: qrCode.batch.drugName,
+                productInstructionVideoUrl: healthContent?.genuineVideoUrl || null,
+                productInstructionText: healthContent?.genuineText || null,
+                productSealImageUrl: qrCode.batch.seal_background_url || null,
+            },
+        },
+        healthContent: {
+            text: healthContent?.genuineText || null,
+            videoUrl: healthContent?.genuineVideoUrl || null,
+        },
+    });
+}));
 app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, res) => {
     try {
         const userId = req.user.userId;

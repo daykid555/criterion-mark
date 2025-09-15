@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react'; // Import useEffect
 import { FiPlay, FiPause, FiFileText, FiAlertTriangle, FiCheckCircle, FiXCircle, FiLoader } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import Modal from './Modal';
@@ -15,6 +15,16 @@ const ScanResultScreen = ({ scanResult, onScanAgain }) => {
   const videoRef = useRef(null);
   const navigate = useNavigate();
 
+  // Haptic Feedback Effect
+  useEffect(() => {
+    if (scanResult && scanResult.status === 'error') {
+      const vibrationEnabled = JSON.parse(localStorage.getItem('vibrationEnabled') || 'false');
+      if (vibrationEnabled && navigator.vibrate) {
+        navigator.vibrate(200); // Vibrate for 200ms
+      }
+    }
+  }, [scanResult]);
+
   const togglePlayPause = () => {
     if (videoRef.current) {
       if (isPlaying) {
@@ -27,7 +37,7 @@ const ScanResultScreen = ({ scanResult, onScanAgain }) => {
   };
 
   const handleReportClick = () => {
-    navigate('/report');
+    navigate('/report', { state: { hideBackButton: true } });
   };
 
   if (!scanResult) {

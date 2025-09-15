@@ -134,21 +134,20 @@ function AdminHistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-white">Action History</h1>
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search Drug or Manufacturer..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="glass-input w-72 pl-10"
-          />
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-white/50" />
-        </div>
       </div>
       
-      <div className="glass-panel p-1">
+      <div className="glass-panel p-4">
+        <div className="mb-4">
+            <input
+                type="text"
+                placeholder="Search Drug or Manufacturer..."
+                className="w-full glass-input px-3 py-2"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+            />
+        </div>
         {isLoading && batches.length === 0 ? (
           <p className="text-center p-8 text-white">Loading history...</p>
         ) : error ? (

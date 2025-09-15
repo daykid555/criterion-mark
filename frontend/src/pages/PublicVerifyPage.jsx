@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import axios from 'axios';
 import { FiMapPin } from 'react-icons/fi';
+import ScanResultScreen from '../components/ScanResultScreen'; // Import ScanResultScreen
 
 const qrReaderVideoStyle = `
   #qr-reader video {
@@ -12,40 +13,6 @@ const qrReaderVideoStyle = `
     display: block;
   }
 `;
-
-// --- VerificationResult Component (UPDATED FOR UNIVERSAL WARNING) ---
-const VerificationResult = ({ result }) => {
-  const { status, message, data, universalWarning } = result;
-
-  // Handle ALL failed scans with the universal warning
-  if (status === 'error') {
-    // Use the universal warning text from the new payload, or fall back to the main message
-    const displayText = universalWarning?.text || message;
-    return (
-      <div className="p-6 bg-red-50/80 border-l-4 border-red-500 rounded-lg shadow-md mt-6">
-        <h3 className="text-2xl font-bold text-red-800">Warning! ❌</h3>
-        <p className="mt-1 text-red-700">{displayText}</p>
-        {/* The universal video will be integrated in a future step */}
-      </div>
-    );
-  }
-
-  // This part now only handles the successful scan scenario
-  return (
-    <div className={`p-6 border-l-4 bg-green-50/80 border-green-500 rounded-lg shadow-md mt-6`}>
-      <h3 className={`text-2xl font-bold text-green-800`}>Product Verified! ✅</h3>
-      <p className="mt-1 text-gray-800">{message}</p>
-
-      {data && data.batch && (
-        <div className="mt-4 space-y-2 text-gray-700">
-          <p><strong>Drug Name:</strong> {data.batch.drugName}</p>
-          <p><strong>Manufacturer:</strong> {data.batch.manufacturer.companyName}</p>
-        </div>
-      )}
-    </div>
-  );
-};
-
 
 // --- Main Page Component ---
 function PublicVerifyPage() {
@@ -121,10 +88,10 @@ function PublicVerifyPage() {
 
     try {
       const response = await axios.get(apiUrl);
-      setScanResult(response.data);
+      setScanResult(response.data); // Pass the entire response data to ScanResultScreen
     } catch (err) {
       if (err.response) {
-        setScanResult(err.response.data);
+        setScanResult(err.response.data); // Pass the error response data
       } else {
         setScanResult({ status: 'error', message: 'Network error or cannot connect to the server.' });
       }
@@ -152,6 +119,11 @@ function PublicVerifyPage() {
       {locationStatus === 'unavailable' && 'Using approximate location (geolocation not supported)'}
     </div>
   );
+
+  // Conditional rendering: Show ScanResultScreen if scanResult is available, otherwise show scanner
+  if (scanResult) {
+    return <ScanResultScreen scanResult={scanResult} onScanAgain={() => { setScanResult(null); startScanner(); }} />;
+  }
 
   return (
     <>
@@ -181,7 +153,6 @@ function PublicVerifyPage() {
 
             {scanError && <p className="text-center text-red-300 font-semibold">{scanError}</p>}
             {isLoading && <div className="text-center text-blue-300 font-semibold">Verifying...</div>}
-            {scanResult && <VerificationResult result={scanResult} />}
           </div>
         </div>
       </div>
