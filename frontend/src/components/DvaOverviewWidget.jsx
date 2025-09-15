@@ -3,12 +3,13 @@ import apiClient from '../api';
 import { AuthContext } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 
+import DvaVerificationThroughputWidget from './DvaVerificationThroughputWidget';
+
 const DvaOverviewWidget = () => {
   const { user } = useContext(AuthContext);
   const [data, setData] = useState({
     pendingVerifications: 0,
     reportsForReview: [],
-    verificationThroughput: { today: 0, week: 0 },
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -62,7 +63,7 @@ const DvaOverviewWidget = () => {
       {/* Pending Verification Queue */}
       <div className="glass-panel p-6 flex flex-col items-center justify-center">
         <h2 className="text-xl font-bold text-white mb-2">Pending Verifications</h2>
-        <div className="text-5xl font-bold text-yellow-400">{data.pendingVerifications}</div>
+        <div className="text-5xl font-bold text-white">{data.pendingVerifications}</div>
         {data.pendingVerifications > 0 && (
           <Link to="/dva/approval-queue" className="mt-4 text-blue-300 hover:text-blue-200 animate-pulse">
             View Queue
@@ -87,20 +88,13 @@ const DvaOverviewWidget = () => {
         ) : (
           <p className="text-white/70">No reports currently assigned for review.</p>
         )}
-        <Link to="/admin/report-management" className="mt-4 block text-blue-300 hover:text-blue-200">
+        <Link to="/dva/reports" className="mt-4 block text-blue-300 hover:text-blue-200">
           View All Reports
         </Link>
       </div>
 
       {/* Verification Throughput */}
-      <div className="glass-panel p-6">
-        <h2 className="text-xl font-bold text-white mb-2">Verification Throughput</h2>
-        <p className="text-white/80">Today: <span className="font-bold text-green-400">{data.verificationThroughput.today}</span></p>
-        <p className="text-white/80">This Week: <span className="font-bold text-green-400">{data.verificationThroughput.week}</span></p>
-        <p className="text-white/70 mt-4 text-sm">
-          (Placeholder data - actual charts/graphs would be here)
-        </p>
-      </div>
+      <DvaVerificationThroughputWidget />
     </div>
   );
 };

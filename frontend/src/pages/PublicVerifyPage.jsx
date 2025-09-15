@@ -3,6 +3,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import axios from 'axios';
 import { FiMapPin } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen'; // Import ScanResultScreen
+import Modal from '../components/Modal'; // Import Modal
 
 const qrReaderVideoStyle = `
   #qr-reader video {
@@ -22,6 +23,7 @@ function PublicVerifyPage() {
   const [scanError, setScanError] = useState(null);
   const [cameraAutoStart, setCameraAutoStart] = useState(true); // New state for camera auto-start setting
   const [hasUserTappedToStart, setHasUserTappedToStart] = useState(false); // New state for manual camera start
+  const [showScanResultModal, setShowScanResultModal] = useState(false); // New state for modal visibility
 
   // --- START: NEW STATE FOR PRECISE LOCATION ---
   const [location, setLocation] = useState({ lat: null, lon: null });
@@ -81,7 +83,7 @@ function PublicVerifyPage() {
   const handleScanSuccess = async (decodedText) => {
     stopScanner();
     setIsLoading(true);
-    setScanResult(null);
+    // setScanResult(null); // Remove this line, as we want to keep scanResult for the modal
 
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
     let apiUrl = `${apiBaseUrl}/api/verify/${decodedText}`;
@@ -93,12 +95,15 @@ function PublicVerifyPage() {
 
     try {
       const response = await axios.get(apiUrl);
-      setScanResult(response.data); // Pass the entire response data to ScanResultScreen
+      setScanResult(response.data);
+      setShowScanResultModal(true); // Open modal after setting result
     } catch (err) {
       if (err.response) {
-        setScanResult(err.response.data); // Pass the error response data
+        setScanResult(err.response.data);
+        setShowScanResultModal(true); // Open modal for error as well
       } else {
         setScanResult({ status: 'error', message: 'Network error or cannot connect to the server.' });
+        setShowScanResultModal(true); // Open modal for network error
       }
     } finally {
       setIsLoading(false);
@@ -140,10 +145,11 @@ function PublicVerifyPage() {
     </div>
   );
 
-  // Conditional rendering: Show ScanResultScreen if scanResult is available, otherwise show scanner
-  if (scanResult) {
-    return <ScanResultScreen scanResult={scanResult} onScanAgain={() => { setScanResult(null); startScanner(); }} />;
-  }
+  const handleScanAgain = () => {
+    setScanResult(null);
+    setShowScanResultModal(false); // Close modal
+    startScanner();
+  };
 
   return (
     <>
@@ -187,6 +193,13 @@ function PublicVerifyPage() {
           </div>
         </div>
       </div>
+
+      {/* Scan Result Modal */}
+      <Modal isOpen={showScanResultModal} onClose={() => setShowScanResultModal(false)} title="Scan Result">
+        {scanResult && (
+          <ScanResultScreen scanResult={scanResult} onScanAgain={handleScanAgain} />
+        )}
+      </Modal>
     </>
   );
 }

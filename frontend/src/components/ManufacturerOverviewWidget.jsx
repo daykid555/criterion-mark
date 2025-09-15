@@ -3,12 +3,13 @@ import apiClient from '../api';
 import { AuthContext } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
 
+import ProductScanAnalysisWidget from './ProductScanAnalysisWidget';
+
 const ManufacturerOverviewWidget = () => {
   const { user } = useContext(AuthContext);
   const [data, setData] = useState({
     pendingBatchRequests: 0,
     activeBatches: [],
-    scanAnalytics: { totalScans: 0, uniqueScans: 0, recentScans: [] },
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -73,7 +74,7 @@ const ManufacturerOverviewWidget = () => {
       {/* Pending Batch Requests */}
       <div className="glass-panel p-6 flex flex-col items-center justify-center">
         <h2 className="text-xl font-bold text-white mb-2">Pending Batch Requests</h2>
-        <div className="text-5xl font-bold text-yellow-400">{data.pendingBatchRequests}</div>
+        <div className="text-5xl font-bold text-white">{data.pendingBatchRequests}</div>
         {data.pendingBatchRequests > 0 && (
           <Link to="/manufacturer/request-batch" className="mt-4 text-blue-300 hover:text-blue-200 animate-pulse">
             View Requests
@@ -104,26 +105,7 @@ const ManufacturerOverviewWidget = () => {
       </div>
 
       {/* Product Scan Analytics */}
-      <div className="glass-panel p-6">
-        <h2 className="text-xl font-bold text-white mb-2">Product Scan Analytics</h2>
-        <p className="text-white/80">Total Scans: <span className="font-bold text-green-400">{data.scanAnalytics.totalScans}</span></p>
-        <p className="text-white/80">Unique Scans: <span className="font-bold text-green-400">{data.scanAnalytics.uniqueScans}</span></p>
-        {data.scanAnalytics.recentScans && data.scanAnalytics.recentScans.length > 0 && (
-          <div className="mt-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Recent Scans:</h3>
-            <ul className="list-disc list-inside text-left text-white/80 max-h-24 overflow-y-auto custom-scrollbar">
-              {data.scanAnalytics.recentScans.map((scan, index) => (
-                <li key={index} className="mb-1">
-                  QR: {scan.qrCodeId} - Date: {new Date(scan.timestamp).toLocaleDateString()}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <p className="text-white/70 mt-4 text-sm">
-          (Placeholder data - actual charts/graphs would be here)
-        </p>
-      </div>
+      <ProductScanAnalysisWidget />
     </div>
   );
 };

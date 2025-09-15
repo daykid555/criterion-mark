@@ -67,19 +67,16 @@ const PendingNotificationsWidget = () => {
           title="Registrations"
           count={pendingCounts.registrations}
           link="/admin/registration-queue"
-          color="blue"
         />
         <NotificationCard
           title="Approvals"
           count={pendingCounts.approvals}
           link="/admin/approval-queue"
-          color="yellow"
         />
         <NotificationCard
           title="Reports"
           count={pendingCounts.reports}
           link="/admin/report-management"
-          color="red"
         />
       </div>
       {!hasPending && (
@@ -89,30 +86,15 @@ const PendingNotificationsWidget = () => {
   );
 };
 
-const NotificationCard = ({ title, count, link, color }) => {
+const NotificationCard = ({ title, count, link }) => {
   const baseClasses = "glass-panel flex flex-col items-center justify-center p-6 rounded-2xl transition-all duration-300 ease-in-out transform hover:scale-105 hover:shadow-2xl";
-  let colorClass = "";
-
-  switch (color) {
-    case "blue":
-      colorClass = "text-blue-400";
-      break;
-    case "yellow":
-      colorClass = "text-yellow-400";
-      break;
-    case "red":
-      colorClass = "text-red-400";
-      break;
-    default:
-      colorClass = "text-white";
-  }
 
   return (
     <Link to={link} className={`${baseClasses}`}>
-      <div className={`text-6xl font-bold ${colorClass}`}>{count}</div>
+      <div className="text-6xl font-bold text-white">{count}</div>
       <div className="text-xl mt-2 font-semibold text-white">{title}</div>
       {count > 0 && (
-        <div className="mt-3 text-sm text-white/70 animate-pulse">View Pending</div>
+        <div className="mt-3 text-sm text-white">View Pending</div>
       )}
     </Link>
   );

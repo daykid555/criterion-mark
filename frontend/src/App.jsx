@@ -49,6 +49,8 @@ import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
 import AdminReportManagementPage from './pages/AdminReportManagementPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx'; // Import SettingsPage
+import AdminCounterfeitContentPage from './pages/AdminCounterfeitContentPage.jsx'; // Import new page
+import DvaReportsPage from './pages/DvaReportsPage.jsx'; // Import DvaReportsPage
 
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
 
@@ -111,11 +113,13 @@ function App() {
             <Route path="/admin/map" element={<AdminMapPage />} />
             <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
             <Route path="/admin/reports" element={<AdminReportManagementPage />} />
+            <Route path="/admin/counterfeit-content" element={<AdminCounterfeitContentPage />} /> {/* New Route */}
             <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
             <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
             <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
             <Route path="/dva/approval-queue" element={<DvaApprovalQueuePage />} />
             <Route path="/dva/history" element={<DvaHistoryPage />} />
+            <Route path="/dva/reports" element={<DvaReportsPage />} /> {/* New DVA Reports Page */}
             <Route path="/skincare/add-product" element={<SkincareAddProductPage />} />
             <Route path="/skincare/history" element={<SkincareHistoryPage />} />
             <Route path="/printing/queue" element={<PrintingQueuePage />} />

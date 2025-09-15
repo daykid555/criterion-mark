@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { FiEye, FiEdit, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
-import Modal from './Modal'; // Assuming you have a Modal component
+import { FiEye, FiEdit, FiChevronLeft, FiChevronRight, FiSend } from 'react-icons/fi';
+import Modal from './Modal';
+import apiClient from '../api'; // Import apiClient
+import toast from 'react-hot-toast'; // Import toast for notifications
 
-const ReportTable = ({ reports, pagination, onPageChange, onStatusChange, onAssigneeChange }) => {
+const ReportTable = ({ reports, pagination, onPageChange, onStatusChange, onAssigneeChange, fetchReports }) => { // Added fetchReports
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
   const [newStatus, setNewStatus] = useState('');
@@ -36,25 +38,37 @@ const ReportTable = ({ reports, pagination, onPageChange, onStatusChange, onAssi
     }
   };
 
+  // New function to handle forwarding
+  const handleForward = async (reportId, target) => {
+    const toastId = toast.loading(`Forwarding report to ${target}...`);
+    try {
+      await apiClient.post(`/api/reports/${reportId}/forward`, { target });
+      toast.success(`Report forwarded to ${target} successfully!`, { id: toastId });
+      fetchReports(); // Re-fetch reports to update the list
+    } catch (error) {
+      console.error(`Failed to forward report to ${target}:`, error);
+      toast.error(`Failed to forward report to ${target}.`, { id: toastId });
+    }
+  };
+
   return (
     <div className="bg-gray-800 rounded-lg shadow-md p-4">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-700">
           <thead className="bg-gray-700">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">ID</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Product Name</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Reporter</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Assigned To</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Report ID</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Reporter Type</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Product</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Date</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-gray-800 divide-y divide-gray-700">
             {reports.length === 0 ? (
               <tr>
-                <td colSpan="7" className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-400">
+                <td colSpan="6" className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-400">
                   No reports found.
                 </td>
               </tr>
@@ -62,25 +76,49 @@ const ReportTable = ({ reports, pagination, onPageChange, onStatusChange, onAssi
               reports.map((report) => (
                 <tr key={report.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-200">{report.id}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
+                    {report.user ? 'User' : 'Public'}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{report.productName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
-                    {report.user ? report.user.email : 'Public'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{report.status}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
-                    {report.assignee ? report.assignee.email : 'Unassigned'}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
                     {new Date(report.createdAt).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-200">{report.status}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center space-x-2">
                     <button
                       onClick={() => openModal(report)}
-                      className="text-indigo-400 hover:text-indigo-600 mr-3"
+                      className="text-indigo-400 hover:text-indigo-600"
                       title="View Details"
                     >
                       <FiEye size={18} />
                     </button>
+                    {report.status !== 'FORWARDED' && report.status !== 'RESOLVED' && report.status !== 'FORWARDED_TO_STORE' && (
+                      <button
+                        onClick={() => handleForward(report.id, 'dva')} // Call new handleForward function
+                        className="text-yellow-400 hover:text-yellow-600"
+                        title="Forward to DVA"
+                      >
+                        <FiSend size={18} />
+                      </button>
+                    )}
+                    {report.status !== 'FORWARDED_TO_STORE' && report.status !== 'RESOLVED' && (
+                      <button
+                        onClick={() => handleForward(report.id, 'store')} // Call new handleForward function
+                        className="text-blue-400 hover:text-blue-600"
+                        title="Forward to Store"
+                      >
+                        <FiSend size={18} />
+                      </button>
+                    )}
+                    {report.status !== 'RESOLVED' && (
+                      <button
+                        onClick={() => onStatusChange(report.id, 'RESOLVED')}
+                        className="text-green-400 hover:text-green-600"
+                        title="Resolve Report"
+                      >
+                        Resolve
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
@@ -158,6 +196,7 @@ const ReportTable = ({ reports, pagination, onPageChange, onStatusChange, onAssi
                   <option value="NEW">New</option>
                   <option value="IN_REVIEW">In Review</option>
                   <option value="FORWARDED">Forwarded</option>
+                  <option value="FORWARDED_TO_STORE">Forwarded to Store</option>
                   <option value="RESOLVED">Resolved</option>
                 </select>
                 <button

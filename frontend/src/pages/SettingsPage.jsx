@@ -1,75 +1,141 @@
 import React, { useState, useEffect } from 'react';
-import BackButton from '../components/BackButton';
+import { useNavigate } from 'react-router-dom';
+import { FaArrowLeft } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext'; // Import useAuth
+import apiClient from '../api'; // Import apiClient
 
-function SettingsPage() {
-  const [vibrationEnabled, setVibrationEnabled] = useState(false);
-  const [cameraAutoStart, setCameraAutoStart] = useState(true);
+const SettingsPage = () => {
+  const navigate = useNavigate();
+  const { token } = useAuth(); // Get token from AuthContext
+  const [settings, setSettings] = useState({
+    hapticFeedbackEnabled: false,
+    cameraAutoStartEnabled: true,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
+  // Fetch settings on component mount
   useEffect(() => {
-    // Load settings from localStorage on component mount
-    const storedVibration = localStorage.getItem('vibrationEnabled');
-    if (storedVibration !== null) {
-      setVibrationEnabled(JSON.parse(storedVibration));
-    }
+    const fetchSettings = async () => {
+      try {
+        const response = await apiClient.get('/api/user/settings', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setSettings(prevSettings => ({
+          ...prevSettings,
+          ...response.data,
+        }));
+      } catch (err) {
+        console.error('Failed to fetch user settings:', err);
+        setError('Failed to load settings.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const storedCameraAutoStart = localStorage.getItem('cameraAutoStart');
-    if (storedCameraAutoStart !== null) {
-      setCameraAutoStart(JSON.parse(storedCameraAutoStart));
+    if (token) {
+      fetchSettings();
+    } else {
+      setLoading(false); // Not authenticated, use default settings
     }
-  }, []);
+  }, [token]);
 
-  const handleVibrationToggle = () => {
-    const newValue = !vibrationEnabled;
-    setVibrationEnabled(newValue);
-    localStorage.setItem('vibrationEnabled', JSON.stringify(newValue));
+  // Function to update settings on the backend
+  const updateSetting = async (key, value) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings); // Optimistic update
+    try {
+      await apiClient.post('/api/user/settings', { settings: newSettings }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      console.error(`Failed to update ${key} setting:`, err);
+      setError(`Failed to save ${key} setting.`);
+      // Revert optimistic update if API call fails
+      setSettings(prevSettings => ({ ...prevSettings, [key]: !value }));
+    }
+  };
+
+  const handleHapticFeedbackToggle = () => {
+    updateSetting('hapticFeedbackEnabled', !settings.hapticFeedbackEnabled);
   };
 
   const handleCameraAutoStartToggle = () => {
-    const newValue = !cameraAutoStart;
-    setCameraAutoStart(newValue);
-    localStorage.setItem('cameraAutoStart', JSON.stringify(newValue));
+    updateSetting('cameraAutoStartEnabled', !settings.cameraAutoStartEnabled);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
+        <p className="text-gray-700">Loading settings...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
+        <p className="text-red-500">Error: {error}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 flex flex-col items-center">
-      <div className="w-full max-w-3xl">
-        <div className="flex items-center mb-8">
-          <BackButton />
-          <h1 className="text-3xl sm:text-4xl font-bold text-white ml-4 drop-shadow-lg">Settings</h1>
+    <div className="min-h-screen bg-gray-100 p-4">
+      <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
+        <div className="flex items-center mb-6">
+          <button onClick={() => navigate(-1)} className="text-gray-600 hover:text-gray-800 mr-4">
+            <FaArrowLeft size={24} />
+          </button>
+          <h1 className="text-2xl font-semibold text-gray-800">Settings</h1>
         </div>
 
-        <div className="glass-panel p-6 sm:p-8 space-y-6">
-          {/* Vibration Setting */}
-          <div className="flex items-center justify-between">
-            <label htmlFor="vibrationToggle" className="text-white text-lg cursor-pointer">
-              Enable Vibration on Fake Scan
-            </label>
-            <input
-              type="checkbox"
-              id="vibrationToggle"
-              checked={vibrationEnabled}
-              onChange={handleVibrationToggle}
-              className="toggle toggle-lg toggle-primary" // Assuming DaisyUI or similar toggle styling
-            />
-          </div>
-
-          {/* Camera Auto-Start Setting */}
-          <div className="flex items-center justify-between">
-            <label htmlFor="cameraAutoStartToggle" className="text-white text-lg cursor-pointer">
-              Auto-start Camera on Page Load
-            </label>
-            <input
-              type="checkbox"
-              id="cameraAutoStartToggle"
-              checked={cameraAutoStart}
-              onChange={handleCameraAutoStartToggle}
-              className="toggle toggle-lg toggle-primary"
-            />
-          </div>
+        <div className="flex items-center justify-between py-3 border-b border-gray-200">
+          <span className="text-lg text-gray-700">Haptic Feedback</span>
+          <label htmlFor="haptic-toggle" className="flex items-center cursor-pointer">
+            <div className="relative">
+              <input
+                type="checkbox"
+                id="haptic-toggle"
+                className="sr-only"
+                checked={settings.hapticFeedbackEnabled}
+                onChange={handleHapticFeedbackToggle}
+              />
+              <div className="block bg-gray-300 w-14 h-8 rounded-full"></div>
+              <div
+                className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${
+                  settings.hapticFeedbackEnabled ? 'translate-x-full bg-blue-600' : ''
+                }`}
+              ></div>
+            </div>
+          </label>
         </div>
+
+        <div className="flex items-center justify-between py-3 border-b border-gray-200">
+          <span className="text-lg text-gray-700">Camera Auto-Start</span>
+          <label htmlFor="camera-auto-start-toggle" className="flex items-center cursor-pointer">
+            <div className="relative">
+              <input
+                type="checkbox"
+                id="camera-auto-start-toggle"
+                className="sr-only"
+                checked={settings.cameraAutoStartEnabled}
+                onChange={handleCameraAutoStartToggle}
+              />
+              <div className="block bg-gray-300 w-14 h-8 rounded-full"></div>
+              <div
+                className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${
+                  settings.cameraAutoStartEnabled ? 'translate-x-full bg-blue-600' : ''
+                }`}
+              ></div>
+            </div>
+          </label>
+        </div>
+
+        {/* Add more settings options here */}
       </div>
     </div>
   );
-}
+};
 
 export default SettingsPage;

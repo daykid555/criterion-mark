@@ -25,7 +25,14 @@ function CreateHealthVideoPage() {
   const onSubmit = async (data) => {
     const toastId = toast.loading('Submitting content entry...');
     try {
-      await apiClient.post('/api/health-advisor/videos', data);
+      // Only send genuine content fields
+      const payload = {
+        drugName: data.drugName,
+        nafdacNumber: data.nafdacNumber,
+        genuineText: data.genuineText,
+        genuineVideoUrl: data.genuineVideoUrl,
+      };
+      await apiClient.post('/api/health-advisor/videos', payload);
       toast.success('Content entry created successfully!', { id: toastId });
       navigate('/health-advisor/dashboard');
     } catch (error) {
@@ -98,33 +105,6 @@ function CreateHealthVideoPage() {
                 placeholder="https://youtube.com/watch?v=genuine-video"
               />
               {errors.genuineVideoUrl && <p className="text-red-300 text-xs mt-1">{errors.genuineVideoUrl.message}</p>}
-            </div>
-          </div>
-
-          {/* Counterfeit Content Section */}
-          <div className="space-y-4 rounded-lg bg-red-500/5 p-4">
-            <h3 className="font-bold text-red-300">Content for Counterfeit/Duplicate Products</h3>
-            <div>
-              <label htmlFor="counterfeitText" className="block text-sm font-medium text-white/80 mb-1">Safety/Warning Text</label>
-              <textarea
-                id="counterfeitText"
-                rows={3}
-                {...register('counterfeitText', { required: 'Text for counterfeit products is required.' })}
-                className={`glass-input w-full ${errors.counterfeitText ? 'border-red-500' : ''}`}
-                placeholder="This text is shown first. Example: ❌ Warning! This code has already been scanned. Do not use this product."
-              />
-              {errors.counterfeitText && <p className="text-red-300 text-xs mt-1">{errors.counterfeitText.message}</p>}
-            </div>
-            <div>
-              <label htmlFor="counterfeitVideoUrl" className="block text-sm font-medium text-white/80 mb-1">Safety/Warning Video URL</label>
-              <input
-                id="counterfeitVideoUrl"
-                type="url"
-                {...register('counterfeitVideoUrl', { required: 'URL for counterfeit video is required.' })}
-                className={`glass-input w-full ${errors.counterfeitVideoUrl ? 'border-red-500' : ''}`}
-                placeholder="https://youtube.com/watch?v=safety-video"
-              />
-              {errors.counterfeitVideoUrl && <p className="text-red-300 text-xs mt-1">{errors.counterfeitVideoUrl.message}</p>}
             </div>
           </div>
           

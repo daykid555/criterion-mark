@@ -2,7 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient, Role, BatchStatus, ReportStatus } from '@prisma/client';
+import { PrismaClient, Role, BatchStatus, ReportStatus, QRCodeStatus } from '@prisma/client'; // Added QRCodeStatus
 import { nanoid } from 'nanoid';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -29,7 +29,8 @@ app.use(cors({
     origin: (origin, callback) => {
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
-        } else {
+        }
+        else {
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -45,14 +46,13 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 const storage = new CloudinaryStorage({
-    cloudinary:cloudinary,
+    cloudinary: cloudinary,
     params: { folder: 'criterion-mark-seals', allowed_formats: ['jpeg', 'png', 'jpg'], public_id: (req, file) => `batch-${req.params.id}-${Date.now()}` },
 });
 const upload = multer({ storage: storage });
 
 // --- UTILITY FUNCTIONS ---
-const asyncHandler = fn => (req, res, next) =>
-    Promise.resolve(fn(req, res, next)).catch(next);
+const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 const generateSixDigitCode = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -66,31 +66,29 @@ const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
     if (!backgroundUrl) {
         throw new Error('Seal background URL is missing.');
     }
-
     // 1. Get background
-    const backgroundResponse = await axios({ method: 'get', url: backgroundUrl, responseType: 'arraybuffer' });
+    const backgroundResponse = await axios({
+        method: 'get',
+        url: backgroundUrl,
+        responseType: 'arraybuffer'
+    });
     const backgroundBuffer = backgroundResponse.data;
     const backgroundMeta = await sharp(backgroundBuffer).metadata();
     const canvasWidth = backgroundMeta.width;
-
     // 2. Define layout constants based on your feedback
     const qrSize = 80; // Using a smaller QR size to fit within the design
     const horizontalCenter = Math.floor((canvasWidth - qrSize) / 2);
-    
     // These vertical positions are estimates to place elements on top of the background
     const customerLabelTop = 100; // Adjusted to be relative to top
     const customerQrTop = customerLabelTop + 25;
     const pharmacyLabelTop = customerQrTop + qrSize + 15;
     const pharmacyQrTop = pharmacyLabelTop + 45;
-
     // 3. Generate QR code buffers
     const customerQrBuffer = await qrcode.toBuffer(qrCode.code, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
     const pharmacyQrBuffer = await qrcode.toBuffer(qrCode.outerCode, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
-
     // 4. Generate label buffers from SVG to ensure transparency
     const customerLabelSvg = Buffer.from(`<svg width="120" height="20"><text x="60" y="15" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">CUSTOMER</text></svg>`);
     const customerLabelBuffer = await sharp(customerLabelSvg).png().toBuffer();
-
     const pharmacyLabelSvg = Buffer.from(`
     <svg width="120" height="35">
         <text x="60" y="12" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">PHARMACY</text>
@@ -98,18 +96,16 @@ const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
         <text x="60" y="30" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">MANUFACTURER</text>
     </svg>`);
     const pharmacyLabelBuffer = await sharp(pharmacyLabelSvg).png().toBuffer();
-
     // 5. Composite everything ON TOP of the original background
     const finalImageBuffer = await sharp(backgroundBuffer)
         .composite([
-            { input: customerLabelBuffer, top: customerLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
-            { input: customerQrBuffer, top: customerQrTop, left: horizontalCenter },
-            { input: pharmacyLabelBuffer, top: pharmacyLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
-            { input: pharmacyQrBuffer, top: pharmacyQrTop, left: horizontalCenter },
-        ])
+        { input: customerLabelBuffer, top: customerLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
+        { input: customerQrBuffer, top: customerQrTop, left: horizontalCenter },
+        { input: pharmacyLabelBuffer, top: pharmacyLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
+        { input: pharmacyQrBuffer, top: pharmacyQrTop, left: horizontalCenter },
+    ])
         .png()
         .toBuffer();
-    
     return finalImageBuffer;
 };
 
@@ -118,34 +114,27 @@ app.get('/', (req, res) => res.json({ message: 'Welcome to the Criterion Mark AP
 
 // --- ADMIN SETTINGS ROUTES ---
 app.get('/api/admin/settings', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
-    const settings = await prisma.systemSetting.findMany({
-        where: { key: { in: ['universal_warning_text', 'universal_warning_video_url'] } },
+    const universalWarningSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'universal_warning' },
     });
-    const result = settings.reduce((acc, setting) => {
-        acc[setting.key] = setting.value;
-        return acc;
-    }, {});
+    const result = {
+        universalWarningText: universalWarningSetting?.value?.text || '',
+        universalWarningVideoUrl: universalWarningSetting?.value?.videoUrl || '',
+    };
     res.status(200).json(result);
 }));
 
 app.post('/api/admin/settings', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { universalWarningText, universalWarningVideoUrl } = req.body;
-
-    if (universalWarningText !== undefined) {
-        await prisma.systemSetting.upsert({
-            where: { key: 'universal_warning_text' },
-            update: { value: universalWarningText },
-            create: { key: 'universal_warning_text', value: universalWarningText },
-        });
-    }
-    if (universalWarningVideoUrl !== undefined) {
-        await prisma.systemSetting.upsert({
-            where: { key: 'universal_warning_video_url' },
-            update: { value: universalWarningVideoUrl },
-            create: { key: 'universal_warning_video_url', value: universalWarningVideoUrl },
-        });
-    }
-
+    const value = {
+        text: universalWarningText || '',
+        videoUrl: universalWarningVideoUrl || '',
+    };
+    await prisma.systemSetting.upsert({
+        where: { key: 'universal_warning' },
+        update: { value: value },
+        create: { key: 'universal_warning', value: value },
+    });
     res.status(200).json({ message: 'Settings updated successfully.' });
 }));
 
@@ -171,13 +160,12 @@ app.get('/api/printing/in-progress', authenticateToken, authorizeRole([Role.PRIN
 app.put('/api/printing/batches/:id/start', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const printingUserId = req.user.userId; // CAPTURE ID
-
     const updatedBatch = await prisma.batch.update({
         where: { id: parseInt(id, 10) },
-        data: { 
-            status: BatchStatus.PRINTING_IN_PROGRESS, 
+        data: {
+            status: BatchStatus.PRINTING_IN_PROGRESS,
             print_started_at: new Date(),
-            printingStartedById: printingUserId, // SAVE ID
+            printingStartedById: printingUserId,
         },
     });
     res.status(200).json(updatedBatch);
@@ -186,13 +174,12 @@ app.put('/api/printing/batches/:id/start', authenticateToken, authorizeRole([Rol
 app.put('/api/printing/batches/:id/complete', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const printingUserId = req.user.userId; // CAPTURE ID
-
     const updatedBatch = await prisma.batch.update({
         where: { id: parseInt(id, 10) },
-        data: { 
-            status: BatchStatus.PRINTING_COMPLETE, 
+        data: {
+            status: BatchStatus.PRINTING_COMPLETE,
             print_completed_at: new Date(),
-            printingCompletedById: printingUserId, // SAVE ID
+            printingCompletedById: printingUserId,
         },
     });
     res.status(200).json(updatedBatch);
@@ -243,12 +230,10 @@ app.get('/api/printing/seal/:code', authenticateToken, authorizeRole([Role.ADMIN
     if (!qrCode.batch.seal_background_url) {
         return res.status(400).json({ error: 'No seal background has been assigned to this batch by an admin.' });
     }
-    
     const finalImageBuffer = await generateDualSealBuffer(qrCode, qrCode.batch.seal_background_url);
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Content-Disposition', `attachment; filename="seal_${qrCode.code}.png"`);
     res.status(200).send(finalImageBuffer);
-    
 }));
 
 app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole([Role.PRINTING]), asyncHandler(async (req, res) => {
@@ -260,19 +245,18 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole([Role.P
     if (!batch || !batch.seal_background_url) {
         return res.status(404).json({ error: 'Batch or seal background not found.' });
     }
-        res.attachment(`batch_${id}_seals.zip`);
+    res.attachment(`batch_${id}_seals.zip`);
     const archive = archiver('zip');
     archive.on('error', (err) => { throw err; });
     archive.pipe(res);
-
     // Filter out master codes, as they are not individual seals
     const childQrs = batch.qrCodes.filter(qr => !qr.isMaster);
-
     for (const qr of childQrs) {
         try {
             const finalImageBuffer = await generateDualSealBuffer(qr, batch.seal_background_url);
             archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
-        } catch (error) {
+        }
+        catch (error) {
             console.error(`Failed to generate seal for QR code ${qr.code}:`, error.message);
             // Optionally, append an error placeholder to the zip
             archive.append(`Error generating seal for ${qr.code}: ${error.message}`, { name: `error_${qr.code}.txt` });
@@ -318,7 +302,6 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
     const { id } = req.params;
     const { delivery_notes } = req.body;
     const safeDeliveryNotes = (typeof delivery_notes === 'string' && delivery_notes.trim()) || null;
-
     const batch = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
     if (!batch) {
         return res.status(404).json({ error: 'Batch not found.' });
@@ -339,14 +322,11 @@ app.put('/api/logistics/batches/:id/deliver', authenticateToken, authorizeRole([
 app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole([Role.LOGISTICS]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { confirmation_code } = req.body;
-
     if (!confirmation_code || typeof confirmation_code !== 'string' || confirmation_code.length !== 6) {
         return res.status(400).json({ error: 'A valid 6-digit confirmation code is required.' });
     }
-
     const batchId = parseInt(id, 10);
     const batch = await prisma.batch.findUnique({ where: { id: batchId } });
-
     if (!batch) {
         return res.status(404).json({ error: 'Batch not found.' });
     }
@@ -359,7 +339,6 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
     if (batch.delivery_confirmation_code !== confirmation_code.trim()) {
         return res.status(400).json({ error: 'Invalid confirmation code.' });
     }
-
     const updatedBatch = await prisma.batch.update({
         where: { id: batchId },
         data: {
@@ -367,7 +346,6 @@ app.post('/api/logistics/batches/:id/finalize', authenticateToken, authorizeRole
             delivered_at: new Date()
         },
     });
-
     res.status(200).json(updatedBatch);
 }));
 
@@ -383,11 +361,9 @@ app.get('/api/logistics/history', authenticateToken, authorizeRole([Role.LOGISTI
 // --- SKINCARE BRAND PORTAL ROUTES ---
 const getSkincareBrand = async (req, res, next) => {
     const userId = req.user.userId;
-
     try {
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) return res.status(404).json({ error: "User not found." });
-
         const skincareBrand = await prisma.skincareBrand.upsert({
             where: { userId: userId },
             update: {},
@@ -398,11 +374,11 @@ const getSkincareBrand = async (req, res, next) => {
                 isVerified: true,
             }
         });
-
         if (!skincareBrand) return res.status(403).json({ error: 'Could not find or create a skincare brand profile.' });
         req.brand = skincareBrand;
         next();
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 };
@@ -437,11 +413,11 @@ app.post('/api/skincare/products', authenticateToken, authorizeRole([Role.SKINCA
 // Endpoint for a Health Advisor to create a new video entry
 app.post('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HEALTH_ADVISOR, Role.ADMIN]), asyncHandler(async (req, res) => {
     try {
-        const { nafdacNumber, drugName, genuineVideoUrl, counterfeitVideoUrl, genuineText, counterfeitText } = req.body;
+        const { nafdacNumber, drugName, genuineVideoUrl, genuineText } = req.body; // Removed counterfeit fields
         const uploaderId = req.user.userId;
 
-        if (!nafdacNumber || !drugName || !genuineVideoUrl || !counterfeitVideoUrl || !genuineText || !counterfeitText) {
-            return res.status(400).json({ error: 'All fields are required.' });
+        if (!nafdacNumber || !drugName || !genuineVideoUrl || !genuineText) { // Removed counterfeit fields from check
+            return res.status(400).json({ error: 'NAFDAC Number, Drug Name, Genuine Video URL, and Genuine Text are required.' });
         }
         
         const existingVideo = await prisma.healthVideo.findUnique({
@@ -457,16 +433,18 @@ app.post('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HE
                 nafdacNumber: nafdacNumber.trim(),
                 drugName,
                 genuineVideoUrl,
-                counterfeitVideoUrl,
                 genuineText,
-                counterfeitText,
+                // Counterfeit fields are no longer set by Health Advisor
+                counterfeitVideoUrl: '', // Set to empty string or null
+                counterfeitText: '', // Set to empty string or null
                 uploaderId,
             }
         });
 
         res.status(201).json({ message: 'Health content entry created successfully.', video: newVideo });
 
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Error creating health video:', error);
         res.status(500).json({ error: 'An internal server error occurred.' });
     }
@@ -480,7 +458,6 @@ app.get('/api/health-advisor/pending-content', authenticateToken, authorizeRole(
             select: { nafdacNumber: true }
         });
         const existingNafdacSet = new Set(existingContentNafdacNumbers.map(v => v.nafdacNumber));
-
         // Step 2: Find all batches that have been delivered to the manufacturer.
         const deliveredBatches = await prisma.batch.findMany({
             where: {
@@ -494,7 +471,6 @@ app.get('/api/health-advisor/pending-content', authenticateToken, authorizeRole(
                 delivered_at: 'desc'
             }
         });
-
         // Step 3: Filter this list to find which ones are "pending" (i.e., don't have content yet)
         const pendingContentMap = new Map();
         for (const batch of deliveredBatches) {
@@ -505,10 +481,9 @@ app.get('/api/health-advisor/pending-content', authenticateToken, authorizeRole(
                 });
             }
         }
-        
         res.status(200).json(Array.from(pendingContentMap.values()));
-
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Error fetching pending content list:', error);
         res.status(500).json({ error: 'An internal server error occurred.' });
     }
@@ -518,15 +493,13 @@ app.get('/api/health-advisor/pending-content', authenticateToken, authorizeRole(
 app.get('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HEALTH_ADVISOR, Role.ADMIN]), asyncHandler(async (req, res) => {
     try {
         const uploaderId = req.user.userId;
-
         const videos = await prisma.healthVideo.findMany({
             where: { uploaderId: uploaderId },
             orderBy: { createdAt: 'desc' }
         });
-
         res.status(200).json(videos);
-
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Error fetching health videos:', error);
         res.status(500).json({ error: 'An internal server error occurred.' });
     }
@@ -538,11 +511,9 @@ app.get('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HEA
 app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN]), asyncHandler(async (req, res) => {
     try {
         const { outerCode } = req.params;
-
         if (!outerCode) {
             return res.status(400).json({ error: 'Outer code parameter is required.' });
         }
-
         const qrCodeDetails = await prisma.qRCode.findUnique({
             where: { outerCode: outerCode.trim() },
             include: {
@@ -553,21 +524,18 @@ app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Rol
                 }
             }
         });
-
         if (!qrCodeDetails) {
             return res.status(404).json({ error: 'Product code not found in the system.' });
         }
-
         if (!qrCodeDetails.batch || !qrCodeDetails.batch.drugName) {
             return res.status(404).json({ error: 'Could not find product details associated with this code.' });
         }
-
         res.status(200).json({
             drugName: qrCodeDetails.batch.drugName,
-            outerCode: qrCodeDetails.outerCode, // Return the code for confirmation
+            outerCode: qrCodeDetails.outerCode,
         });
-
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Error fetching QR code details:', error);
         res.status(500).json({ error: 'An internal server error occurred while fetching product details.' });
     }
@@ -578,7 +546,6 @@ app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Rol
 app.get('/api/pharmacy/dispense-history', authenticateToken, authorizeRole([Role.PHARMACY]), asyncHandler(async (req, res) => {
     const pharmacyId = req.user.userId;
     const { startDate, endDate, search } = req.query;
-
     let dateFilter = {};
     if (startDate && endDate) {
         dateFilter = {
@@ -587,7 +554,8 @@ app.get('/api/pharmacy/dispense-history', authenticateToken, authorizeRole([Role
                 lte: new Date(endDate),
             },
         };
-    } else {
+    }
+    else {
         // Default to today's records
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -600,22 +568,16 @@ app.get('/api/pharmacy/dispense-history', authenticateToken, authorizeRole([Role
             },
         };
     }
-
-    const whereClause = {
-        pharmacyId: pharmacyId,
-        ...dateFilter,
-        ...(search && {
-            qrCode: {
-                batch: {
-                    drugName: {
-                        contains: search,
-                        mode: 'insensitive',
-                    },
+    const whereClause = Object.assign({ pharmacyId: pharmacyId }, dateFilter, (search && {
+        qrCode: {
+            batch: {
+                drugName: {
+                    contains: search,
+                    mode: 'insensitive',
                 },
             },
-        }),
-    };
-
+        },
+    }));
     const history = await prisma.dispenseRecord.findMany({
         where: whereClause,
         orderBy: { dispensedAt: 'desc' },
@@ -632,7 +594,6 @@ app.get('/api/pharmacy/dispense-history', authenticateToken, authorizeRole([Role
             },
         },
     });
-
     // Group by date and format
     const groupedHistory = history.reduce((acc, record) => {
         const date = new Date(record.dispensedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -645,7 +606,6 @@ app.get('/api/pharmacy/dispense-history', authenticateToken, authorizeRole([Role
         });
         return acc;
     }, {});
-
     res.status(200).json(groupedHistory);
 }));
 
@@ -674,89 +634,109 @@ app.get('/api/skincare/verify/:code', asyncHandler(async (req, res) => {
 app.get('/api/verify/:code', asyncHandler(async (req, res) => {
     const { code } = req.params;
     const { lat, lon } = req.query; // Optional: latitude and longitude
-
     // 1. Find the QR Code in the database
     const qrCode = await prisma.qRCode.findUnique({
         where: { code: code },
         include: {
             batch: {
                 include: {
-                    manufacturer: {
-                        select: { companyName: true }
-                    }
+                    manufacturer: { select: { companyName: true } },
+                    // Include product content fields from Batch model
+                    productInstructionVideoUrl: true,
+                    productInstructionText: true,
+                    productSealImageUrl: true,
+                    nafdacNumber: true,
                 }
             }
         }
     });
-
-    // 2. Record the scan attempt
+    let scanOutcome = 'FAILED';
+    let responseStatus = 404;
+    let responseBody = {};
+    // Fetch universal warning settings
+    const universalWarningSetting = await prisma.systemSetting.findUnique({
+        where: { key: 'universal_warning' },
+    });
+    const universalWarning = {
+        text: universalWarningSetting?.value?.text || 'Warning: This product could not be verified.',
+        videoUrl: universalWarningSetting?.value?.videoUrl || null,
+    };
+    if (qrCode && qrCode.batch) {
+        // Check QR code status for genuineness
+        const isGenuine = qrCode.status === QRCodeStatus.UNUSED || qrCode.status === QRCodeStatus.SEALED || qrCode.status === QRCodeStatus.VERIFIED_BY_SUPPLY_CHAIN || qrCode.status === QRCodeStatus.VERIFIED_ONCE;
+        if (isGenuine) {
+            scanOutcome = 'SUCCESS';
+            responseStatus = 200;
+            // Fetch health content based on NAFDAC number
+            const healthContent = await prisma.healthVideo.findUnique({
+                where: { nafdacNumber: qrCode.batch.nafdacNumber },
+            });
+            responseBody = {
+                status: 'success',
+                message: 'Product verified successfully!',
+                data: {
+                    productInstructionVideoUrl: healthContent?.genuineVideoUrl || qrCode.batch.productInstructionVideoUrl || null,
+                    productInstructionText: healthContent?.genuineText || qrCode.batch.productInstructionText || null,
+                    productSealImageUrl: qrCode.batch.productSealImageUrl || qrCode.batch.seal_background_url || null,
+                    productStatus: 'Genuine Product',
+                },
+            };
+            // Update QR code status after successful scan if it was UNUSED
+            if (qrCode.status === QRCodeStatus.UNUSED) {
+                await prisma.qRCode.update({
+                    where: { id: qrCode.id },
+                    data: { status: QRCodeStatus.VERIFIED_ONCE },
+                });
+            }
+        }
+        else {
+            // QR code found but not genuine (e.g., used, flagged, invalid state)
+            scanOutcome = 'FAILED';
+            responseStatus = 400; // Bad request or conflict
+            responseBody = {
+                status: 'error',
+                message: `This product code is ${qrCode.status.toLowerCase().replace(/_/g, ' ')}. It might be counterfeit or previously used.`,
+                universalWarning: universalWarning,
+                productStatus: 'Warning: Counterfeit/Invalid',
+            };
+        }
+    }
+    else {
+        // QR code not found at all
+        scanOutcome = 'FAILED';
+        responseStatus = 404;
+        responseBody = {
+            status: 'error',
+            message: 'This product code is invalid or not found in our system. It might be counterfeit.',
+            universalWarning: universalWarning,
+            productStatus: 'Warning: Counterfeit/Invalid',
+        };
+    }
+    // Record the scan attempt
     await prisma.scanRecord.create({
         data: {
             qrCodeId: qrCode ? qrCode.id : null,
+            scannedCode: code,
             scannedAt: new Date(),
-            scanOutcome: qrCode ? 'SUCCESS' : 'FAILED',
-            ipAddress: req.ip, // Capture IP address
+            scanOutcome: scanOutcome,
+            ipAddress: req.ip,
             latitude: lat ? parseFloat(lat) : null,
             longitude: lon ? parseFloat(lon) : null,
-            scannedByRole: 'PUBLIC', // Indicate it's a public scan
+            scannedByRole: 'PUBLIC',
         }
     });
-
-    // 3. Handle invalid/non-existent QR codes
-    if (!qrCode) {
-        const universalWarning = await prisma.systemSetting.findMany({
-            where: { key: { in: ['universal_warning_text', 'universal_warning_video_url'] } },
-        });
-        const warningMap = universalWarning.reduce((acc, setting) => {
-            acc[setting.key] = setting.value;
-            return acc;
-        }, {});
-
-        return res.status(404).json({
-            status: 'error',
-            message: 'This product code is invalid or not found in our system. It might be counterfeit.',
-            universalWarning: {
-                text: warningMap.universal_warning_text || 'Warning: This product could not be verified.',
-                videoUrl: warningMap.universal_warning_video_url || null,
-            }
-        });
-    }
-
-    // 4. Handle genuine product
-    // Fetch health content based on NAFDAC number
-    const healthContent = await prisma.healthVideo.findUnique({
-        where: { nafdacNumber: qrCode.batch.nafdacNumber },
-    });
-
-    res.status(200).json({
-        status: 'success',
-        message: 'Product verified successfully!',
-        data: {
-            batch: {
-                drugName: qrCode.batch.drugName,
-                productInstructionVideoUrl: healthContent?.genuineVideoUrl || null,
-                productInstructionText: healthContent?.genuineText || null,
-                productSealImageUrl: qrCode.batch.seal_background_url || null,
-            },
-        },
-        healthContent: {
-            text: healthContent?.genuineText || null,
-            videoUrl: healthContent?.genuineVideoUrl || null,
-        },
-    });
+    res.status(responseStatus).json(responseBody);
 }));
+
 app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, res) => {
     try {
         const userId = req.user.userId;
-
         const scanRecords = await prisma.scanRecord.findMany({
             where: {
                 scannerId: userId,
                 scannedByRole: 'CUSTOMER' // Only show scans made as a customer
             },
-            orderBy: {
-                scannedAt: 'desc'
-            },
+            orderBy: { scannedAt: 'desc' },
             include: {
                 qrCode: {
                     include: {
@@ -764,7 +744,10 @@ app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, re
                             select: {
                                 drugName: true,
                                 nafdacNumber: true,
-                                seal_background_url: true
+                                seal_background_url: true,
+                                productInstructionVideoUrl: true,
+                                productInstructionText: true,
+                                productSealImageUrl: true,
                             }
                         },
                         dispenseRecord: {
@@ -780,28 +763,38 @@ app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, re
                 }
             }
         });
-
         const nafdacNumbers = [...new Set(scanRecords.map(r => r.qrCode?.batch.nafdacNumber).filter(Boolean))];
-        
         const healthVideos = await prisma.healthVideo.findMany({
-            where: {
-                nafdacNumber: { in: nafdacNumbers }
-            }
+            where: { nafdacNumber: { in: nafdacNumbers } }
         });
-
         const healthContentMap = new Map(healthVideos.map(v => [v.nafdacNumber, v]));
-
         const history = scanRecords.map(record => {
             const qr = record.qrCode;
             const batch = qr?.batch;
             const healthContent = batch ? healthContentMap.get(batch.nafdacNumber) : null;
-
+            // Determine content based on scan outcome
+            let videoUrl = null;
+            let text = null;
+            let productImage = null;
+            if (record.scanOutcome === 'SUCCESS') {
+                videoUrl = healthContent?.genuineVideoUrl || batch?.productInstructionVideoUrl || null;
+                text = healthContent?.genuineText || batch?.productInstructionText || null;
+                productImage = batch?.productSealImageUrl || batch?.seal_background_url || null;
+            }
+            else {
+                // For failed scans, retrieve universal warning from SystemSettings if available
+                // This would ideally be fetched once or passed down, but for history, we'll fetch it here if needed.
+                // For simplicity, let's assume universal warning is not directly tied to scan history display for now,
+                // or we'd need to fetch it here as well.
+                // For now, if scan failed, we just don't show product-specific content.
+                // If the frontend needs the universal warning for history, it should fetch it separately.
+            }
             return {
                 id: record.id,
                 scannedAt: record.scannedAt,
                 scanOutcome: record.scanOutcome,
                 drugName: batch?.drugName || 'Unknown Product',
-                productImage: batch?.seal_background_url || null,
+                productImage: productImage,
                 activatingPharmacy: qr?.dispenseRecord?.pharmacy?.companyName || 'N/A',
                 healthContent: healthContent ? {
                     text: record.scanOutcome === 'SUCCESS' ? healthContent.genuineText : healthContent.counterfeitText,
@@ -809,10 +802,9 @@ app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, re
                 } : null
             };
         });
-
         res.status(200).json(history);
-
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Error fetching scan history:', error);
         res.status(500).json({ error: 'An internal server error occurred while fetching your history.' });
     }
@@ -844,22 +836,18 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
 
 app.post('/api/auth/register', asyncHandler(async (req, res) => {
     const { email, password, role, companyName, companyRegNumber, fullName } = req.body;
-
     if (!email || !password || !role) {
-      return res.status(400).json({ error: 'Email, password, and role are required.' });
+        return res.status(400).json({ error: 'Email, password, and role are required.' });
     }
     if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+        return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     }
-
     const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (existingUser) {
-      return res.status(409).json({ error: 'An account with this email already exists.' });
+        return res.status(409).json({ error: 'An account with this email already exists.' });
     }
-
     const dataToCreate = { email: email.toLowerCase(), password: await bcrypt.hash(password, 10), role };
     let successMessage = '';
-
     switch (role) {
         case Role.MANUFACTURER:
         case Role.SKINCARE_BRAND:
@@ -872,14 +860,12 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
             dataToCreate.isActive = false;
             successMessage = 'Registration successful! Your account is pending approval.';
             break;
-
         case Role.CUSTOMER:
             if (!fullName) return res.status(400).json({ error: 'Full Name is required.' });
             dataToCreate.companyName = fullName;
             dataToCreate.isActive = true;
             successMessage = 'Registration successful! You can now log in.';
             break;
-           
         case Role.HEALTH_ADVISOR:
         case Role.DVA:
         case Role.PRINTING:
@@ -889,11 +875,9 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
             dataToCreate.isActive = false;
             successMessage = 'Registration successful! Your account is pending approval.';
             break;
-
         default:
             return res.status(400).json({ error: 'Invalid user role specified.' });
     }
-
     await prisma.user.create({ data: dataToCreate });
     res.status(201).json({ message: successMessage });
 }));
@@ -904,7 +888,6 @@ app.get('/api/reports', authenticateToken, authorizeRole([Role.ADMIN]), asyncHan
     const pageNum = parseInt(page, 10);
     const pageSizeNum = parseInt(pageSize, 10);
     const skip = (pageNum - 1) * pageSizeNum;
-
     const where = {};
     if (status) where.status = status;
     if (productName) where.productName = { contains: productName, mode: 'insensitive' };
@@ -918,7 +901,6 @@ app.get('/api/reports', authenticateToken, authorizeRole([Role.ADMIN]), asyncHan
             lte: new Date(endDate),
         };
     }
-
     const [reports, totalCount] = await prisma.$transaction([
         prisma.report.findMany({
             where,
@@ -932,9 +914,7 @@ app.get('/api/reports', authenticateToken, authorizeRole([Role.ADMIN]), asyncHan
         }),
         prisma.report.count({ where }),
     ]);
-
-    res.status(200).json({
-        data: reports,
+    res.status(200).json({n        data: reports,
         pagination: {
             totalCount,
             currentPage: pageNum,
@@ -948,17 +928,38 @@ app.patch('/api/reports/:id', authenticateToken, authorizeRole([Role.ADMIN]), as
     const { id } = req.params;
     const { status, assigneeId } = req.body;
     const reportId = parseInt(id, 10);
-
     const dataToUpdate = {};
     if (status) dataToUpdate.status = status;
     if (assigneeId !== undefined) dataToUpdate.assigneeId = assigneeId;
-
     const updatedReport = await prisma.report.update({
         where: { id: reportId },
         data: dataToUpdate,
     });
-
     res.status(200).json(updatedReport);
+}));
+
+app.post('/api/reports/:id/forward', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { target } = req.body;
+    const reportId = parseInt(id, 10);
+
+    if (!target || (target !== 'dva' && target !== 'store')) {
+        return res.status(400).json({ error: 'Invalid target specified. Must be 'dva' or 'store'.' });
+    }
+
+    let newStatus;
+    if (target === 'dva') {
+        newStatus = ReportStatus.FORWARDED;
+    } else if (target === 'store') {
+        newStatus = ReportStatus.FORWARDED_TO_STORE;
+    }
+
+    const updatedReport = await prisma.report.update({
+        where: { id: reportId },
+        data: { status: newStatus },
+    });
+
+    res.status(200).json({ message: `Report forwarded to ${target} successfully.`, report: updatedReport });
 }));
 
 const reportUpload = multer({ storage: multer.memoryStorage() });
@@ -966,11 +967,9 @@ const reportUpload = multer({ storage: multer.memoryStorage() });
 app.post('/api/reports', authenticateTokenOptional, reportUpload.array('attachments', 5), asyncHandler(async (req, res) => {
     const { productName, qrCode, issueDescription } = req.body;
     const userId = req.user ? req.user.userId : null;
-
     if (!productName || !issueDescription) {
         return res.status(400).json({ error: 'Product Name and Issue Description are required.' });
     }
-
     let attachmentUrls = [];
     if (req.files && req.files.length > 0) {
         for (const file of req.files) {
@@ -982,7 +981,6 @@ app.post('/api/reports', authenticateTokenOptional, reportUpload.array('attachme
             attachmentUrls.push(uploadResult.secure_url);
         }
     }
-
     const newReport = await prisma.report.create({
         data: {
             userId: userId,
@@ -993,7 +991,6 @@ app.post('/api/reports', authenticateTokenOptional, reportUpload.array('attachme
             status: ReportStatus.NEW,
         },
     });
-
     res.status(201).json({ message: 'Report submitted successfully!', report: newReport });
 }));
 
@@ -1025,7 +1022,6 @@ app.post('/api/batches', authenticateToken, authorizeRole([Role.MANUFACTURER]), 
         return res.status(400).json({ error: 'All fields are required.' });
     }
     const manufacturerId = req.user.userId;
-
     const newBatch = await prisma.batch.create({
         data: {
             manufacturerId: manufacturerId,
@@ -1036,33 +1032,26 @@ app.post('/api/batches', authenticateToken, authorizeRole([Role.MANUFACTURER]), 
             status: BatchStatus.PENDING_DVA_APPROVAL,
         },
     });
-
     res.status(201).json(newBatch);
 }));
 
 app.put('/api/manufacturer/batches/:id/confirm-delivery', authenticateToken, authorizeRole([Role.MANUFACTURER]), asyncHandler(async (req, res) => {
     const batchId = parseInt(req.params.id, 10);
     const manufacturerId = req.user.userId;
-
     const batch = await prisma.batch.findFirst({
         where: { id: batchId, manufacturerId: manufacturerId }
     });
-
     if (!batch) {
         return res.status(404).json({ error: 'Batch not found or you do not have permission to modify it.' });
     }
-
     if (batch.status !== BatchStatus.PENDING_MANUFACTURER_CONFIRMATION) {
         return res.status(400).json({ error: 'This batch is not awaiting your confirmation.' });
     }
-
     const sixDigitCode = generateSixDigitCode();
-
     const updatedBatch = await prisma.batch.update({
         where: { id: batchId },
         data: { delivery_confirmation_code: sixDigitCode },
     });
-
     res.status(200).json({
         message: 'Confirmation code generated. Please provide this code to the logistics agent.',
         confirmationCode: sixDigitCode,
@@ -1074,33 +1063,26 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
     const batchId = parseInt(req.params.id, 10);
     const manufacturerId = req.user.userId;
     const { received_quantity: quantityReceived } = req.body;
-
     if (quantityReceived === undefined || quantityReceived === null) {
         return res.status(400).json({ error: 'Quantity received is required.' });
     }
-
     const batch = await prisma.batch.findFirst({
         where: { id: batchId, manufacturerId: manufacturerId }
     });
-
     if (!batch) {
         return res.status(404).json({ error: 'Batch not found or you do not have permission to confirm receipt.' });
     }
-
     if (batch.status !== BatchStatus.PENDING_MANUFACTURER_CONFIRMATION) {
         return res.status(400).json({ error: `This batch is not in the expected status ('PENDING_MANUFACTURER_CONFIRMATION'). Current status: ${batch.status}` });
     }
-
     const safeQuantityReceived = parseInt(quantityReceived, 10);
     if (isNaN(safeQuantityReceived) || safeQuantityReceived < 0) {
         return res.status(400).json({ error: 'Invalid quantity received. Must be a non-negative number.' });
     }
-
     const updatedBatch = await prisma.batch.update({
         where: { id: batchId },
         data: { manufacturer_received_quantity: safeQuantityReceived },
     });
-
     res.status(200).json({
         message: 'Batch receipt quantity confirmed successfully. The batch is now awaiting finalization by the logistics agent.',
         batch: updatedBatch
@@ -1110,20 +1092,16 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
 
 app.post('/api/manufacturer/batches/assign-children', authenticateToken, authorizeRole([Role.MANUFACTURER, Role.ADMIN]), asyncHandler(async (req, res) => {
     const { masterOuterCode, childOuterCodes } = req.body;
-
     if (!masterOuterCode || !childOuterCodes || !Array.isArray(childOuterCodes) || childOuterCodes.length === 0) {
         return res.status(400).json({ error: 'Master code and a list of child codes are required.' });
     }
-
     const result = await prisma.$transaction(async (tx) => {
         const masterQr = await tx.qRCode.findUnique({
             where: { outerCode: masterOuterCode.trim() }
         });
-
         if (!masterQr) throw new Error('Master QR code not found.');
         if (!masterQr.isMaster) throw new Error('Scanned code is not a valid Master QR code.');
         if (masterQr.status !== 'UNUSED') throw new Error('This Master QR code has already been used for an assignment.');
-
         const childQrs = await tx.qRCode.findMany({
             where: {
                 outerCode: { in: childOuterCodes },
@@ -1131,13 +1109,10 @@ app.post('/api/manufacturer/batches/assign-children', authenticateToken, authori
                 status: 'AWAITING_ASSIGNMENT'
             }
         });
-        
         if (childQrs.length !== childOuterCodes.length) {
             throw new Error('Some child QR codes are invalid, already assigned, or could not be found. Please check the list and try again.');
         }
-
         const childIdsToUpdate = childQrs.map(qr => qr.id);
-
         const updateCount = await tx.qRCode.updateMany({
             where: {
                 id: { in: childIdsToUpdate }
@@ -1147,15 +1122,12 @@ app.post('/api/manufacturer/batches/assign-children', authenticateToken, authori
                 status: 'ASSIGNED_TO_MASTER'
             }
         });
-
         await tx.qRCode.update({
             where: { id: masterQr.id },
             data: { status: 'USED' }
         });
-
         return { count: updateCount.count };
     });
-
     res.status(200).json({
         message: `Successfully assigned ${result.count} products to master carton ${masterOuterCode}.`
     });
@@ -1163,11 +1135,9 @@ app.post('/api/manufacturer/batches/assign-children', authenticateToken, authori
 
 app.post('/api/manufacturer/master-codes/generate', authenticateToken, authorizeRole([Role.MANUFACTURER, Role.ADMIN]), asyncHandler(async (req, res) => {
     const { childOuterCodes } = req.body;
-
     if (!childOuterCodes || !Array.isArray(childOuterCodes) || childOuterCodes.length === 0) {
         return res.status(400).json({ error: 'A list of child product codes is required.' });
     }
-
     const result = await prisma.$transaction(async (tx) => {
         const childQrs = await tx.qRCode.findMany({
             where: {
@@ -1177,16 +1147,13 @@ app.post('/api/manufacturer/master-codes/generate', authenticateToken, authorize
             },
             select: { id: true, batchId: true }
         });
-
         if (childQrs.length !== childOuterCodes.length) {
             throw new Error('Some product codes are invalid, already assigned, or could not be found. Please scan again.');
         }
-
         const firstBatchId = childQrs[0].batchId;
         if (!childQrs.every(qr => qr.batchId === firstBatchId)) {
             throw new Error('All products in a carton must belong to the same manufacturing batch.');
         }
-
         const newMasterQr = await tx.qRCode.create({
             data: {
                 batchId: firstBatchId,
@@ -1197,7 +1164,6 @@ app.post('/api/manufacturer/master-codes/generate', authenticateToken, authorize
                 smsCode: generateEightDigitCode(),
             }
         });
-
         const childIdsToUpdate = childQrs.map(qr => qr.id);
         const updateCount = await tx.qRCode.updateMany({
             where: {
@@ -1208,10 +1174,8 @@ app.post('/api/manufacturer/master-codes/generate', authenticateToken, authorize
                 status: 'ASSIGNED_TO_MASTER'
             }
         });
-
         return { newMasterQr, count: updateCount.count };
     });
-
     res.status(201).json({
         message: `Successfully created Master QR and assigned ${result.count} products to it.`,
         masterCode: result.newMasterQr
@@ -1231,7 +1195,6 @@ app.get('/api/dva/pending-batches', authenticateToken, authorizeRole([Role.DVA])
 app.put('/api/dva/batches/:id/approve', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const batchId = parseInt(req.params.id, 10);
     const dvaApproverId = req.user.userId;
-
     const updatedBatch = await prisma.batch.update({
         where: { id: batchId },
         data: {
@@ -1247,7 +1210,6 @@ app.put('/api/dva/batches/:id/reject', authenticateToken, authorizeRole([Role.DV
     const { id } = req.params;
     const { reason } = req.body;
     const rejectorId = req.user.userId;
-
     if (!reason) {
         return res.status(400).json({ error: 'Rejection reason is required.' });
     }
@@ -1285,11 +1247,9 @@ app.get('/api/admin/pending-batches', authenticateToken, authorizeRole([Role.ADM
 app.delete('/api/admin/users/:id', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const userIdToDelete = parseInt(req.params.id, 10);
     const adminUserId = req.user.userId;
-
     if (userIdToDelete === adminUserId) {
         return res.status(400).json({ error: 'You cannot delete your own account.' });
     }
-
     const userWithRelations = await prisma.user.findUnique({
         where: { id: userIdToDelete },
         include: {
@@ -1300,56 +1260,46 @@ app.delete('/api/admin/users/:id', authenticateToken, authorizeRole([Role.ADMIN]
             batches: true,
         }
     });
-
     if (!userWithRelations) {
         return res.status(404).json({ error: 'User not found.' });
     }
-
-    const hasDependencies = 
-        userWithRelations.adminApprovedBatches.length > 0 ||
+    const hasDependencies = userWithRelations.adminApprovedBatches.length > 0 ||
         userWithRelations.dvaApprovedBatches.length > 0 ||
         userWithRelations.rejectedBatches.length > 0 ||
         userWithRelations.uploadedHealthVideos.length > 0 ||
         userWithRelations.batches.length > 0;
-    
     if (hasDependencies) {
-        return res.status(409).json({ 
-            error: 'This user cannot be deleted because they have associated action history (e.g., approved batches, created content). Please deactivate the account instead to preserve data integrity.' 
+        return res.status(409).json({
+            error: 'This user cannot be deleted because they have associated action history (e.g., approved batches, created content). Please deactivate the account instead to preserve data integrity.'
         });
     }
-
     await prisma.user.delete({
         where: { id: userIdToDelete }
     });
-
     res.status(200).json({ message: `User ${userWithRelations.email} has been permanently deleted.` });
 }));
 
 app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     const adminApproverId = req.user.userId;
-
     const batchToProcess = await prisma.batch.findUnique({ where: { id: parseInt(id, 10) } });
     if (!batchToProcess) {
         return res.status(404).json({ error: 'Batch not found.' });
     }
-
     const ITEMS_PER_CARTON = 50;
     const totalQuantity = batchToProcess.quantity;
     const numberOfCartons = Math.ceil(totalQuantity / ITEMS_PER_CARTON);
-
     const updatedBatch = await prisma.$transaction(async (tx) => {
         const batchUpdate = await tx.batch.update({
             where: { id: parseInt(id, 10) },
             data: {
                 status: BatchStatus.PENDING_PRINTING,
                 admin_approved_at: new Date(),
-                rejection_reason: null, 
+                rejection_reason: null,
                 rejectedById: null,
                 adminApproverId: adminApproverId,
             },
         });
-
         const masterCodesData = [];
         for (let i = 0; i < numberOfCartons; i++) {
             masterCodesData.push({
@@ -1357,13 +1307,12 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role
                 code: `master-inner-${nanoid(12)}`,
                 batchId: batchToProcess.id,
                 isMaster: true,
-                status: 'UNUSED',
+                status: QRCodeStatus.UNUSED,
             });
         }
         if (masterCodesData.length > 0) {
             await tx.qRCode.createMany({ data: masterCodesData });
         }
-
         const childCodesData = [];
         for (let i = 0; i < totalQuantity; i++) {
             childCodesData.push({
@@ -1371,16 +1320,14 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role
                 outerCode: `CHILD-${nanoid(10)}`,
                 batchId: batchToProcess.id,
                 isMaster: false,
-                status: 'AWAITING_ASSIGNMENT',
+                status: QRCodeStatus.AWAITING_ASSIGNMENT,
             });
         }
         if (childCodesData.length > 0) {
             await tx.qRCode.createMany({ data: childCodesData });
         }
-        
         return batchUpdate;
     });
-
     console.log(`Successfully generated ${numberOfCartons} master and ${totalQuantity} child QR pairs for Batch ID: ${batchToProcess.id}`);
     res.status(200).json(updatedBatch);
 }));
@@ -1389,7 +1336,6 @@ app.put('/api/admin/batches/:id/reject', authenticateToken, authorizeRole([Role.
     const { id } = req.params;
     const { reason } = req.body;
     const rejectorId = req.user.userId;
-
     if (!reason) {
         return res.status(400).json({ error: 'Rejection reason is required.' });
     }
@@ -1442,12 +1388,12 @@ app.get('/api/admin/batches/:id', authenticateToken, authorizeRole([Role.ADMIN])
                 finalizedDeliveryBy: { select: { email: true, companyName: true } }
             },
         });
-
         if (!batchDetails) {
             return res.status(404).json({ error: 'Batch not found.' });
         }
         res.status(200).json(batchDetails);
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Error fetching batch details:', error);
         res.status(500).json({ error: 'An internal error occurred while fetching batch details.' });
     }
@@ -1459,27 +1405,24 @@ app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole([R
         where: { id: parseInt(id, 10) },
         include: { qrCodes: true },
     });
-
     if (!batch || batch.qrCodes.length === 0) {
         return res.status(404).json({ error: 'No codes found for this batch.' });
     }
     if (!batch.seal_background_url) {
         return res.status(400).json({ error: 'Cannot generate seals because a background image has not been uploaded for this batch.' });
     }
-
     const zipFileName = `batch_${id}_${batch.drugName.replace(/\s+/g, '_')}_seals.zip`;
     res.attachment(zipFileName);
     const archive = archiver('zip', { zlib: { level: 9 } });
     archive.on('error', (err) => { throw err; });
     archive.pipe(res);
-
     const childQrs = batch.qrCodes.filter(qr => !qr.isMaster);
-
     for (const qr of childQrs) {
         try {
             const finalImageBuffer = await generateDualSealBuffer(qr, batch.seal_background_url);
             archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
-        } catch (error) {
+        }
+        catch (error) {
             console.error(`Failed to generate seal for QR code ${qr.code}:`, error.message);
             archive.append(`Error generating seal for ${qr.code}: ${error.message}`, { name: `error_${qr.code}.txt` });
         }
@@ -1487,7 +1430,7 @@ app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole([R
     await archive.finalize();
 }));
 
-app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole([Role.ADMIN]), upload.single('sealBackground'), asyncHandler(async (req, res) => {
+app.post('/api/admin/batches/:id/upload-seal', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded.' });
@@ -1505,7 +1448,6 @@ app.get('/api/admin/history', authenticateToken, authorizeRole([Role.ADMIN]), as
     const search = req.query.search || '';
     const take = 20;
     const skip = (page - 1) * take;
-
     const whereClause = {
         NOT: { status: { in: [BatchStatus.PENDING_DVA_APPROVAL, BatchStatus.PENDING_ADMIN_APPROVAL] } },
         OR: search ? [
@@ -1513,7 +1455,6 @@ app.get('/api/admin/history', authenticateToken, authorizeRole([Role.ADMIN]), as
             { manufacturer: { companyName: { contains: search, mode: 'insensitive' } } }
         ] : undefined,
     };
-
     const [batches, totalCount] = await prisma.$transaction([
         prisma.batch.findMany({
             where: whereClause,
@@ -1524,7 +1465,6 @@ app.get('/api/admin/history', authenticateToken, authorizeRole([Role.ADMIN]), as
         }),
         prisma.batch.count({ where: whereClause })
     ]);
-
     res.status(200).json({
         data: batches,
         pagination: {
@@ -1608,7 +1548,6 @@ app.get('/api/admin/users/all', authenticateToken, authorizeRole([Role.ADMIN]), 
     const search = req.query.search || '';
     const take = 20;
     const skip = (page - 1) * take;
-
     const whereClause = {
         role: { not: Role.ADMIN },
         OR: search ? [
@@ -1616,7 +1555,6 @@ app.get('/api/admin/users/all', authenticateToken, authorizeRole([Role.ADMIN]), 
             { companyName: { contains: search, mode: 'insensitive' } }
         ] : undefined,
     };
-
     const [users, totalCount] = await prisma.$transaction([
         prisma.user.findMany({
             where: whereClause,
@@ -1627,7 +1565,6 @@ app.get('/api/admin/users/all', authenticateToken, authorizeRole([Role.ADMIN]), 
         }),
         prisma.user.count({ where: whereClause })
     ]);
-
     res.status(200).json({
         data: users,
         pagination: {
@@ -1717,6 +1654,33 @@ app.post('/api/admin/system-reset', authenticateToken, authorizeRole([Role.ADMIN
     ]);
 
     res.status(200).json({ message: `System data has been backed up and reset successfully.` });
+}));
+
+// --- USER SETTINGS ROUTES ---
+app.get('/api/user/settings', authenticateToken, asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { settings: true },
+    });
+
+    res.status(200).json(user?.settings || {});
+}));
+
+app.post('/api/user/settings', authenticateToken, asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+    const { settings } = req.body; // Expecting a JSON object for settings
+
+    if (typeof settings !== 'object' || settings === null) {
+        return res.status(400).json({ error: 'Settings must be a valid JSON object.' });
+    }
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { settings: settings },
+    });
+
+    res.status(200).json({ message: 'User settings updated successfully.' });
 }));
 
 // --- ERROR HANDLING MIDDLEWARE ---

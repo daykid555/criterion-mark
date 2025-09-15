@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Import useCallback
 import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
-import ReportTable from '../components/ReportTable'; // We will create this component next
+import ReportTable from '../components/ReportTable';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api';
 
@@ -26,7 +26,7 @@ const AdminReportManagementPage = () => {
     endDate: '',
   });
 
-  const fetchReports = async (page = 1, pageSize = 10, currentFilters = filters) => {
+  const fetchReports = useCallback(async (page = 1, pageSize = 10, currentFilters = filters) => {
     setLoading(true);
     setError(null);
     try {
@@ -45,7 +45,7 @@ const AdminReportManagementPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]); // Add filters to useCallback dependency array
 
   useEffect(() => {
     if (user && token && user.role === 'ADMIN') {
@@ -53,7 +53,7 @@ const AdminReportManagementPage = () => {
     } else if (!user || user.role !== 'ADMIN') {
       navigate('/login'); // Redirect if not authorized
     }
-  }, [user, token, navigate]);
+  }, [user, token, navigate, fetchReports]); // Add fetchReports to useEffect dependency array
 
   const handleFilterChange = (e) => {
     setFilters({
@@ -63,7 +63,7 @@ const AdminReportManagementPage = () => {
   };
 
   const applyFilters = () => {
-    fetchReports(1, pagination.pageSize, filters); // Reset to first page when applying filters
+    fetchReports(1, pagination.pageSize, filters);
   };
 
   const handlePageChange = (newPage) => {
@@ -112,7 +112,7 @@ const AdminReportManagementPage = () => {
               name="status"
               value={filters.status}
               onChange={handleFilterChange}
-              className="w-full glass-input"
+              className="w-full glass-input px-4 py-3 text-lg"
             >
               <option value="">All</option>
               <option value="NEW">New</option>
@@ -128,7 +128,7 @@ const AdminReportManagementPage = () => {
               name="reporterType"
               value={filters.reporterType}
               onChange={handleFilterChange}
-              className="w-full glass-input"
+              className="w-full glass-input px-4 py-3 text-lg"
             >
               <option value="">All</option>
               <option value="USER">User (Logged In)</option>
@@ -143,17 +143,16 @@ const AdminReportManagementPage = () => {
               name="productName"
               value={filters.productName}
               onChange={handleFilterChange}
-              className="w-full glass-input"
-              placeholder="Filter by product name"
+              className="w-full glass-input px-4 py-3 text-lg"              placeholder="Filter by product name"
             />
           </div>
           <div>
             <label htmlFor="startDate" className="block text-sm font-medium text-white/80">Start Date</label>
-            <input type="date" id="startDate" name="startDate" value={filters.startDate} onChange={handleFilterChange} className="w-full glass-input" />
+            <input type="date" id="startDate" name="startDate" value={filters.startDate} onChange={handleFilterChange} className="w-full glass-input px-4 py-3 text-lg" />
           </div>
           <div>
             <label htmlFor="endDate" className="block text-sm font-medium text-white/80">End Date</label>
-            <input type="date" id="endDate" name="endDate" value={filters.endDate} onChange={handleFilterChange} className="w-full glass-input" />
+            <input type="date" id="endDate" name="endDate" value={filters.endDate} onChange={handleFilterChange} className="w-full glass-input px-4 py-3 text-lg" />
           </div>
         </div>
         <button
@@ -171,6 +170,7 @@ const AdminReportManagementPage = () => {
           onPageChange={handlePageChange}
           onStatusChange={handleStatusChange}
           onAssigneeChange={handleAssigneeChange}
+          fetchReports={fetchReports} // Pass fetchReports down
         />
       </div>
     </div>

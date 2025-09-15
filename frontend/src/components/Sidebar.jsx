@@ -55,6 +55,7 @@ const navConfig = {
   DVA: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/dva/dashboard' },
     { icon: <FiCheckSquare size={20} />, text: 'Approval Queue', to: '/dva/approval-queue' },
+    { icon: <FiFileText size={20} />, text: 'Reports', to: '/dva/reports' }, // New Reports link
     { icon: <FiClock size={20} />, text: 'Action History', to: '/dva/history' },
   ],
   PHARMACY: [
@@ -88,6 +89,7 @@ const navConfig = {
     { icon: <FiCamera size={20} />, text: 'Scan Product', to: '/scan' },
     { icon: <FiClock size={20} />, text: 'Scan History', to: '/history' },
     { icon: <FiAlertTriangle size={20} />, text: 'Report Issue', to: '/report' },
+    { icon: <FiSettings size={20} />, text: 'Settings', to: '/settings' },
   ],
 };
 

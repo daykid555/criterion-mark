@@ -71,6 +71,7 @@ enum ReportStatus {
   NEW
   IN_REVIEW
   FORWARDED
+  FORWARDED_TO_STORE
   RESOLVED
 }
 
