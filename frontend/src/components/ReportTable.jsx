@@ -160,8 +160,8 @@ const ReportTable = ({ reports, pagination, onPageChange, onStatusChange, onAssi
       </nav>
 
       {/* Report Details Modal */}
-      <Modal isOpen={isModalOpen} onClose={closeModal} title="Report Details">
-        {selectedReport && (
+      {selectedReport && ( // Only render modal if a report is selected
+        <Modal isOpen={isModalOpen} onClose={closeModal} title="Report Details" key={selectedReport.id}> {/* Added key prop */}
           <div className="text-gray-200">
             <p><strong>Product Name:</strong> {selectedReport.productName}</p>
             <p><strong>QR Code:</strong> {selectedReport.qrCode || 'N/A'}</p>
@@ -230,8 +230,9 @@ const ReportTable = ({ reports, pagination, onPageChange, onStatusChange, onAssi
               </div>
             </div>
           </div>
-        )}
-      </Modal>
+        </Modal>
+      )
+}
     </div>
   );
 };
