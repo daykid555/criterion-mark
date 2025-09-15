@@ -111,6 +111,7 @@ const AdminApprovalQueue = () => {
                     </tr>
                     ))}
                 </Table>
+            </div>
         )}
 
         {showRejectModal && (
