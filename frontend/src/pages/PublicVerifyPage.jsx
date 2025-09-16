@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+
 import axios from 'axios';
 import { FiMapPin } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen'; // Import ScanResultScreen
@@ -102,7 +102,15 @@ function PublicVerifyPage() {
   // --- END: UPDATED SCAN HANDLER ---
 
   useEffect(() => {
-    html5QrCodeRef.current = new Html5Qrcode("qr-reader");
+    let html5QrCode;
+    import('html5-qrcode').then(({ Html5Qrcode }) => {
+      html5QrCode = new Html5Qrcode("qr-reader");
+      html5QrCodeRef.current = html5QrCode;
+    }).catch(error => {
+      console.error("Failed to load Html5Qrcode:", error);
+      setScanError("Failed to load scanner. Please try again.");
+    });
+
     return () => {
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(console.error);
