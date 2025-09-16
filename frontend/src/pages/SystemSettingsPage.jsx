@@ -7,7 +7,7 @@ function SystemSettingsPage() {
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="flex items-center mb-8">
         <BackButton />
-        <h1 className="text-3xl sm:text-4xl font-bold text-white ml-4 drop-shadow-lg">System Settings</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold text-white ml-4 drop-shadow-lg">Universal Warning Settings</h1>
       </div>
       {/* Render the AdminUniversalWarningPage here for now */}
       <AdminUniversalWarningPage />

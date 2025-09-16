@@ -44,7 +44,7 @@ const navConfig = {
     { icon: <FiFileText size={20} />, text: 'Reports Management', to: '/admin/reports' },
     { icon: <FiMap size={20} />, text: 'Scan Map', to: '/admin/map' },
     { icon: <FiClock size={20} />, text: 'Action History', to: '/admin/history' },
-    { icon: <FiSettings size={20} />, text: 'Universal Content, Counterfeit', to: '/admin/settings' },,
+    { icon: <FiAlertTriangle size={20} />, text: 'Counterfeit Content', to: '/admin/counterfeit-content' },
   ],
   MANUFACTURER: [
     { icon: <FiGrid size={20} />, text: 'Dashboard', to: '/manufacturer/dashboard' },
