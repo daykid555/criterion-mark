@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import axios from 'axios';
-import { FiMapPin, FiCamera } from 'react-icons/fi'; // Added FiCamera
+import { FiMapPin, FiCamera } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen';
 import Modal from '../components/Modal';
 
@@ -28,9 +28,7 @@ function PublicVerifyPage() {
   const [scanResult, setScanResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [scanError, setScanError] = useState(null);
-  const [cameraAutoStart, setCameraAutoStart] = useState(true);
-  const [hasUserTappedToStart, setHasUserTappedToStart] = useState(false);
-  const [showScanResultModal, setShowScanResultModal] = useState(false);
+  const [hasUserTappedToStart, setHasUserTappedToStart] = useState(false); // To track if user initiated camera start
 
   const [location, setLocation] = useState({ lat: null, lon: null });
   const [locationStatus, setLocationStatus] = useState('idle');
@@ -64,7 +62,7 @@ function PublicVerifyPage() {
       setIsScannerActive(true);
       setScanError(null);
       setScanResult(null);
-      setHasUserTappedToStart(true);
+      setHasUserTappedToStart(true); // User has now tapped or camera auto-started
       html5QrCodeRef.current.start(
         { facingMode: "environment" }, { fps: 10 },
         (decodedText) => handleScanSuccess(decodedText),
@@ -72,7 +70,8 @@ function PublicVerifyPage() {
       ).catch((err) => {
         console.error('Camera start failed:', err);
         setScanError("Failed to start camera. Please grant permission and refresh.");
-        setIsScannerActive(false);
+        setIsScannerActive(false); // Camera failed to start
+        setHasUserTappedToStart(false); // Reset to allow re-tap if needed
       });
     }
   };
@@ -111,26 +110,17 @@ function PublicVerifyPage() {
     }
   };
 
+  // Initialize scanner and attempt to start camera automatically
   useEffect(() => {
     html5QrCodeRef.current = new Html5Qrcode("qr-reader");
-
-    const storedCameraAutoStart = localStorage.getItem('cameraAutoStart');
-    if (storedCameraAutoStart !== null) {
-      setCameraAutoStart(JSON.parse(storedCameraAutoStart));
-      if (JSON.parse(storedCameraAutoStart)) {
-        startScanner();
-      }
-    } else {
-      setCameraAutoStart(true);
-      startScanner();
-    }
+    startScanner(); // Attempt to start camera immediately
 
     return () => {
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(console.error);
       }
     };
-  }, []);
+  }, []); // Empty dependency array to run only once on mount
 
   const LocationStatusIndicator = ({ isCameraActive }) => (
     <div className={`flex items-center justify-center text-white/80 h-5 mt-2 ${isCameraActive ? 'text-xs' : 'text-sm'}`}>
@@ -145,7 +135,7 @@ function PublicVerifyPage() {
   const handleScanAgain = () => {
     setScanResult(null);
     setShowScanResultModal(false);
-    startScanner();
+    startScanner(); // Restart scanner
   };
 
   return (
@@ -155,10 +145,10 @@ function PublicVerifyPage() {
         <div className="w-full max-w-lg">
           <div className="glass-panel p-8 space-y-4">
             {/* Always render the qr-reader div, but control its visibility */}
-            <div id="qr-reader" style={{ width: '100%', height: '100%', display: (cameraAutoStart || hasUserTappedToStart) ? 'block' : 'none' }}></div>
+            <div id="qr-reader" style={{ width: '100%', height: '100%', display: isScannerActive ? 'block' : 'none' }}></div>
 
             {/* Conditional rendering for camera or tap-to-start UI */}
-            {!(cameraAutoStart || hasUserTappedToStart) ? (
+            {!isScannerActive ? (
               <div
                 className="flex flex-col items-center justify-center w-full aspect-square rounded-2xl bg-black/30 text-white cursor-pointer"
                 onClick={startScanner}
@@ -171,15 +161,8 @@ function PublicVerifyPage() {
             ) : (
               <div className="text-center text-white">
                 <h1 className={`font-bold drop-shadow-lg ${isScannerActive ? 'text-2xl' : 'text-3xl'}`}>Verify Your Product</h1>
-                <p className={`opacity-80 mt-2 ${isScannerActive ? 'text-sm' : ''}`}>Press "Start Scanning" to use your camera.</p>
-                <div className="flex space-x-4 mt-4">
-                  <button onClick={startScanner} disabled={isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                    Start Scanning
-                  </button>
-                  <button onClick={stopScanner} disabled={!isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                    Stop Scanning
-                  </button>
-                </div>
+                <p className={`opacity-80 mt-2 ${isScannerActive ? 'text-sm' : ''}`}>Scanning for QR code...</p>
+                {/* Removed Start/Stop buttons as camera auto-starts or is tap-to-start */}
               </div>
             )}
 
