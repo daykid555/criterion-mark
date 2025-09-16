@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FiLoader, FiAlertTriangle, FiPlayCircle, FiFileText, FiMessageSquare, FiArrowLeft, FiCheckCircle, FiXCircle, FiClock } from 'react-icons/fi';
+import { FiLoader, FiAlertTriangle, FiPlayCircle, FiFileText, FiMessageSquare, FiCheckCircle, FiXCircle, FiClock } from 'react-icons/fi';
+import BackButton from '../components/BackButton';
 
 const TextModal = ({ text, onClose }) => (
   <div onClick={onClose} className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer">
@@ -96,35 +97,35 @@ function ScanHistoryPage() {
   return (
     <>
       {selectedText && <TextModal text={selectedText} onClose={() => setSelectedText(null)} />}
-      <div className="w-full h-full p-4 overflow-y-auto">
-        <header className="flex items-center mb-6">
-            <button onClick={() => navigate(-1)} className="p-2 mr-2">
-                <FiArrowLeft size={24} />
-            </button>
-            <h1 className="text-2xl font-bold">Scan History</h1>
-        </header>
-        
-        <main className="space-y-4 pb-20">
-            {isLoading && (
-                 <div className="text-center p-8"><FiLoader className="animate-spin text-4xl mx-auto" /></div>
-            )}
-            {error && (
-                 <div className="text-center p-8 text-red-300 flex flex-col items-center gap-4">
-                    <FiAlertTriangle className="text-4xl" />
-                    <p>{error}</p>
-                </div>
-            )}
-            {!isLoading && !error && history.length === 0 && (
-                 <div className="text-center p-8 text-white/60">
-                    <FiClock className="text-5xl mx-auto mb-4" />
-                    <h2 className="text-xl font-bold">No Scans Yet</h2>
-                    <p>Your verified products will appear here.</p>
-                </div>
-            )}
-            {history.map(item => (
-                <HistoryCard key={item.id} item={item} onShowText={setSelectedText} />
-            ))}
-        </main>
+      <div className="p-4 sm:p-6 lg:p-8 flex flex-col items-center">
+        <div className="w-full max-w-3xl">
+            <div className="flex items-center mb-8">
+                <BackButton />
+                <h1 className="text-3xl sm:text-4xl font-bold text-white ml-4 drop-shadow-lg">Scan History</h1>
+            </div>
+            
+            <main className="space-y-4 pb-20">
+                {isLoading && (
+                     <div className="text-center p-8"><FiLoader className="animate-spin text-4xl mx-auto" /></div>
+                )}
+                {error && (
+                     <div className="text-center p-8 text-red-300 flex flex-col items-center gap-4">
+                        <FiAlertTriangle className="text-4xl" />
+                        <p>{error}</p>
+                    </div>
+                )}
+                {!isLoading && !error && history.length === 0 && (
+                     <div className="text-center p-8 text-white/60">
+                        <FiClock className="text-5xl mx-auto mb-4" />
+                        <h2 className="text-xl font-bold">No Scans Yet</h2>
+                        <p>Your verified products will appear here.</p>
+                    </div>
+                )}
+                {history.map(item => (
+                    <HistoryCard key={item.id} item={item} onShowText={setSelectedText} />
+                ))}
+            </main>
+        </div>
       </div>
     </>
   );
