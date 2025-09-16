@@ -62,7 +62,10 @@ function QuickScanPage() {
         const response = await apiClient.get('/api/user/settings', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        setUserSettings(response.data); // Set user settings
+        setUserSettings(prevSettings => ({
+          ...prevSettings,
+          ...response.data,
+        })); // Set user settings, merging with previous state
         const cameraAutoStartEnabled = response.data?.cameraAutoStartEnabled || false;
         if (cameraAutoStartEnabled) {
           setPhase('camera');

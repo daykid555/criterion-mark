@@ -1184,6 +1184,61 @@ app.post('/api/manufacturer/master-codes/generate', authenticateToken, authorize
     });
 }));
 
+// --- ADMIN COUNTERFEIT CONTENT ROUTES ---
+
+// GET all counterfeit content
+app.get('/api/admin/counterfeit-content', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+  const content = await prisma.counterfeitContent.findMany({
+    orderBy: { createdAt: 'desc' },
+  });
+  res.status(200).json(content);
+}));
+
+// POST new counterfeit content
+app.post('/api/admin/counterfeit-content', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+  const { productName, qrCode, status, warningText, warningVideoUrl } = req.body;
+  // Basic validation
+  if (!productName || !qrCode || !status || !warningText) {
+    return res.status(400).json({ error: 'Missing required fields.' });
+  }
+  const newContent = await prisma.counterfeitContent.create({
+    data: {
+      productName,
+      qrCode,
+      status,
+      warningText,
+      warningVideoUrl,
+    },
+  });
+  res.status(201).json(newContent);
+}));
+
+// PUT (update) counterfeit content
+app.put('/api/admin/counterfeit-content/:id', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { productName, qrCode, status, warningText, warningVideoUrl } = req.body;
+  const updatedContent = await prisma.counterfeitContent.update({
+    where: { id: parseInt(id, 10) },
+    data: {
+      productName,
+      qrCode,
+      status,
+      warningText,
+      warningVideoUrl,
+    },
+  });
+  res.status(200).json(updatedContent);
+}));
+
+// DELETE counterfeit content
+app.delete('/api/admin/counterfeit-content/:id', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  await prisma.counterfeitContent.delete({
+    where: { id: parseInt(id, 10) },
+  });
+  res.status(204).send(); // No content
+}));
+
 // --- DVA ROUTES ---
 app.get('/api/dva/pending-batches', authenticateToken, authorizeRole([Role.DVA]), asyncHandler(async (req, res) => {
     const pendingBatches = await prisma.batch.findMany({
