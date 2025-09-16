@@ -26,7 +26,7 @@ function PublicVerifyPage() {
   const [locationStatus, setLocationStatus] = useState('idle'); // 'idle', 'fetching', 'success', 'error', 'unavailable'
   // --- END: NEW STATE FOR PRECISE LOCATION ---
 
-  const html5QrCodeRef = useRef(null);
+  const html5QrcodeScannerRef = useRef(null);
 
   // --- START: NEW EFFECT TO GET LOCATION ON PAGE LOAD ---
   useEffect(() => {
@@ -52,29 +52,11 @@ function PublicVerifyPage() {
   }, []); // Empty array ensures this runs only once on component mount
   // --- END: NEW EFFECT TO GET LOCATION ON PAGE LOAD ---
 
-  const startScanner = () => {
-    if (html5QrCodeRef.current) {
-      setIsScannerActive(true); setScanError(null); setScanResult(null);
-      html5QrCodeRef.current.start(
-        { facingMode: "environment" }, { fps: 10 },
-        (decodedText) => handleScanSuccess(decodedText),
-        () => {}
-      ).catch(() => {
-        setScanError("Failed to start camera. Please grant permission and refresh.");
-        setIsScannerActive(false);
-      });
-    }
-  };
-
-  const stopScanner = () => {
-    if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-      html5QrCodeRef.current.stop().then(() => setIsScannerActive(false)).catch(console.error);
-    }
-  };
+  
   
   // --- START: UPDATED SCAN HANDLER TO SEND LOCATION ---
   const handleScanSuccess = async (decodedText) => {
-    stopScanner();
+    // stopScanner(); // Removed as Html5QrcodeScanner manages its own lifecycle
     setIsLoading(true);
     setScanResult(null);
 
@@ -102,21 +84,38 @@ function PublicVerifyPage() {
   // --- END: UPDATED SCAN HANDLER ---
 
   useEffect(() => {
-    let html5QrCode;
-    import('html5-qrcode').then(({ Html5Qrcode }) => {
-      html5QrCode = new Html5Qrcode("qr-reader");
-      html5QrCodeRef.current = html5QrCode;
+    // Dynamically import Html5QrcodeScanner
+    import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
+      if (!html5QrcodeScannerRef.current) { // Ensure it's only initialized once
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+          "qr-reader", // ID of the div element to render the scanner
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 }, // Optional: specify QR box size
+            rememberLastUsedCamera: true,
+            // Only use facingMode if you want to force a specific camera
+            // facingMode: "environment",
+          },
+          /* verbose= */ false
+        );
+
+        html5QrcodeScanner.render(
+          (decodedText, decodedResult) => handleScanSuccess(decodedText),
+          (errorMessage) => { /* console.warn(errorMessage); */ } // Optional: handle scan error
+        );
+        html5QrcodeScannerRef.current = html5QrcodeScanner;
+      }
     }).catch(error => {
-      console.error("Failed to load Html5Qrcode:", error);
+      console.error("Failed to load Html5QrcodeScanner:", error);
       setScanError("Failed to load scanner. Please try again.");
     });
 
     return () => {
-      if (html5QrCodeRef.current?.isScanning) {
-        html5QrCodeRef.current.stop().catch(console.error);
+      if (html5QrcodeScannerRef.current && html5QrcodeScannerRef.current.isScanning) {
+        html5QrcodeScannerRef.current.clear().catch(console.error); // Use clear() for Html5QrcodeScanner
       }
     };
-  }, []);
+  }, [handleScanSuccess]);
 
   const LocationStatusIndicator = () => (
     <div className="flex items-center justify-center text-sm text-white/80 h-5 mt-2">
@@ -130,7 +129,7 @@ function PublicVerifyPage() {
 
   // Conditional rendering: Show ScanResultScreen if scanResult is available, otherwise show scanner
   if (scanResult) {
-    return <ScanResultScreen scanResult={scanResult} onScanAgain={() => { setScanResult(null); startScanner(); }} />;
+    return <ScanResultScreen scanResult={scanResult} onScanAgain={() => { setScanResult(null); }} />;
   }
 
   return (
@@ -149,12 +148,6 @@ function PublicVerifyPage() {
             </div>
             
             <div className="flex space-x-4">
-              <button onClick={startScanner} disabled={isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                Start Scanning
-              </button>
-              <button onClick={stopScanner} disabled={!isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                Stop Scanning
-              </button>
             </div>
             
             <LocationStatusIndicator />
