@@ -696,7 +696,8 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
             responseBody = {
                 status: 'error',
                 message: `This product code is ${qrCode.status.toLowerCase().replace(/_/g, ' ')}. It might be counterfeit or previously used.`,
-                universalWarning: universalWarning,
+                universalWarningText: universalWarning.text,
+                universalWarningVideoUrl: universalWarning.videoUrl,
                 productStatus: 'Warning: Counterfeit/Invalid',
             };
         }
@@ -708,7 +709,8 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         responseBody = {
             status: 'error',
             message: 'This product code is invalid or not found in our system. It might be counterfeit.',
-            universalWarning: universalWarning,
+            universalWarningText: universalWarning.text,
+            universalWarningVideoUrl: universalWarning.videoUrl,
             productStatus: 'Warning: Counterfeit/Invalid',
         };
     }
