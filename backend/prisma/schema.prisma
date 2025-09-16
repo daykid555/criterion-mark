@@ -89,6 +89,7 @@ model User {
   updatedAt        DateTime  @updatedAt
   approvedBy       Int?
   approvedAt       DateTime?
+  settings         Json? // Add this line for user-specific settings
 
   // --- START: ADD THESE LINES FOR COMPREHENSIVE AUDITING ---
   dvaApprovedBatches       Batch[] @relation("DvaApprovals")
@@ -350,4 +351,15 @@ model HealthVideo {
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+model CounterfeitContent {
+  id              Int      @id @default(autoincrement())
+  productName     String
+  qrCode          String   @unique
+  status          String   @default("active")
+  warningText     String
+  warningVideoUrl String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

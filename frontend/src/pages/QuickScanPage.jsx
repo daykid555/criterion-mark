@@ -6,7 +6,7 @@ import apiClient from '../api';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
-import { FiMapPin } from 'react-icons/fi';
+import { FiMapPin, FiMenu } from 'react-icons/fi'; // Import FiMenu
 import ScanResultScreen from '../components/ScanResultScreen';
 
 const fullScreenCameraStyle = `
@@ -17,16 +17,16 @@ const fullScreenCameraStyle = `
 
 const CriterionMarkLogo = () => (
   <div className="flex flex-col items-center leading-none text-white">
-    <span className="text-sm font-light tracking-widest">THE</span>
-    <span className="text-4xl font-bold tracking-wider">CRITERION</span>
-    <span className="text-sm font-light tracking-widest">MARK</span>
+    <span className="text-xs font-light tracking-widest">THE</span> {/* Reduced size */}
+    <span className="text-3xl font-bold tracking-wider">CRITERION</span> {/* Reduced size */}
+    <span className="text-xs font-light tracking-widest">MARK</span> {/* Reduced size */}
   </div>
 );
 
 const LocationConsentModal = ({ onConfirm, onCancel }) => (
   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
     <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-sm text-center p-6">
-      <FiMapPin className="text-4xl text-cyan-400 mx-auto mb-4" />
+      <FiMapPin className="text-3xl text-cyan-400 mx-auto mb-4" /> {/* Reduced size */}
       <h2 className="text-xl font-bold text-white mb-2">Enable Location?</h2>
       <p className="text-white/70 mb-6">Scanning with location is most useful at the pharmacy to help us track counterfeit hotspots. For your privacy, please disable location when scanning at home.</p>
       <div className="flex flex-col gap-3">
@@ -39,14 +39,28 @@ const LocationConsentModal = ({ onConfirm, onCancel }) => (
 
 function QuickScanPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, token } = useContext(AuthContext);
+  const { isAuthenticated, token, user } = useContext(AuthContext); // Get user for dashboard path
   const [scanResult, setScanResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const html5QrCodeRef = useRef(null);
   const [useLocation, setUseLocation] = useState(false);
   const [showConsentModal, setShowConsentModal] = useState(false);
-  // --- BUG FIX: State to control UI visibility ---
   const [uiVisible, setUiVisible] = useState(true);
+
+  const getDashboardPath = (role) => {
+    const paths = {
+      ADMIN: '/admin/dashboard',
+      MANUFACTURER: '/manufacturer/dashboard',
+      DVA: '/dva/dashboard',
+      PRINTING: '/printing/dashboard',
+      LOGISTICS: '/logistics/dashboard',
+      SKINCARE_BRAND: '/skincare/dashboard',
+      PHARMACY: '/pharmacy/dashboard',
+      HEALTH_ADVISOR: '/health-advisor/dashboard/pending',
+      CUSTOMER: '/scan', // Default for customer, but we'll navigate to /scan if already there
+    };
+    return paths[role] || '/login';
+  };
 
   const onScanSuccess = useCallback(async (decodedText) => {
     if (isLoading || scanResult) return;
@@ -67,7 +81,7 @@ function QuickScanPage() {
 
   const handleScanAgain = () => {
     setScanResult(null);
-    setUiVisible(true); // --- BUG FIX: Show main UI again ---
+    setUiVisible(true); // Show main UI again
     if (html5QrCodeRef.current) html5QrCodeRef.current.resume();
   };
   
@@ -130,24 +144,33 @@ function QuickScanPage() {
             {scanResult && <ScanResultScreen scanResult={scanResult} onScanAgain={handleScanAgain} />}
         </AnimatePresence>
         <AnimatePresence>
-            {/* --- BUG FIX: Control visibility with state --- */}
             {uiVisible && !scanResult && !isLoading && (
                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-20 flex flex-col justify-end text-white bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                    <div className="p-6 text-center space-y-6">
+                    {/* Hamburger Menu Button */}
+                    <div className="absolute top-4 left-4 z-30">
+                        <button 
+                            onClick={() => navigate(getDashboardPath(user?.role))} // Navigate to dashboard
+                            className="p-2 bg-white/10 backdrop-blur-md rounded-full hover:bg-white/20 transition-colors"
+                        >
+                            <FiMenu size={24} className="text-white" />
+                        </button>
+                    </div>
+
+                    <div className="p-6 text-center space-y-4"> {/* Reduced space-y */}
                         <CriterionMarkLogo />
-                        <div className="flex items-center justify-center gap-4">
-                            <button onClick={handleHistoryClick} className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 font-bold py-3 px-6 rounded-full hover:bg-white/20 transition-colors">
+                        <div className="flex items-center justify-center gap-3"> {/* Reduced gap */}
+                            <button onClick={handleHistoryClick} className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 font-semibold py-2 px-4 rounded-full hover:bg-white/20 transition-colors"> {/* Reduced padding and font */} 
                                 Scan History
                             </button>
                             <div className="flex-shrink-0">
                                 <label htmlFor="location-toggle" className="flex items-center cursor-pointer">
                                     <div className="relative">
                                         <input type="checkbox" id="location-toggle" className="sr-only" checked={useLocation} onChange={handleLocationToggle} />
-                                        <div className="block bg-gray-600/50 w-14 h-8 rounded-full"></div>
-                                        <div className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${useLocation ? 'translate-x-6 bg-cyan-400' : ''}`}></div>
+                                        <div className="block bg-gray-600/50 w-12 h-7 rounded-full"></div> {/* Reduced size */}
+                                        <div className={`dot absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition-transform ${useLocation ? 'translate-x-5 bg-cyan-400' : ''}`}></div> {/* Reduced size and translate-x */}
                                     </div>
-                                    <div className="ml-3 text-white font-medium">
-                                        <FiMapPin className={useLocation ? 'text-cyan-400' : 'text-white/70'} />
+                                    <div className="ml-2 text-white font-medium"> {/* Reduced ml */}
+                                        <FiMapPin size={20} className={useLocation ? 'text-cyan-400' : 'text-white/70'} /> {/* Reduced size */}
                                     </div>
                                 </label>
                             </div>

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaArrowLeft } from 'react-icons/fa';
-import { useAuth } from '../context/AuthContext'; // Import useAuth
-import apiClient from '../api'; // Import apiClient
+import { FaArrowLeft } from 'react-icons/fa'; // Keep for now, might replace with BackButton
+import { useAuth } from '../context/AuthContext';
+import apiClient from '../api';
+import BackButton from '../components/BackButton'; // Import BackButton
 
 const SettingsPage = () => {
   const navigate = useNavigate();
-  const { token } = useAuth(); // Get token from AuthContext
+  const { token } = useAuth();
   const [settings, setSettings] = useState({
     hapticFeedbackEnabled: false,
     cameraAutoStartEnabled: true,
@@ -14,7 +15,6 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch settings on component mount
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -36,11 +36,10 @@ const SettingsPage = () => {
     if (token) {
       fetchSettings();
     } else {
-      setLoading(false); // Not authenticated, use default settings
+      setLoading(false);
     }
   }, [token]);
 
-  // Function to update settings on the backend
   const updateSetting = async (key, value) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings); // Optimistic update
@@ -66,73 +65,75 @@ const SettingsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
-        <p className="text-gray-700">Loading settings...</p>
+      <div className="p-4 sm:p-6 lg:p-8 flex flex-col items-center">
+        <div className="w-full max-w-3xl text-center text-white">
+          <p>Loading settings...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-100 p-4 flex items-center justify-center">
-        <p className="text-red-500">Error: {error}</p>
+      <div className="p-4 sm:p-6 lg:p-8 flex flex-col items-center">
+        <div className="w-full max-w-3xl text-center text-red-500">
+          <p>Error: {error}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-6">
-        <div className="flex items-center mb-6">
-          <button onClick={() => navigate(-1)} className="text-gray-600 hover:text-gray-800 mr-4">
-            <FaArrowLeft size={24} />
-          </button>
-          <h1 className="text-2xl font-semibold text-gray-800">Settings</h1>
+    <div className="p-4 sm:p-6 lg:p-8 flex flex-col items-center">
+      <div className="w-full max-w-3xl">
+        <div className="flex items-center mb-8">
+          <BackButton />
+          <h1 className="text-3xl sm:text-4xl font-bold text-white ml-4 drop-shadow-lg">Settings</h1>
         </div>
 
-        <div className="flex items-center justify-between py-3 border-b border-gray-200">
-          <span className="text-lg text-gray-700">Haptic Feedback</span>
-          <label htmlFor="haptic-toggle" className="flex items-center cursor-pointer">
-            <div className="relative">
-              <input
-                type="checkbox"
-                id="haptic-toggle"
-                className="sr-only"
-                checked={settings.hapticFeedbackEnabled}
-                onChange={handleHapticFeedbackToggle}
-              />
-              <div className="block bg-gray-300 w-14 h-8 rounded-full"></div>
-              <div
-                className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${
-                  settings.hapticFeedbackEnabled ? 'translate-x-full bg-blue-600' : ''
-                }`}
-              ></div>
-            </div>
-          </label>
-        </div>
+        <div className="glass-panel p-6 space-y-4"> {/* Use glass-panel for styling */}
+          <div className="flex items-center justify-between py-3 border-b border-white/10">
+            <span className="text-lg text-white">Haptic Feedback</span>
+            <label htmlFor="haptic-toggle" className="flex items-center cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  id="haptic-toggle"
+                  className="sr-only"
+                  checked={settings.hapticFeedbackEnabled}
+                  onChange={handleHapticFeedbackToggle}
+                />
+                <div className="block bg-gray-600/50 w-14 h-8 rounded-full"></div>
+                <div
+                  className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${
+                    settings.hapticFeedbackEnabled ? 'translate-x-6 bg-cyan-400' : ''
+                  }`}
+                ></div>
+              </div>
+            </label>
+          </div>
 
-        <div className="flex items-center justify-between py-3 border-b border-gray-200">
-          <span className="text-lg text-gray-700">Camera Auto-Start</span>
-          <label htmlFor="camera-auto-start-toggle" className="flex items-center cursor-pointer">
-            <div className="relative">
-              <input
-                type="checkbox"
-                id="camera-auto-start-toggle"
-                className="sr-only"
-                checked={settings.cameraAutoStartEnabled}
-                onChange={handleCameraAutoStartToggle}
-              />
-              <div className="block bg-gray-300 w-14 h-8 rounded-full"></div>
-              <div
-                className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${
-                  settings.cameraAutoStartEnabled ? 'translate-x-full bg-blue-600' : ''
-                }`}
-              ></div>
-            </div>
-          </label>
+          <div className="flex items-center justify-between py-3 border-b border-white/10">
+            <span className="text-lg text-white">Camera Auto-Start</span>
+            <label htmlFor="camera-auto-start-toggle" className="flex items-center cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  id="camera-auto-start-toggle"
+                  className="sr-only"
+                  checked={settings.cameraAutoStartEnabled}
+                  onChange={handleCameraAutoStartToggle}
+                />
+                <div className="block bg-gray-600/50 w-14 h-8 rounded-full"></div>
+                <div
+                  className={`dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition ${
+                    settings.cameraAutoStartEnabled ? 'translate-x-6 bg-cyan-400' : ''
+                  }`}
+                ></div>
+              </div>
+            </label>
+          </div>
         </div>
-
-        {/* Add more settings options here */}
       </div>
     </div>
   );
