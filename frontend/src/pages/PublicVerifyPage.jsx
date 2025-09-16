@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import axios from 'axios';
-import { FiMapPin, FiCamera } from 'react-icons/fi';
-import ScanResultScreen from '../components/ScanResultScreen';
-import Modal from '../components/Modal';
+import { FiMapPin } from 'react-icons/fi';
+import ScanResultScreen from '../components/ScanResultScreen'; // Import ScanResultScreen
 
 const qrReaderVideoStyle = `
   #qr-reader video {
@@ -15,26 +14,21 @@ const qrReaderVideoStyle = `
   }
 `;
 
-const CriterionMarkLogo = () => (
-  <div className="flex flex-col items-center leading-none text-white">
-    <span className="text-xxs font-light tracking-widest">THE</span>
-    <span className="text-2xl font-bold tracking-wider">CRITERION</span>
-    <span className="text-xxs font-light tracking-widest">MARK</span>
-  </div>
-);
-
+// --- Main Page Component ---
 function PublicVerifyPage() {
   const [isScannerActive, setIsScannerActive] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [scanError, setScanError] = useState(null);
-  const [hasUserTappedToStart, setHasUserTappedToStart] = useState(false); // To track if user initiated camera start
 
+  // --- START: NEW STATE FOR PRECISE LOCATION ---
   const [location, setLocation] = useState({ lat: null, lon: null });
-  const [locationStatus, setLocationStatus] = useState('idle');
+  const [locationStatus, setLocationStatus] = useState('idle'); // 'idle', 'fetching', 'success', 'error', 'unavailable'
+  // --- END: NEW STATE FOR PRECISE LOCATION ---
 
   const html5QrCodeRef = useRef(null);
 
+  // --- START: NEW EFFECT TO GET LOCATION ON PAGE LOAD ---
   useEffect(() => {
     if ('geolocation' in navigator) {
       setLocationStatus('fetching');
@@ -50,28 +44,24 @@ function PublicVerifyPage() {
           console.error("Geolocation error:", error.message);
           setLocationStatus('error');
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Options for better accuracy
       );
     } else {
       setLocationStatus('unavailable');
     }
-  }, []);
+  }, []); // Empty array ensures this runs only once on component mount
+  // --- END: NEW EFFECT TO GET LOCATION ON PAGE LOAD ---
 
   const startScanner = () => {
     if (html5QrCodeRef.current) {
-      setIsScannerActive(true);
-      setScanError(null);
-      setScanResult(null);
-      setHasUserTappedToStart(true); // User has now tapped or camera auto-started
+      setIsScannerActive(true); setScanError(null); setScanResult(null);
       html5QrCodeRef.current.start(
         { facingMode: "environment" }, { fps: 10 },
         (decodedText) => handleScanSuccess(decodedText),
         () => {}
-      ).catch((err) => {
-        console.error('Camera start failed:', err);
+      ).catch(() => {
         setScanError("Failed to start camera. Please grant permission and refresh.");
-        setIsScannerActive(false); // Camera failed to start
-        setHasUserTappedToStart(false); // Reset to allow re-tap if needed
+        setIsScannerActive(false);
       });
     }
   };
@@ -82,48 +72,46 @@ function PublicVerifyPage() {
     }
   };
   
+  // --- START: UPDATED SCAN HANDLER TO SEND LOCATION ---
   const handleScanSuccess = async (decodedText) => {
     stopScanner();
     setIsLoading(true);
+    setScanResult(null);
 
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
     let apiUrl = `${apiBaseUrl}/api/verify/${decodedText}`;
 
+    // If we have precise coordinates, append them to the URL
     if (location.lat && location.lon) {
       apiUrl += `?lat=${location.lat}&lon=${location.lon}`;
     }
 
     try {
       const response = await axios.get(apiUrl);
-      setScanResult(response.data);
-      setShowScanResultModal(true);
+      setScanResult(response.data); // Pass the entire response data to ScanResultScreen
     } catch (err) {
       if (err.response) {
-        setScanResult(err.response.data);
-        setShowScanResultModal(true);
+        setScanResult(err.response.data); // Pass the error response data
       } else {
         setScanResult({ status: 'error', message: 'Network error or cannot connect to the server.' });
-        setShowScanResultModal(true);
       }
     } finally {
       setIsLoading(false);
     }
   };
+  // --- END: UPDATED SCAN HANDLER ---
 
-  // Initialize scanner and attempt to start camera automatically
   useEffect(() => {
     html5QrCodeRef.current = new Html5Qrcode("qr-reader");
-    startScanner(); // Attempt to start camera immediately
-
     return () => {
       if (html5QrCodeRef.current?.isScanning) {
         html5QrCodeRef.current.stop().catch(console.error);
       }
     };
-  }, []); // Empty dependency array to run only once on mount
+  }, []);
 
-  const LocationStatusIndicator = ({ isCameraActive }) => (
-    <div className={`flex items-center justify-center text-white/80 h-5 mt-2 ${isCameraActive ? 'text-xs' : 'text-sm'}`}>
+  const LocationStatusIndicator = () => (
+    <div className="flex items-center justify-center text-sm text-white/80 h-5 mt-2">
       <FiMapPin className="mr-2" />
       {locationStatus === 'fetching' && 'Getting your precise location...'}
       {locationStatus === 'success' && 'Precise location enabled'}
@@ -132,11 +120,10 @@ function PublicVerifyPage() {
     </div>
   );
 
-  const handleScanAgain = () => {
-    setScanResult(null);
-    setShowScanResultModal(false);
-    startScanner(); // Restart scanner
-  };
+  // Conditional rendering: Show ScanResultScreen if scanResult is available, otherwise show scanner
+  if (scanResult) {
+    return <ScanResultScreen scanResult={scanResult} onScanAgain={() => { setScanResult(null); startScanner(); }} />;
+  }
 
   return (
     <>
@@ -144,42 +131,31 @@ function PublicVerifyPage() {
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-animated bg-[length:400%_400%] animate-gradient p-4">
         <div className="w-full max-w-lg">
           <div className="glass-panel p-8 space-y-4">
-            {/* Always render the qr-reader div, but control its visibility */}
-            <div id="qr-reader" style={{ width: '100%', height: '100%', display: isScannerActive ? 'block' : 'none' }}></div>
-
-            {/* Conditional rendering for camera or tap-to-start UI */}
-            {!isScannerActive ? (
-              <div
-                className="flex flex-col items-center justify-center w-full aspect-square rounded-2xl bg-black/30 text-white cursor-pointer"
-                onClick={startScanner}
-              >
-                <CriterionMarkLogo />
-                <FiCamera size={38} className="mt-6 mb-3" />
-                <h1 className="text-3xl font-bold">Tap to Start Camera</h1>
-                <p className="text-sm opacity-80 mt-2">Camera is currently off.</p>
-              </div>
-            ) : (
-              <div className="text-center text-white">
-                <h1 className={`font-bold drop-shadow-lg ${isScannerActive ? 'text-2xl' : 'text-3xl'}`}>Verify Your Product</h1>
-                <p className={`opacity-80 mt-2 ${isScannerActive ? 'text-sm' : ''}`}>Scanning for QR code...</p>
-                {/* Removed Start/Stop buttons as camera auto-starts or is tap-to-start */}
-              </div>
-            )}
-
-            <LocationStatusIndicator isCameraActive={isScannerActive} />
+            <div className="text-center text-white">
+              <h1 className="text-3xl font-bold">Verify Your Product</h1>
+              <p className="opacity-80 mt-2">Press "Start Scanning" to use your camera.</p>
+            </div>
+            
+            <div className="w-full aspect-square rounded-2xl overflow-hidden bg-black/30" id="qr-reader-container">
+              <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
+            </div>
+            
+            <div className="flex space-x-4">
+              <button onClick={startScanner} disabled={isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+                Start Scanning
+              </button>
+              <button onClick={stopScanner} disabled={!isScannerActive || isLoading} className="w-full font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+                Stop Scanning
+              </button>
+            </div>
+            
+            <LocationStatusIndicator />
 
             {scanError && <p className="text-center text-red-300 font-semibold">{scanError}</p>}
             {isLoading && <div className="text-center text-blue-300 font-semibold">Verifying...</div>}
           </div>
         </div>
       </div>
-
-      {/* Scan Result Modal */}
-      <Modal isOpen={showScanResultModal} onClose={() => setShowScanResultModal(false)} title="Scan Result">
-        {scanResult && (
-          <ScanResultScreen scanResult={scanResult} onScanAgain={handleScanAgain} />
-        )}
-      </Modal>
     </>
   );
 }
