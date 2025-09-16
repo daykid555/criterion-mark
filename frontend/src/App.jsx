@@ -89,10 +89,9 @@ function App() {
       />
       <Routes>
         {isAuthenticated ? (
-          <>
-            {/* --- The /scan route is now outside the layout for a full-screen experience --- */}
+          <Route path="/" element={<AppLayout />}>
+            {/* --- The /scan route now correctly renders QuickScanPage inside the layout --- */} 
             <Route path="/scan" element={<QuickScanPage />} />
-            <Route path="/" element={<AppLayout />}>
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/report" element={<ReportPage />} />
 
@@ -137,7 +136,6 @@ function App() {
             <Route index element={<Navigate to={getDashboardPath(user?.role)} replace />} />
             <Route path="*" element={<Navigate to={getDashboardPath(user?.role)} replace />} />
           </Route>
-          </>
         ) : (
           <>
             <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />

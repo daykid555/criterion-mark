@@ -331,3 +331,9 @@ html {
   align-items: center;
   justify-content: center;
 }
+
+/* Scan Area Glow Effect */
+.viewfinder-box.glow-effect {
+  box-shadow: 0 0 20px 10px rgba(255, 255, 255, 0.3); /* Soft white glow */
+  transition: box-shadow 0.5s ease-in-out;
+}
