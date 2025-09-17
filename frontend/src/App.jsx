@@ -1,5 +1,3 @@
-// frontend/src/App.jsx
-
 import { useContext, useEffect } from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AuthContext } from './context/AuthContext';
@@ -48,9 +46,9 @@ import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
 import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
 import AdminReportManagementPage from './pages/AdminReportManagementPage.jsx';
-import SettingsPage from './pages/SettingsPage.jsx'; // Import SettingsPage
-import AdminCounterfeitContentPage from './pages/AdminCounterfeitContentPage.jsx'; // Import new page
-import DvaReportsPage from './pages/DvaReportsPage.jsx'; // Import DvaReportsPage
+import SettingsPage from './pages/SettingsPage.jsx';
+import AdminCounterfeitContentPage from './pages/AdminCounterfeitContentPage.jsx';
+import DvaReportsPage from './pages/DvaReportsPage.jsx';
 
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
 
@@ -75,7 +73,7 @@ function App() {
       SKINCARE_BRAND: '/skincare/dashboard',
       PHARMACY: '/pharmacy/dashboard',
       HEALTH_ADVISOR: '/health-advisor/dashboard/pending',
-      CUSTOMER: '/scan',
+      CUSTOMER: '/scan', // This remains correct, it will now point to the standalone route
     };
     return paths[role] || '/login';
   };
@@ -90,15 +88,13 @@ function App() {
       <Routes>
         {isAuthenticated ? (
           <Route path="/" element={<AppLayout />}>
-            {/* --- The /scan route now correctly renders QuickScanPage inside the layout --- */} 
-            <Route path="/scan" element={<QuickScanPage />} />
+            {/* The /scan route has been REMOVED from the main AppLayout */}
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/report" element={<ReportPage />} />
 
             {/* All Portal dashboards and pages */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/manufacturer/dashboard" element={<ManufacturerDashboard />} />
-            {/* ... other portal routes ... */}
             <Route path="/dva/dashboard" element={<DvaDashboard />} />
             <Route path="/printing/dashboard" element={<PrintingDashboard />} />
             <Route path="/logistics/dashboard" element={<LogisticsDashboard />} />
@@ -113,13 +109,13 @@ function App() {
             <Route path="/admin/map" element={<AdminMapPage />} />
             <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
             <Route path="/admin/reports" element={<AdminReportManagementPage />} />
-            <Route path="/admin/counterfeit-content" element={<AdminCounterfeitContentPage />} /> {/* New Route */}
+            <Route path="/admin/counterfeit-content" element={<AdminCounterfeitContentPage />} />
             <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
             <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
             <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />
             <Route path="/dva/approval-queue" element={<DvaApprovalQueuePage />} />
             <Route path="/dva/history" element={<DvaHistoryPage />} />
-            <Route path="/dva/reports" element={<DvaReportsPage />} /> {/* New DVA Reports Page */}
+            <Route path="/dva/reports" element={<DvaReportsPage />} />
             <Route path="/skincare/add-product" element={<SkincareAddProductPage />} />
             <Route path="/skincare/history" element={<SkincareHistoryPage />} />
             <Route path="/printing/queue" element={<PrintingQueuePage />} />
@@ -130,7 +126,7 @@ function App() {
             <Route path="/pharmacy/stock" element={<PharmacyStockPage />} />
             <Route path="/pharmacy/history" element={<PharmacyHistoryPage />} />
             <Route path="/health-advisor/create" element={<CreateHealthVideoPage />} />
-            <Route path="/settings" element={<SettingsPage />} /> {/* New Settings Page Route */}
+            <Route path="/settings" element={<SettingsPage />} />
             
             {/* The root now redirects to the correct dashboard */}
             <Route index element={<Navigate to={getDashboardPath(user?.role)} replace />} />
@@ -138,15 +134,20 @@ function App() {
           </Route>
         ) : (
           <>
-            <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
+            {/* PWA users at the root are now redirected to the standalone /scan route */}
+            <Route path="/" element={isPwa ? <Navigate to="/scan" replace /> : <HomePage />} />
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegistrationPage />} />
               <Route path="/verify" element={<VerificationPage />} />
             </Route>
-            <Route path="*" element={<Navigate to={isPwa ? '/' : '/login'} replace />} />
+            {/* The catch-all for PWAs now redirects to /scan */}
+            <Route path="*" element={<Navigate to={isPwa ? '/scan' : '/login'} replace />} />
           </>
         )}
+
+        {/* This is the new standalone, layout-free route for the scanner. It works whether you are logged in or out. */}
+        <Route path="/scan" element={<QuickScanPage />} />
       </Routes>
     </>
   );
