@@ -1,24 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-
+import React, { useState, useEffect } from 'react';
+import { QrReader } from 'react-qr-reader';
 import axios from 'axios';
 import { FiMapPin } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen'; // Import ScanResultScreen
 
-const qrReaderVideoStyle = `
-  #qr-reader video {
-    border-radius: 1rem !important;
-    object-fit: cover !important;
-    width: 100% !important;
-    height: 100% !important;
-    display: block;
-  }
-`;
-
 // --- Main Page Component ---
 function PublicVerifyPage() {
-  const [isScannerActive, setIsScannerActive] = useState(false);
   const [scanResult, setScanResult] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [scanError, setScanError] = useState(null);
 
   // --- START: NEW STATE FOR PRECISE LOCATION ---
@@ -26,11 +14,13 @@ function PublicVerifyPage() {
   const [locationStatus, setLocationStatus] = useState('idle'); // 'idle', 'fetching', 'success', 'error', 'unavailable'
   // --- END: NEW STATE FOR PRECISE LOCATION ---
 
-  const html5QrcodeScannerRef = useRef(null);
-
-  // --- START: NEW EFFECT TO GET LOCATION ON PAGE LOAD ---
   useEffect(() => {
-    if ('geolocation' in navigator) {
+    const fetchLocation = () => {
+      if (!navigator.geolocation) {
+        setLocationStatus('unavailable');
+        return;
+      }
+
       setLocationStatus('fetching');
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -40,82 +30,30 @@ function PublicVerifyPage() {
           });
           setLocationStatus('success');
         },
-        (error) => {
-          console.error("Geolocation error:", error.message);
+        () => {
           setLocationStatus('error');
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // Options for better accuracy
+        }
       );
-    } else {
-      setLocationStatus('unavailable');
-    }
-  }, []); // Empty array ensures this runs only once on component mount
-  // --- END: NEW EFFECT TO GET LOCATION ON PAGE LOAD ---
+    };
 
-  
-  
-  // --- START: UPDATED SCAN HANDLER TO SEND LOCATION ---
-  const handleScanSuccess = async (decodedText) => {
-    // stopScanner(); // Removed as Html5QrcodeScanner manages its own lifecycle
-    setIsLoading(true);
-    setScanResult(null);
+    fetchLocation();
+  }, []);
 
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-    let apiUrl = `${apiBaseUrl}/api/verify/${decodedText}`;
-
-    // If we have precise coordinates, append them to the URL
-    if (location.lat && location.lon) {
-      apiUrl += `?lat=${location.lat}&lon=${location.lon}`;
+  const handleScan = (result, error) => {
+    if (!!result) {
+      setScanResult(result?.text);
     }
 
-    try {
-      const response = await axios.get(apiUrl);
-      setScanResult(response.data); // Pass the entire response data to ScanResultScreen
-    } catch (err) {
-      if (err.response) {
-        setScanResult(err.response.data); // Pass the error response data
+    if (!!error) {
+      // More specific error handling can be added here if needed
+      if (error.name === 'NotAllowedError') {
+        setScanError('Camera permission denied. Please allow camera access to scan QR codes.');
       } else {
-        setScanResult({ status: 'error', message: 'Network error or cannot connect to the server.' });
+        setScanError('Error scanning QR code. Please try again.');
       }
-    } finally {
-      setIsLoading(false);
+      console.error(error);
     }
   };
-  // --- END: UPDATED SCAN HANDLER ---
-
-  useEffect(() => {
-    // Dynamically import Html5QrcodeScanner
-    import('html5-qrcode').then(({ Html5QrcodeScanner }) => {
-      if (!html5QrcodeScannerRef.current) { // Ensure it's only initialized once
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-          "qr-reader", // ID of the div element to render the scanner
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 }, // Optional: specify QR box size
-            rememberLastUsedCamera: true,
-            // Only use facingMode if you want to force a specific camera
-            // facingMode: "environment",
-          },
-          /* verbose= */ false
-        );
-
-        html5QrcodeScanner.render(
-          (decodedText, decodedResult) => handleScanSuccess(decodedText),
-          (errorMessage) => { /* console.warn(errorMessage); */ } // Optional: handle scan error
-        );
-        html5QrcodeScannerRef.current = html5QrcodeScanner;
-      }
-    }).catch(error => {
-      console.error("Failed to load Html5QrcodeScanner:", error);
-      setScanError("Failed to load scanner. Please try again.");
-    });
-
-    return () => {
-      if (html5QrcodeScannerRef.current && html5QrcodeScannerRef.current.isScanning) {
-        html5QrcodeScannerRef.current.clear().catch(console.error); // Use clear() for Html5QrcodeScanner
-      }
-    };
-  }, [handleScanSuccess]);
 
   const LocationStatusIndicator = () => (
     <div className="flex items-center justify-center text-sm text-white/80 h-5 mt-2">
@@ -127,33 +65,30 @@ function PublicVerifyPage() {
     </div>
   );
 
-  // Conditional rendering: Show ScanResultScreen if scanResult is available, otherwise show scanner
+  // If scanResult is available, show ScanResultScreen
   if (scanResult) {
-    return <ScanResultScreen scanResult={scanResult} onScanAgain={() => { setScanResult(null); }} />;
+    return <ScanResultScreen scanResult={scanResult} onScanAgain={() => setScanResult(null)} />;
   }
 
   return (
     <>
-      <style>{qrReaderVideoStyle}</style>
       <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-animated bg-[length:400%_400%] animate-gradient p-4">
         <div className="w-full max-w-lg">
           <div className="glass-panel p-8 space-y-4">
             <div className="text-center text-white">
               <h1 className="text-3xl font-bold">Verify Your Product</h1>
-              <p className="opacity-80 mt-2">Press "Start Scanning" to use your camera.</p>
+              <p className="opacity-80 mt-2">Scan the QR code on your product.</p>
             </div>
             
-            <div className="w-full aspect-square rounded-2xl overflow-hidden bg-black/30" id="qr-reader-container">
-              <div id="qr-reader" style={{ width: '100%', height: '100%' }}></div>
-            </div>
-            
-            <div className="flex space-x-4">
-            </div>
+            <QrReader
+              onResult={handleScan}
+              constraints={{ facingMode: 'environment' }}
+              className="w-full rounded-lg"
+            />
             
             <LocationStatusIndicator />
 
             {scanError && <p className="text-center text-red-300 font-semibold">{scanError}</p>}
-            {isLoading && <div className="text-center text-blue-300 font-semibold">Verifying...</div>}
           </div>
         </div>
       </div>
