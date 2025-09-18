@@ -7,6 +7,7 @@ import { AuthContext } from '../context/AuthContext';
 import { FiMapPin, FiMenu, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen';
 import FootprintAnimation from '../components/FootprintAnimation';
+import PillLoader from '../components/PillLoader';
 
 
 const fullScreenCameraStyle = `
