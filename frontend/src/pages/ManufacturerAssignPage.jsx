@@ -69,7 +69,7 @@ const modalStyles = {
 Modal.setAppElement('#root');
 
 function ManufacturerAssignPage() {
-  const [childCodes, setChildCodes] = useState(new Set());
+  const [scannedCodes, setScannedCodes] = useState(new Set());
   const [isScannerActive, setIsScannerActive] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -78,11 +78,7 @@ function ManufacturerAssignPage() {
 
   const onScanSuccess = useCallback((decodedText) => {
     setMessage({ type: '', text: '' });
-    if (!decodedText.startsWith('CHILD-')) {
-      setMessage({ type: 'error', text: 'Invalid Code. Please scan a CHILD product QR.' });
-      return;
-    }
-    setChildCodes(prev => {
+    setScannedCodes(prev => { // Changed setChildCodes to setScannedCodes
       if (prev.has(decodedText)) {
         setMessage({ type: 'warn', text: `Already added: ${decodedText.substring(0, 20)}...` });
         return prev;
@@ -121,7 +117,7 @@ function ManufacturerAssignPage() {
   }, []);
 
   const removeCode = (codeToRemove) => {
-    setChildCodes(prev => {
+    setScannedCodes(prev => {
       const newSet = new Set(prev);
       newSet.delete(codeToRemove);
       return newSet;
@@ -129,19 +125,19 @@ function ManufacturerAssignPage() {
   };
 
   const handleGenerateMaster = async () => {
-    if (childCodes.size === 0) {
-      setMessage({ type: 'error', text: 'Please scan at least one child product.' });
+    if (scannedCodes.size === 0) {
+      setMessage({ type: 'error', text: 'Please scan at least one product.' });
       return;
     }
     setIsLoading(true);
     setMessage({ type: '', text: '' });
     try {
       const response = await apiClient.post('/api/manufacturer/master-codes/generate', {
-        childOuterCodes: Array.from(childCodes),
+        productCodes: Array.from(scannedCodes),
       });
       setMessage({ type: 'success', text: response.data.message });
       setGeneratedMasterCode(response.data.masterCode);
-      setChildCodes(new Set());
+      setScannedCodes(new Set());
     } catch (err) {
       setMessage({ type: 'error', text: err.response?.data?.message || 'Master Code generation failed.' });
     } finally {
@@ -150,7 +146,7 @@ function ManufacturerAssignPage() {
   };
 
   const resetProcess = () => {
-    setChildCodes(new Set());
+    setScannedCodes(new Set());
     setMessage({ type: '', text: '' });
   };
 
@@ -199,13 +195,13 @@ function ManufacturerAssignPage() {
             </div>
           </div>
           <div className="glass-panel p-6 space-y-4 flex flex-col">
-            <h2 className="text-xl font-bold text-white">Scanned Products ({childCodes.size})</h2>
+            <h2 className="text-xl font-bold text-white">Scanned Products ({scannedCodes.size})</h2>
             <div className="mt-1 flex-grow p-3 rounded-md bg-black/30 overflow-y-auto h-64 md:h-auto">
-              {childCodes.size === 0 ? (
+              {scannedCodes.size === 0 ? (
                 <p className="text-white/50 text-sm">Scan product QR codes to add them to the list...</p>
               ) : (
                 <ul className="space-y-1">
-                  {Array.from(childCodes).map(code => (
+                  {Array.from(scannedCodes).map(code => (
                       <li key={code} className="flex justify-between items-center bg-white/5 p-2 rounded">
                         <span className="flex items-center gap-2 font-mono text-xs text-white/90"><FiPackage/> {code}</span>
                         <button onClick={() => removeCode(code)} className="text-red-400 hover:text-red-300"><FiTrash2 /></button>
@@ -224,7 +220,7 @@ function ManufacturerAssignPage() {
               </div>
             )}
             <div className="flex space-x-4 pt-2">
-               <button onClick={handleGenerateMaster} disabled={isLoading || childCodes.size === 0} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
+               <button onClick={handleGenerateMaster} disabled={isLoading || scannedCodes.size === 0} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
                 {isLoading ? (
                   <PillLoader text="Generating..." />
                 ) : (
@@ -257,13 +253,13 @@ function ManufacturerAssignPage() {
              {generatedMasterCode && (
                <QRCodeCanvas 
                  id="master-qr-canvas"
-                 value={generatedMasterCode.outerCode}
+                 value={generatedMasterCode}
                  size={256}
                  level={"H"}
                />
              )}
           </div>
-          <p className='font-mono text-sm break-all'>{generatedMasterCode?.outerCode}</p>
+          <p className='font-mono text-sm break-all'>{generatedMasterCode}</p>
           <div className="flex space-x-4 pt-4">
             <button onClick={handlePrint} className="w-full font-bold py-3 px-4 rounded-lg glass-button">Print</button>
             <button onClick={() => setGeneratedMasterCode(null)} className="w-full font-bold py-3 px-4 rounded-lg glass-button bg-green-500/20">Done</button>

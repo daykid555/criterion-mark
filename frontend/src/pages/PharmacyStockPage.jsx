@@ -117,7 +117,7 @@ function PharmacyStockPage() {
     setResult(null);
     const codesToProcess = scannedProducts.map(p => p.code);
     const endpoint = actionType === 'verify' ? '/api/verify/supply-chain' : '/api/pharmacy/dispense';
-    const payload = { outerCodes: codesToProcess };
+    const payload = { codes: codesToProcess };
     try {
       const response = await apiClient.post(endpoint, payload);
       setResult({ type: 'success', ...response.data });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 
-const DualSealPreview = ({ code }) => {
+const SealPreview = ({ code }) => {
     const [imageUrl, setImageUrl] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -53,4 +53,4 @@ const DualSealPreview = ({ code }) => {
     return imageUrl ? <img src={imageUrl} alt={`Seal preview for ${code}`} className="rounded-lg border-2 border-gray-700" /> : <p className="text-white/60">Select a code to see the preview.</p>;
 };
 
-export default DualSealPreview;
+export default SealPreview;

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import apiClient from '../api';
 import SealUploader from '../components/SealUploader';
-import DualSealPreview from '../components/DualSealPreview';
+import SealPreview from '../components/SealPreview';
 import { FiGrid, FiPackage } from 'react-icons/fi';
 import BackButton from '../components/BackButton';
 
@@ -30,8 +30,7 @@ function AdminBatchDetailsPage() {
   const [isZipping, setIsZipping] = useState(false);
   
   // --- START: NEW STATE TO HOLD SEPARATED QR CODES ---
-  const [masterQRs, setMasterQRs] = useState([]);
-  const [childQRs, setChildQRs] = useState([]);
+  const [qrCodes, setQrCodes] = useState([]); // Single array for all QR codes
   // --- END: NEW STATE ---
 
   const fetchBatchDetails = async () => {
@@ -41,8 +40,7 @@ function AdminBatchDetailsPage() {
       setBatch(response.data);
       // --- START: NEW LOGIC TO SPLIT THE CODES ---
       if (response.data && response.data.qrCodes) {
-        setMasterQRs(response.data.qrCodes.filter(qr => qr.isMaster));
-        setChildQRs(response.data.qrCodes.filter(qr => !qr.isMaster));
+        setQrCodes(response.data.qrCodes); // Store all QR codes in a single array
       }
       // --- END: NEW LOGIC ---
     } catch (err) {
@@ -134,24 +132,16 @@ function AdminBatchDetailsPage() {
           {/* --- START: THIS SECTION REPLACES YOUR OLD "GENERATED CODES" PANEL --- */}
           <div className="space-y-8">
             <div className="glass-panel p-6">
-                <h2 className="text-xl font-bold mb-4 text-white flex items-center"><FiGrid className="mr-2"/>Master QR Codes ({masterQRs.length})</h2>
-                <ul className="h-40 overflow-y-auto">
-                    {masterQRs.length > 0 ? masterQRs.map(qr => (
-                    <li key={qr.id} className="p-2 border-b border-white/10 font-mono text-sm text-white">{qr.outerCode}</li>
-                    )) : <p className="text-white/60">No master codes.</p>}
-                </ul>
-            </div>
-            <div className="glass-panel p-6">
-                <h2 className="text-xl font-bold mb-4 text-white flex items-center"><FiPackage className="mr-2"/>Child QR Codes ({childQRs.length})</h2>
+                <h2 className="text-xl font-bold mb-4 text-white flex items-center"><FiGrid className="mr-2"/>QR Codes ({qrCodes.length})</h2>
                 <ul className="h-40 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-                    {childQRs.length > 0 ? childQRs.map(qr => (
+                    {qrCodes.length > 0 ? qrCodes.map(qr => (
                     <li 
                         key={qr.id} 
                         onClick={() => setSelectedCode(qr.code)}
                         className={`p-2 border-b border-white/10 font-mono text-sm cursor-pointer hover:bg-white/10 ${selectedCode === qr.code ? 'bg-blue-500/20 text-white' : 'text-white/80'}`}>
-                        {qr.outerCode}
+                        {qr.code}
                     </li>
-                    )) : <p className="text-white/60">No child codes to preview.</p>}
+                    )) : <p className="text-white/60">No QR codes.</p>}
                 </ul>
             </div>
           </div>
@@ -161,8 +151,8 @@ function AdminBatchDetailsPage() {
           <div className="space-y-8">
             <div className="glass-panel p-6 flex flex-col items-center justify-center">
               <h2 className="text-xl font-bold mb-4 text-white">Seal Preview</h2>
-              <p className="text-sm text-white/70 text-center mb-4">Click on a Child QR Code from the list to generate a seal preview.</p>
-              <DualSealPreview code={selectedCode} />
+              <p className="text-sm text-white/70 text-center mb-4">Click on a QR Code from the list to generate a seal preview.</p>
+              <SealPreview code={selectedCode} />
             </div>
             <div>
               {batch.seal_background_url ? (

@@ -62,7 +62,7 @@ const generateEightDigitCode = () => {
     return Math.floor(10000000 + Math.random() * 90000000).toString();
 };
 
-const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
+const generateSingleSealBuffer = async (qrCode, backgroundUrl) => {
     if (!backgroundUrl) {
         throw new Error('Seal background URL is missing.');
     }
@@ -75,35 +75,21 @@ const generateDualSealBuffer = async (qrCode, backgroundUrl) => {
     const backgroundBuffer = backgroundResponse.data;
     const backgroundMeta = await sharp(backgroundBuffer).metadata();
     const canvasWidth = backgroundMeta.width;
-    // 2. Define layout constants based on your feedback
-    const qrSize = 80; // Using a smaller QR size to fit within the design
+    const canvasHeight = backgroundMeta.height; // Get height for vertical centering
+
+    // 2. Define layout constants
+    const qrSize = 120; // Larger QR size for single code
     const horizontalCenter = Math.floor((canvasWidth - qrSize) / 2);
-    // These vertical positions are estimates to place elements on top of the background
-    const customerLabelTop = 100; // Adjusted to be relative to top
-    const customerQrTop = customerLabelTop + 25;
-    const pharmacyLabelTop = customerQrTop + qrSize + 15;
-    const pharmacyQrTop = pharmacyLabelTop + 45;
-    // 3. Generate QR code buffers
-    const customerQrBuffer = await qrcode.toBuffer(qrCode.code, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
-    const pharmacyQrBuffer = await qrcode.toBuffer(qrCode.outerCode, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
-    // 4. Generate label buffers from SVG to ensure transparency
-    const customerLabelSvg = Buffer.from(`<svg width="120" height="20"><text x="60" y="15" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">CUSTOMER</text></svg>`);
-    const customerLabelBuffer = await sharp(customerLabelSvg).png().toBuffer();
-    const pharmacyLabelSvg = Buffer.from(`
-    <svg width="120" height="35">
-        <text x="60" y="12" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">PHARMACY</text>
-        <line x1="10" y1="18" x2="110" y2="18" stroke="black" stroke-width="1" />
-        <text x="60" y="30" text-anchor="middle" font-family="sans-serif" font-size="12" fill="black">MANUFACTURER</text>
-    </svg>`);
-    const pharmacyLabelBuffer = await sharp(pharmacyLabelSvg).png().toBuffer();
-    // 5. Composite everything ON TOP of the original background
+    const verticalCenter = Math.floor((canvasHeight - qrSize) / 2);
+
+    // 3. Generate QR code buffer
+    const qrBuffer = await qrcode.toBuffer(qrCode.code, { width: qrSize, margin: 1, errorCorrectionLevel: 'H', type: 'png' });
+
+    // 4. Composite QR code onto the background
     const finalImageBuffer = await sharp(backgroundBuffer)
         .composite([
-        { input: customerLabelBuffer, top: customerLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
-        { input: customerQrBuffer, top: customerQrTop, left: horizontalCenter },
-        { input: pharmacyLabelBuffer, top: pharmacyLabelTop, left: Math.floor((canvasWidth - 120) / 2) },
-        { input: pharmacyQrBuffer, top: pharmacyQrTop, left: horizontalCenter },
-    ])
+            { input: qrBuffer, top: verticalCenter, left: horizontalCenter },
+        ])
         .png()
         .toBuffer();
     return finalImageBuffer;
@@ -230,7 +216,7 @@ app.get('/api/printing/seal/:code', authenticateToken, authorizeRole([Role.ADMIN
     if (!qrCode.batch.seal_background_url) {
         return res.status(400).json({ error: 'No seal background has been assigned to this batch by an admin.' });
     }
-    const finalImageBuffer = await generateDualSealBuffer(qrCode, qrCode.batch.seal_background_url);
+    const finalImageBuffer = await generateSingleSealBuffer(qrCode, qrCode.batch.seal_background_url);
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Content-Disposition', `attachment; filename="seal_${qrCode.code}.png"`);
     res.status(200).send(finalImageBuffer);
@@ -249,11 +235,9 @@ app.post('/api/printing/batch/:id/zip', authenticateToken, authorizeRole([Role.P
     const archive = archiver('zip');
     archive.on('error', (err) => { throw err; });
     archive.pipe(res);
-    // Filter out master codes, as they are not individual seals
-    const childQrs = batch.qrCodes.filter(qr => !qr.isMaster);
-    for (const qr of childQrs) {
+    for (const qr of batch.qrCodes) { // Iterate directly over all QR codes
         try {
-            const finalImageBuffer = await generateDualSealBuffer(qr, batch.seal_background_url);
+            const finalImageBuffer = await generateSingleSealBuffer(qr, batch.seal_background_url);
             archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
         }
         catch (error) {
@@ -508,14 +492,14 @@ app.get('/api/health-advisor/videos', authenticateToken, authorizeRole([Role.HEA
 // --- END: HEALTH ADVISOR PORTAL ROUTES ---
 
 // --- START: NEW ROUTE TO GET PRODUCT DETAILS BY QR CODE ---
-app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN]), asyncHandler(async (req, res) => {
+app.get('/api/qrcodes/details/:code', authenticateToken, authorizeRole([Role.PHARMACY, Role.ADMIN]), asyncHandler(async (req, res) => {
     try {
-        const { outerCode } = req.params;
-        if (!outerCode) {
-            return res.status(400).json({ error: 'Outer code parameter is required.' });
+        const { code } = req.params;
+        if (!code) {
+            return res.status(400).json({ error: 'Code parameter is required.' });
         }
         const qrCodeDetails = await prisma.qRCode.findUnique({
-            where: { outerCode: outerCode.trim() },
+            where: { code: code.trim() },
             include: {
                 batch: {
                     select: {
@@ -532,7 +516,7 @@ app.get('/api/qrcodes/details/:outerCode', authenticateToken, authorizeRole([Rol
         }
         res.status(200).json({
             drugName: qrCodeDetails.batch.drugName,
-            outerCode: qrCodeDetails.outerCode,
+            code: qrCodeDetails.code,
         });
     }
     catch (error) {
@@ -630,29 +614,22 @@ app.get('/api/skincare/verify/:code', asyncHandler(async (req, res) => {
     res.status(200).json({ status: 'success', message: 'Product Verified Successfully!', data: product });
 }));
 
-// --- NEW PUBLIC VERIFICATION ROUTE FOR QR CODES ---
-app.get('/api/verify/:code', asyncHandler(async (req, res) => {
+// --- NEW PUBLIC VERIFICATION ROUTE FOR QR CODES (REWRITTEN) ---
+app.get('/api/verify/:code', authenticateTokenOptional, asyncHandler(async (req, res) => {
     const { code } = req.params;
     const { lat, lon } = req.query; // Optional: latitude and longitude
-    // 1. Find the QR Code in the database
-    const qrCode = await prisma.qRCode.findUnique({
-        where: { code: code },
-        include: {
-            batch: {
-                include: {
-                    manufacturer: { select: { companyName: true } },
-                    // Include product content fields from Batch model
-                    productInstructionVideoUrl: true,
-                    productInstructionText: true,
-                    productSealImageUrl: true,
-                    nafdacNumber: true,
-                }
-            }
-        }
-    });
+    const ipAddress = req.ip;
+    const MAX_SUPPLY_CHAIN_SCANS = 10; // Business limit for supply chain scans
+
+    // Determine if the request is from an authenticated supply-chain partner
+    const isSupplyChainPartner = req.user && [Role.PHARMACY, Role.LOGISTICS, Role.MANUFACTURER, Role.DVA, Role.PRINTING].includes(req.user.role);
+    const scannerId = req.user ? req.user.userId : null;
+    const scannerRole = req.user ? req.user.role : Role.CUSTOMER; // Default to CUSTOMER if not authenticated
+
     let scanOutcome = 'FAILED';
-    let responseStatus = 404;
+    let responseStatus = 400; // Default to bad request/error
     let responseBody = {};
+
     // Fetch universal warning settings
     const universalWarningSetting = await prisma.systemSetting.findUnique({
         where: { key: 'universal_warning' },
@@ -661,82 +638,161 @@ app.get('/api/verify/:code', asyncHandler(async (req, res) => {
         text: universalWarningSetting?.value?.text || 'Warning: This product could not be verified.',
         videoUrl: universalWarningSetting?.value?.videoUrl || null,
     };
-    if (qrCode && qrCode.batch) {
-        // Check QR code status for genuineness
-        const isGenuine = qrCode.status === QRCodeStatus.UNUSED || qrCode.status === QRCodeStatus.SEALED || qrCode.status === QRCodeStatus.VERIFIED_BY_SUPPLY_CHAIN || qrCode.status === QRCodeStatus.VERIFIED_ONCE;
-        if (isGenuine) {
-            scanOutcome = 'SUCCESS';
-            responseStatus = 200;
-            // Fetch health content based on NAFDAC number
-            const healthContent = await prisma.healthVideo.findUnique({
-                where: { nafdacNumber: qrCode.batch.nafdacNumber },
-            });
-            responseBody = {
-                status: 'success',
-                message: 'Product verified successfully!',
-                data: {
-                    productInstructionVideoUrl: healthContent?.genuineVideoUrl || qrCode.batch.productInstructionVideoUrl || null,
-                    productInstructionText: healthContent?.genuineText || qrCode.batch.productInstructionText || null,
-                    productSealImageUrl: qrCode.batch.productSealImageUrl || qrCode.batch.seal_background_url || null,
-                    productStatus: 'Genuine Product',
-                },
-            };
-            // Update QR code status after successful scan if it was UNUSED
-            if (qrCode.status === QRCodeStatus.UNUSED) {
-                await prisma.qRCode.update({
-                    where: { id: qrCode.id },
-                    data: { status: QRCodeStatus.VERIFIED_ONCE },
-                });
+
+    try {
+        const qrCode = await prisma.qRCode.findUnique({
+            where: { code: code },
+            include: {
+                batch: {
+                    include: {
+                        manufacturer: { select: { companyName: true } },
+                        productInstructionVideoUrl: true,
+                        productInstructionText: true,
+                        productSealImageUrl: true,
+                        nafdacNumber: true,
+                    }
+                }
             }
-        }
-        else {
-            // QR code found but not genuine (e.g., used, flagged, invalid state)
-            scanOutcome = 'FAILED';
-            responseStatus = 400; // Bad request or conflict
+        });
+
+        if (!qrCode || !qrCode.batch) {
+            scanOutcome = 'NOT_FOUND';
+            responseStatus = 404;
             responseBody = {
                 status: 'error',
-                message: `This product code is ${qrCode.status.toLowerCase().replace(/_/g, ' ')}. It might be counterfeit or previously used.`,
+                message: 'This product code is invalid or not found in our system. It might be counterfeit.',
                 universalWarningText: universalWarning.text,
                 universalWarningVideoUrl: universalWarning.videoUrl,
                 productStatus: 'Warning: Counterfeit/Invalid',
             };
+        } else {
+            // --- Multi-stage Logic ---
+            if (isSupplyChainPartner) {
+                // Logic for Supply Chain Partner
+                if (qrCode.consumerScans > 0) {
+                    // Product already sold to a consumer
+                    scanOutcome = 'COUNTERFEIT_ALERT_SC_SOLD';
+                    responseStatus = 400;
+                    responseBody = {
+                        status: 'error',
+                        message: 'COUNTERFEIT ALERT: This product has already been sold to a consumer.',
+                        universalWarningText: universalWarning.text,
+                        universalWarningVideoUrl: universalWarning.videoUrl,
+                        productStatus: 'Warning: Counterfeit/Invalid',
+                    };
+                } else if (qrCode.supplyChainScans >= MAX_SUPPLY_CHAIN_SCANS) {
+                    // Supply chain scan limit reached
+                    scanOutcome = 'COUNTERFEIT_ALERT_SC_LIMIT';
+                    responseStatus = 400;
+                    responseBody = {
+                        status: 'error',
+                        message: 'COUNTERFEIT ALERT: Supply chain scan limit reached for this product.',
+                        universalWarningText: universalWarning.text,
+                        universalWarningVideoUrl: universalWarning.videoUrl,
+                        productStatus: 'Warning: Counterfeit/Invalid',
+                    };
+                } else {
+                    // Valid Supply Chain Scan
+                    await prisma.qRCode.update({
+                        where: { id: qrCode.id },
+                        data: {
+                            supplyChainScans: { increment: 1 },
+                            // Optionally update last scan details if needed in QRCode model
+                        },
+                    });
+                    scanOutcome = 'SUPPLY_CHAIN_VERIFIED';
+                    responseStatus = 200;
+                    responseBody = {
+                        status: 'success',
+                        message: 'Supply Chain Scan OK: Product verified within the supply chain.',
+                        data: {
+                            productInstructionVideoUrl: qrCode.batch.productInstructionVideoUrl || null,
+                            productInstructionText: qrCode.batch.productInstructionText || null,
+                            productSealImageUrl: qrCode.batch.productSealImageUrl || qrCode.batch.seal_background_url || null,
+                            productStatus: 'Supply Chain Verified',
+                        },
+                    };
+                }
+            } else {
+                // Logic for Regular Consumer
+                if (qrCode.consumerScans > 0 || qrCode.isVoided || qrCode.status === QRCodeStatus.USED) {
+                    // Already scanned by a consumer or voided
+                    scanOutcome = 'COUNTERFEIT_ALERT_CONSUMER_USED';
+                    responseStatus = 400;
+                    responseBody = {
+                        status: 'error',
+                        message: 'COUNTERFEIT ALERT: This product has already been verified by a consumer or is void.',
+                        universalWarningText: universalWarning.text,
+                        universalWarningVideoUrl: universalWarning.videoUrl,
+                        productStatus: 'Warning: Counterfeit/Invalid',
+                    };
+                } else {
+                    // First and Final Consumer Scan
+                    await prisma.qRCode.update({
+                        where: { id: qrCode.id },
+                        data: {
+                            consumerScans: { increment: 1 },
+                            status: QRCodeStatus.USED, // Change status to USED/VOID
+                            isVoided: true,
+                        },
+                    });
+                    scanOutcome = 'GENUINE_PRODUCT';
+                    responseStatus = 200;
+                    // Fetch health content based on NAFDAC number
+                    const healthContent = await prisma.healthVideo.findUnique({
+                        where: { nafdacNumber: qrCode.batch.nafdacNumber },
+                    });
+                    responseBody = {
+                        status: 'success',
+                        message: 'Product verified successfully!',
+                        data: {
+                            productInstructionVideoUrl: healthContent?.genuineVideoUrl || qrCode.batch.productInstructionVideoUrl || null,
+                            productInstructionText: healthContent?.genuineText || qrCode.batch.productInstructionText || null,
+                            productSealImageUrl: qrCode.batch.productSealImageUrl || qrCode.batch.seal_background_url || null,
+                            productStatus: 'Genuine Product',
+                        },
+                    };
+                }
+            }
         }
-    }
-    else {
-        // QR code not found at all
-        scanOutcome = 'FAILED';
-        responseStatus = 404;
+    } catch (error) {
+        console.error('Error during QR code verification:', error);
+        scanOutcome = 'SERVER_ERROR';
+        responseStatus = 500;
         responseBody = {
             status: 'error',
-            message: 'This product code is invalid or not found in our system. It might be counterfeit.',
+            message: 'An internal server error occurred during verification.',
             universalWarningText: universalWarning.text,
             universalWarningVideoUrl: universalWarning.videoUrl,
-            productStatus: 'Warning: Counterfeit/Invalid',
+            productStatus: 'Warning: Verification Failed',
         };
+    } finally {
+        // Record the scan attempt in ScanLog
+        await prisma.scanLog.create({
+            data: {
+                qrCodeId: qrCode ? qrCode.id : null, // Use null if qrCode not found
+                scannedCode: code,
+                scannedAt: new Date(),
+                scanOutcome: scanOutcome,
+                ipAddress: ipAddress,
+                latitude: lat ? parseFloat(lat) : null,
+                longitude: lon ? parseFloat(lon) : null,
+                scannerId: scannerId,
+                scannerRole: scannerRole,
+                // Add city, region, country, fullAddress if available from IP lookup
+            }
+        });
     }
-    // Record the scan attempt
-    await prisma.scanRecord.create({
-        data: {
-            qrCodeId: qrCode ? qrCode.id : null,
-            scannedCode: code,
-            scannedAt: new Date(),
-            scanOutcome: scanOutcome,
-            ipAddress: req.ip,
-            latitude: lat ? parseFloat(lat) : null,
-            longitude: lon ? parseFloat(lon) : null,
-            scannedByRole: 'PUBLIC',
-        }
-    });
     res.status(responseStatus).json(responseBody);
 }));
 
 app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, res) => {
     try {
         const userId = req.user.userId;
-        const scanRecords = await prisma.scanRecord.findMany({
+        const scanLogs = await prisma.scanLog.findMany({ // Changed from scanRecord to scanLog
             where: {
                 scannerId: userId,
-                scannedByRole: 'CUSTOMER' // Only show scans made as a customer
+                scannerRole: Role.CUSTOMER // Only show scans made as a customer
             },
             orderBy: { scannedAt: 'desc' },
             include: {
@@ -765,12 +821,12 @@ app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, re
                 }
             }
         });
-        const nafdacNumbers = [...new Set(scanRecords.map(r => r.qrCode?.batch.nafdacNumber).filter(Boolean))];
+        const nafdacNumbers = [...new Set(scanLogs.map(r => r.qrCode?.batch.nafdacNumber).filter(Boolean))]; // Changed from scanRecords to scanLogs
         const healthVideos = await prisma.healthVideo.findMany({
             where: { nafdacNumber: { in: nafdacNumbers } }
         });
         const healthContentMap = new Map(healthVideos.map(v => [v.nafdacNumber, v]));
-        const history = scanRecords.map(record => {
+        const history = scanLogs.map(record => { // Changed from scanRecords to scanLogs
             const qr = record.qrCode;
             const batch = qr?.batch;
             const healthContent = batch ? healthContentMap.get(batch.nafdacNumber) : null;
@@ -778,7 +834,7 @@ app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, re
             let videoUrl = null;
             let text = null;
             let productImage = null;
-            if (record.scanOutcome === 'SUCCESS') {
+            if (record.scanOutcome === 'GENUINE_PRODUCT' || record.scanOutcome === 'SUPPLY_CHAIN_VERIFIED') { // Updated scanOutcome check
                 videoUrl = healthContent?.genuineVideoUrl || batch?.productInstructionVideoUrl || null;
                 text = healthContent?.genuineText || batch?.productInstructionText || null;
                 productImage = batch?.productSealImageUrl || batch?.seal_background_url || null;
@@ -799,8 +855,8 @@ app.get('/api/user/scan-history', authenticateToken, asyncHandler(async (req, re
                 productImage: productImage,
                 activatingPharmacy: qr?.dispenseRecord?.pharmacy?.companyName || 'N/A',
                 healthContent: healthContent ? {
-                    text: record.scanOutcome === 'SUCCESS' ? healthContent.genuineText : healthContent.counterfeitText,
-                    videoUrl: record.scanOutcome === 'SUCCESS' ? healthContent.genuineVideoUrl : healthContent.counterfeitVideoUrl,
+                    text: (record.scanOutcome === 'GENUINE_PRODUCT' || record.scanOutcome === 'SUPPLY_CHAIN_VERIFIED') ? healthContent.genuineText : healthContent.counterfeitText,
+                    videoUrl: (record.scanOutcome === 'GENUINE_PRODUCT' || record.scanOutcome === 'SUPPLY_CHAIN_VERIFIED') ? healthContent.genuineVideoUrl : healthContent.counterfeitVideoUrl,
                 } : null
             };
         });
@@ -1092,97 +1148,9 @@ app.post('/api/manufacturer/batches/:id/confirm-receipt', authenticateToken, aut
 }));
 // --- MANUFACTURER MASTER QR CODE ROUTES ---
 
-app.post('/api/manufacturer/batches/assign-children', authenticateToken, authorizeRole([Role.MANUFACTURER, Role.ADMIN]), asyncHandler(async (req, res) => {
-    const { masterOuterCode, childOuterCodes } = req.body;
-    if (!masterOuterCode || !childOuterCodes || !Array.isArray(childOuterCodes) || childOuterCodes.length === 0) {
-        return res.status(400).json({ error: 'Master code and a list of child codes are required.' });
-    }
-    const result = await prisma.$transaction(async (tx) => {
-        const masterQr = await tx.qRCode.findUnique({
-            where: { outerCode: masterOuterCode.trim() }
-        });
-        if (!masterQr) throw new Error('Master QR code not found.');
-        if (!masterQr.isMaster) throw new Error('Scanned code is not a valid Master QR code.');
-        if (masterQr.status !== 'UNUSED') throw new Error('This Master QR code has already been used for an assignment.');
-        const childQrs = await tx.qRCode.findMany({
-            where: {
-                outerCode: { in: childOuterCodes },
-                isMaster: false,
-                status: 'AWAITING_ASSIGNMENT'
-            }
-        });
-        if (childQrs.length !== childOuterCodes.length) {
-            throw new Error('Some child QR codes are invalid, already assigned, or could not be found. Please check the list and try again.');
-        }
-        const childIdsToUpdate = childQrs.map(qr => qr.id);
-        const updateCount = await tx.qRCode.updateMany({
-            where: {
-                id: { in: childIdsToUpdate }
-            },
-            data: {
-                parentId: masterQr.id,
-                status: 'ASSIGNED_TO_MASTER'
-            }
-        });
-        await tx.qRCode.update({
-            where: { id: masterQr.id },
-            data: { status: 'USED' }
-        });
-        return { count: updateCount.count };
-    });
-    res.status(200).json({
-        message: `Successfully assigned ${result.count} products to master carton ${masterOuterCode}.`
-    });
-}));
 
-app.post('/api/manufacturer/master-codes/generate', authenticateToken, authorizeRole([Role.MANUFACTURER, Role.ADMIN]), asyncHandler(async (req, res) => {
-    const { childOuterCodes } = req.body;
-    if (!childOuterCodes || !Array.isArray(childOuterCodes) || childOuterCodes.length === 0) {
-        return res.status(400).json({ error: 'A list of child product codes is required.' });
-    }
-    const result = await prisma.$transaction(async (tx) => {
-        const childQrs = await tx.qRCode.findMany({
-            where: {
-                outerCode: { in: childOuterCodes },
-                isMaster: false,
-                status: 'AWAITING_ASSIGNMENT'
-            },
-            select: { id: true, batchId: true }
-        });
-        if (childQrs.length !== childOuterCodes.length) {
-            throw new Error('Some product codes are invalid, already assigned, or could not be found. Please scan again.');
-        }
-        const firstBatchId = childQrs[0].batchId;
-        if (!childQrs.every(qr => qr.batchId === firstBatchId)) {
-            throw new Error('All products in a carton must belong to the same manufacturing batch.');
-        }
-        const newMasterQr = await tx.qRCode.create({
-            data: {
-                batchId: firstBatchId,
-                isMaster: true,
-                status: 'USED',
-                outerCode: `MASTER-${nanoid(10)}`,
-                code: `master-inner-${nanoid(12)}`,
-                smsCode: generateEightDigitCode(),
-            }
-        });
-        const childIdsToUpdate = childQrs.map(qr => qr.id);
-        const updateCount = await tx.qRCode.updateMany({
-            where: {
-                id: { in: childIdsToUpdate }
-            },
-            data: {
-                parentId: newMasterQr.id,
-                status: 'ASSIGNED_TO_MASTER'
-            }
-        });
-        return { newMasterQr, count: updateCount.count };
-    });
-    res.status(201).json({
-        message: `Successfully created Master QR and assigned ${result.count} products to it.`,
-        masterCode: result.newMasterQr
-    });
-}));
+
+
 
 // --- ADMIN COUNTERFEIT CONTENT ROUTES ---
 
@@ -1357,35 +1325,22 @@ app.put('/api/admin/batches/:id/approve', authenticateToken, authorizeRole([Role
                 adminApproverId: adminApproverId,
             },
         });
-        const masterCodesData = [];
-        for (let i = 0; i < numberOfCartons; i++) {
-            masterCodesData.push({
-                outerCode: `MASTER-${nanoid(10)}`,
-                code: `master-inner-${nanoid(12)}`,
-                batchId: batchToProcess.id,
-                isMaster: true,
-                status: QRCodeStatus.UNUSED,
-            });
-        }
-        if (masterCodesData.length > 0) {
-            await tx.qRCode.createMany({ data: masterCodesData });
-        }
-        const childCodesData = [];
+        const qrCodesData = [];
         for (let i = 0; i < totalQuantity; i++) {
-            childCodesData.push({
-                code: nanoid(12),
-                outerCode: `CHILD-${nanoid(10)}`,
+            qrCodesData.push({
+                code: nanoid(12), // Generate a single unique code
                 batchId: batchToProcess.id,
-                isMaster: false,
-                status: QRCodeStatus.AWAITING_ASSIGNMENT,
+                status: QRCodeStatus.ACTIVE, // Set default status to ACTIVE
+                supplyChainScans: 0, // Initialize scan counters
+                consumerScans: 0,    // Initialize scan counters
             });
         }
-        if (childCodesData.length > 0) {
-            await tx.qRCode.createMany({ data: childCodesData });
+        if (qrCodesData.length > 0) {
+            await tx.qRCode.createMany({ data: qrCodesData });
         }
         return batchUpdate;
     });
-    console.log(`Successfully generated ${numberOfCartons} master and ${totalQuantity} child QR pairs for Batch ID: ${batchToProcess.id}`);
+    console.log(`Successfully generated ${totalQuantity} QR codes for Batch ID: ${batchToProcess.id}`);
     res.status(200).json(updatedBatch);
 }));
 
@@ -1473,10 +1428,9 @@ app.post('/api/admin/batches/:id/codes/zip', authenticateToken, authorizeRole([R
     const archive = archiver('zip', { zlib: { level: 9 } });
     archive.on('error', (err) => { throw err; });
     archive.pipe(res);
-    const childQrs = batch.qrCodes.filter(qr => !qr.isMaster);
-    for (const qr of childQrs) {
+    for (const qr of batch.qrCodes) { // Iterate directly over all QR codes
         try {
-            const finalImageBuffer = await generateDualSealBuffer(qr, batch.seal_background_url);
+            const finalImageBuffer = await generateSingleSealBuffer(qr, batch.seal_background_url);
             archive.append(finalImageBuffer, { name: `seal_${qr.code}.png` });
         }
         catch (error) {
@@ -1534,7 +1488,7 @@ app.get('/api/admin/history', authenticateToken, authorizeRole([Role.ADMIN]), as
 }));
 
 app.get('/api/admin/scans', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
-    const allScans = await prisma.scanRecord.findMany({
+    const allScans = await prisma.scanLog.findMany({
         where: { ipAddress: { not: null } },
         include: { qrCode: { include: { batch: { select: { drugName: true, manufacturer: { select: { companyName: true } } } } } } },
         orderBy: { scannedAt: 'desc' },
@@ -1677,7 +1631,7 @@ app.post('/api/admin/system-reset', authenticateToken, authorizeRole([Role.ADMIN
         batches: await prisma.batch.findMany({ include: { manufacturer: true } }),
         users: await prisma.user.findMany(),
         qrCodes: await prisma.qRCode.findMany(),
-        scanRecords: await prisma.scanRecord.findMany(),
+        scanLogs: await prisma.scanLog.findMany(), // Changed from scanRecords to scanLogs
         skincareBrands: await prisma.skincareBrand.findMany({ include: { user: true } }),
         skincareProducts: await prisma.skincareProduct.findMany({ include: { brand: true } }),
     };
@@ -1703,7 +1657,7 @@ app.post('/api/admin/system-reset', authenticateToken, authorizeRole([Role.ADMIN
     console.log('System backup uploaded to Cloudinary:', uploadResult.secure_url);
 
     await prisma.$transaction([
-        prisma.scanRecord.deleteMany(),
+        prisma.scanLog.deleteMany(), // Changed from scanRecord to scanLog
         prisma.qRCode.deleteMany(),
         prisma.batch.deleteMany(),
         prisma.skincareProduct.deleteMany(),

@@ -47,15 +47,9 @@ enum BatchStatus {
 }
 
 enum QRCodeStatus {
-  UNUSED
-  AWAITING_ASSIGNMENT // New status for newly created child codes
-  ASSIGNED_TO_MASTER  // New status after being linked to a master carton
-  VERIFIED_BY_SUPPLY_CHAIN // e.g., Scanned by a Pharmacy
-  SEALED // This can represent the "live" state for the Inner QR
-  VERIFIED_ONCE
-  FLAGGED
-  INVALID_STATE
-  USED
+  ACTIVE // Initial state, scannable by supply chain
+  USED // The final, terminal state after a consumer's first scan.
+  FLAGGED // A state an Admin can manually set if a code is reported as suspicious.
 }
 
 enum ShipmentStatus {
@@ -102,8 +96,6 @@ model User {
   // --- END: ADD THESE LINES ---
 
   batches               Batch[]
-  // Correctly defined opposite relation for ScanRecord.scanner
-  scanRecords           ScanRecord[]
   skincareBrand         SkincareBrand?
   manufacturerShipments Shipment[]         @relation("ManufacturerShipments")
   distributorShipments  Shipment[]         @relation("DistributorShipments")
@@ -169,60 +161,22 @@ model Batch {
 }
 
 model QRCode {
-  id               Int               @id @default(autoincrement())
-  
-  // --- START: DUAL QR CODE SYSTEM ---
-  // The 'code' field is now the customer-facing, single-use Inner Code
-  code             String            @unique @map("innerCode") // This is the Inner QR (Customer)
-  outerCode        String            @unique                  // This is the Outer QR (Supply Chain)
-  smsCode          String?           @unique                  // ADD THIS LINE FOR THE NUMERIC SMS CODE
-  // --- END: DUAL QR CODE SYSTEM ---
+  id                       Int          @id @default(autoincrement())
+  code                     String       @unique // Unified QR code
+  batchId                  Int
+  status                   QRCodeStatus @default(ACTIVE)
+  batch                    Batch        @relation(fields: [batchId], references: [id])
+  scanLogs                 ScanLog[] // New relation to ScanLog model
 
-  batchId          Int
-  status           QRCodeStatus      @default(AWAITING_ASSIGNMENT)
-  batch            Batch             @relation(fields: [batchId], references: [id])
-  scanRecords      ScanRecord[]
-  dispenseRecord   DispenseRecord?
+  // Fields for multi-stage lifecycle
+  supplyChainScans         Int          @default(0)
+  consumerScans            Int          @default(0)
+  isVoided                 Boolean      @default(false)
 
-  isMaster         Boolean   @default(false)
-  parentId         Int?      
-  
-  parent   QRCode?  @relation("MasterChild", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  children QRCode[] @relation("MasterChild")
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
 
-  isReinitiated      Boolean   @default(false)
-  reinitiatedBy      Int?
-  reinitiatedAt      DateTime?
-  reinitiationReason String?
-
-  firstVerificationTimestamp DateTime?
-  firstVerificationIp        String?
-  firstVerificationLocation  String?
-
-  createdAt DateTime @default(now())
-}
-
-model ScanRecord {
-  id            Int      @id @default(autoincrement())
-  qrCodeId      Int?
-  qrCode        QRCode?  @relation(fields: [qrCodeId], references: [id])
-  scannedCode   String
-  scanOutcome   String
-  scannedAt     DateTime @default(now())
-  scannedByRole Role
-  scannerId     Int?
-  // Correctly defined opposite relation to User
-  scanner       User?    @relation(fields: [scannerId], references: [id])
-  ipAddress     String?
-  city          String?
-  region        String?
-  country       String?
-  latitude      Float?
-  longitude     Float?
-
-  // --- START: ADD THIS NEW FIELD ---
-  fullAddress   String? // To store the detailed address from reverse geocoding
-  // --- END: ADD THIS NEW FIELD ---
+  dispenseRecord           DispenseRecord?
 }
 
 model NotificationLog {
@@ -362,4 +316,21 @@ model CounterfeitContent {
   warningVideoUrl String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model ScanLog {
+  id            Int      @id @default(autoincrement())
+  qrCodeId      Int
+  qrCode        QRCode   @relation(fields: [qrCodeId], references: [id])
+  scannerId     Int? // User who performed the scan
+  scannerRole   Role // Role of the user who performed the scan
+  scannedAt     DateTime @default(now())
+  ipAddress     String?
+  city          String?
+  region        String?
+  country       String?
+  latitude      Float?
+  longitude     Float?
+  scanOutcome   String // e.g., "GENUINE", "COUNTERFEIT", "SUPPLY_CHAIN_VERIFIED"
+  fullAddress   String?
 }
