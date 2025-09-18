@@ -188,12 +188,11 @@ function QuickScanPage() {
   if (phase === 'landing') {
     return (
       <div 
-        className="w-full h-full flex flex-col items-center justify-center bg-black text-white cursor-pointer"
+        className="w-full h-full flex flex-col items-center justify-center bg-black text-white cursor-pointer relative"
         onClick={() => setPhase('camera')}
       >
-        <TapePeelAnimation>
-          <CriterionMarkLogo />
-        </TapePeelAnimation>
+        <FootprintAnimation />
+        <CriterionMarkLogo />
         <p className="mt-8 text-lg">Tap anywhere to start camera</p>
       </div>
     );
@@ -264,12 +263,10 @@ function QuickScanPage() {
             <AnimatePresence>
                 {uiVisible && !scanResult && !isLoading && (
                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-20 flex flex-col justify-between text-white">
-                        
-                        
-
+                        <div />
                         <div className="bg-gradient-to-t from-black/90 via-black/40 to-transparent p-6 text-center space-y-4">
                             <CriterionMarkLogo />
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center justify-center gap-3">
                                 <button onClick={handleHistoryClick} className="bg-white/10 backdrop-blur-md border border-white/20 font-semibold py-2 px-6 rounded-full hover:bg-white/20 transition-colors"> 
                                     Scan History
                                 </button>

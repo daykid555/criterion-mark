@@ -1,0 +1,65 @@
+
+.footprint-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.footprint {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  animation: walk 10s infinite linear;
+  opacity: 0;
+}
+
+.boot-print {
+  animation-delay: 0s;
+}
+
+.chicken-print {
+  animation-delay: 5s;
+  width: 30px;
+  height: 30px;
+}
+
+@keyframes walk {
+  0% {
+    opacity: 0;
+    transform: translate(20vw, 80vh) rotate(20deg);
+  }
+  10% {
+    opacity: 1;
+  }
+  20% {
+    transform: translate(40vw, 60vh) rotate(0deg);
+  }
+  30% {
+    opacity: 1;
+  }
+  40% {
+    transform: translate(60vw, 40vh) rotate(-20deg);
+  }
+  50% {
+    opacity: 1;
+  }
+  60% {
+    transform: translate(80vw, 20vh) rotate(0deg);
+  }
+  70% {
+    opacity: 1;
+  }
+  80% {
+    transform: translate(100vw, 0vh) rotate(20deg);
+  }
+  90% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg);
+  }
+}
