@@ -106,7 +106,7 @@ function ScanHistoryPage() {
             
             <main className="space-y-4 pb-20">
                 {isLoading && (
-                     <div className="text-center p-8"><FiLoader className="animate-spin text-4xl mx-auto" /></div>
+                     <div className="text-center p-8"><PillLoader /></div>
                 )}
                 {error && (
                      <div className="text-center p-8 text-red-300 flex flex-col items-center gap-4">

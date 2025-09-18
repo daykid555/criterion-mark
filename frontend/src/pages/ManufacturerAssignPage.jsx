@@ -225,8 +225,14 @@ function ManufacturerAssignPage() {
             )}
             <div className="flex space-x-4 pt-2">
                <button onClick={handleGenerateMaster} disabled={isLoading || childCodes.size === 0} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
-                {isLoading ? <FiLoader className="animate-spin"/> : <FiPlusCircle/>}
-                <span className="ml-2">Generate Master Code</span>
+                {isLoading ? (
+                  <PillLoader text="Generating..." />
+                ) : (
+                  <>
+                    <FiPlusCircle/>
+                    <span className="ml-2">Generate Master Code</span>
+                  </>
+                )}
               </button>
               <button onClick={resetProcess} className="w-auto flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button bg-red-500/20 hover:bg-red-500/40">
                 <FiXCircle/>

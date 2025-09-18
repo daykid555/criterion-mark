@@ -26,7 +26,7 @@ function PharmacyHistoryPage() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <FiLoader className="animate-spin text-white text-4xl" />
+        <PillLoader />
       </div>
     );
   }

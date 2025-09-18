@@ -114,8 +114,14 @@ function CreateHealthVideoPage() {
               disabled={isSubmitting}
               className="font-bold py-3 px-8 rounded-lg glass-button flex items-center justify-center disabled:opacity-50"
             >
-              {isSubmitting ? <FiLoader className="animate-spin mr-2" /> : <FiSave className="mr-2" />}
-              <span>{isSubmitting ? 'Saving...' : 'Save Content'}</span>
+              {isSubmitting ? (
+                <PillLoader text="Saving..." />
+              ) : (
+                <>
+                  <FiSave className="mr-2" />
+                  <span>Save Content</span>
+                </>
+              )}
             </button>
           </div>
         </form>

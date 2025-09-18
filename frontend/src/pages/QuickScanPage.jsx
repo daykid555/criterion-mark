@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
 import { FiMapPin, FiMenu, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen';
+import FootprintAnimation from '../components/FootprintAnimation';
 
 
 const fullScreenCameraStyle = `
@@ -180,7 +181,7 @@ function QuickScanPage() {
   if (phase === 'loading') {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black text-white">
-        <div className="w-16 h-16 border-4 border-white/50 border-t-white rounded-full animate-spin" />
+        <PillLoader />
       </div>
     );
   }
@@ -257,7 +258,7 @@ function QuickScanPage() {
             </AnimatePresence>
             {isLoading && (
                 <motion.div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                  <div className="w-16 h-16 border-4 border-white/50 border-t-white rounded-full animate-spin" />
+                  <PillLoader />
                 </motion.div>
             )}
             <AnimatePresence>

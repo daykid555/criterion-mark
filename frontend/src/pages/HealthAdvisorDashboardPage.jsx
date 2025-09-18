@@ -48,7 +48,7 @@ function HealthAdvisorDashboardPage() {
 
   const renderContent = () => {
     if (isLoading) {
-      return <div className="text-center p-8 text-white"><FiLoader className="animate-spin text-2xl mx-auto" /></div>;
+      return <div className="text-center p-8 text-white"><PillLoader /></div>;
     }
     if (error) {
       return <div className="text-center p-8 text-red-300 flex flex-col items-center gap-4"><FiAlertTriangle className="text-4xl" /> <p>{error}</p></div>;

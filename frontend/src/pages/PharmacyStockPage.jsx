@@ -195,8 +195,14 @@ function PharmacyStockPage() {
                 <span className="ml-2">Verify All</span>
               </button>
               <button onClick={() => handleBatchAction('dispense')} disabled={scannedProducts.length === 0 || isLoading} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button bg-green-500/20 hover:bg-green-500/40 disabled:opacity-50">
-                {isLoading ? <FiLoader className="animate-spin"/> : <FiShoppingBag/>}
-                <span className="ml-2">Dispense All</span>
+                {isLoading ? (
+                  <PillLoader text="Dispensing..." />
+                ) : (
+                  <>
+                    <FiShoppingBag/>
+                    <span className="ml-2">Dispense All</span>
+                  </>
+                )}
               </button>
             </div>
             {result && (

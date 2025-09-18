@@ -129,7 +129,7 @@ const ScanResultScreen = ({ scanResult, onScanAgain, cameraAutoStartEnabled, onC
       {/* Loading Spinner for Video/Image */}
       {(videoLoading || imageLoading) && (
         <div className="absolute inset-0 flex items-center justify-center z-0">
-          <FiLoader className="animate-spin text-white text-4xl" />
+          <PillLoader />
         </div>
       )}
 

@@ -78,7 +78,7 @@ const AdminCounterfeitContentPage = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <FiLoader size={40} className="animate-spin text-white" />
+        <PillLoader />
       </div>
     );
   }

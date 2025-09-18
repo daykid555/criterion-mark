@@ -273,10 +273,7 @@ function UserManagement() {
             className="font-bold py-3 px-6 rounded-lg glass-button flex items-center justify-center disabled:opacity-50"
           >
             {isLoadingMore ? (
-              <>
-                <FiLoader className="animate-spin mr-2" />
-                Loading...
-              </>
+              <PillLoader />
             ) : (
               'Load More'
             )}
