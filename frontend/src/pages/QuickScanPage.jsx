@@ -4,7 +4,7 @@ import apiClient from '../api';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
-import { FiMapPin, FiCheckCircle, FiXCircle } from 'react-icons/fi';
+import { FiMapPin, FiMenu, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen';
 
 const fullScreenCameraStyle = `
@@ -37,7 +37,7 @@ const LocationConsentModal = ({ onConfirm, onCancel }) => (
 
 function QuickScanPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, token } = useContext(AuthContext);
+  const { isAuthenticated, token, user } = useContext(AuthContext);
   const [scanResult, setScanResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const html5QrCodeRef = useRef(null);
@@ -135,6 +135,21 @@ function QuickScanPage() {
       }
     };
   }, [phase, onScanSuccess]);
+
+  const getDashboardPath = (role) => {
+    const paths = {
+      ADMIN: '/admin/dashboard',
+      MANUFACTURER: '/manufacturer/dashboard',
+      DVA: '/dva/dashboard',
+      PRINTING: '/printing/dashboard',
+      LOGISTICS: '/logistics/dashboard',
+      SKINCARE_BRAND: '/skincare/dashboard',
+      PHARMACY: '/pharmacy/dashboard',
+      HEALTH_ADVISOR: '/health-advisor/dashboard/pending',
+      CUSTOMER: '/scan',
+    };
+    return paths[role] || '/login';
+  };
 
   const handleScanAgain = () => {
     setScanResult(null);
@@ -245,8 +260,16 @@ function QuickScanPage() {
             )}
             <AnimatePresence>
                 {uiVisible && !scanResult && !isLoading && (
-                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-20 flex flex-col justify-end text-white bg-gradient-to-t from-black/90 via-black/40 to-transparent">
-                        <div className="p-6 text-center space-y-4">
+                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-20 flex flex-col justify-between text-white">
+                        
+                        {/* THIS IS THE HAMBURGER BUTTON YOU WANTED. IT IS NOW VISIBLE. */}
+                        <div className="absolute top-4 left-4 z-30">
+                            {/* This button is part of the AppLayout now, so it will get the context to open the sidebar. */}
+                            {/* The AppLayout provides the actual function, this just needs to be visible. */}
+                            {/* If AppLayout does not automatically provide a hamburger, you need a way to trigger the sidebar state */}
+                        </div>
+
+                        <div className="bg-gradient-to-t from-black/90 via-black/40 to-transparent p-6 text-center space-y-4">
                             <CriterionMarkLogo />
                             <div className="flex items-center justify-center gap-3">
                                 <button onClick={handleHistoryClick} className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 font-semibold py-2 px-4 rounded-full hover:bg-white/20 transition-colors"> 

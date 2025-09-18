@@ -46,7 +46,7 @@ import CreateHealthVideoPage from './pages/CreateHealthVideoPage.jsx';
 import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
 import AdminReportManagementPage from './pages/AdminReportManagementPage.jsx';
-import SettingsPage from './pages/SettingsPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx'; 
 import AdminCounterfeitContentPage from './pages/AdminCounterfeitContentPage.jsx';
 import DvaReportsPage from './pages/DvaReportsPage.jsx';
 
@@ -73,7 +73,7 @@ function App() {
       SKINCARE_BRAND: '/skincare/dashboard',
       PHARMACY: '/pharmacy/dashboard',
       HEALTH_ADVISOR: '/health-advisor/dashboard/pending',
-      CUSTOMER: '/scan', // This remains correct, it will now point to the standalone route
+      CUSTOMER: '/scan',
     };
     return paths[role] || '/login';
   };
@@ -88,7 +88,8 @@ function App() {
       <Routes>
         {isAuthenticated ? (
           <Route path="/" element={<AppLayout />}>
-            {/* The /scan route has been REMOVED from the main AppLayout */}
+            {/* --- The /scan route is now correctly back inside the AppLayout --- */} 
+            <Route path="/scan" element={<QuickScanPage />} />
             <Route path="/history" element={<ScanHistoryPage />} />
             <Route path="/report" element={<ReportPage />} />
 
@@ -134,20 +135,17 @@ function App() {
           </Route>
         ) : (
           <>
-            {/* PWA users at the root are now redirected to the standalone /scan route */}
-            <Route path="/" element={isPwa ? <Navigate to="/scan" replace /> : <HomePage />} />
+            {/* The QuickScanPage is now the default for PWAs when not logged in */}
+            <Route path="/" element={isPwa ? <QuickScanPage /> : <HomePage />} />
             <Route element={<PublicLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegistrationPage />} />
               <Route path="/verify" element={<VerificationPage />} />
             </Route>
-            {/* The catch-all for PWAs now redirects to /scan */}
-            <Route path="*" element={<Navigate to={isPwa ? '/scan' : '/login'} replace />} />
+            {/* The catch-all now correctly redirects PWAs to the scanner page at root */}
+            <Route path="*" element={<Navigate to={isPwa ? '/' : '/login'} replace />} />
           </>
         )}
-
-        {/* This is the new standalone, layout-free route for the scanner. It works whether you are logged in or out. */}
-        <Route path="/scan" element={<QuickScanPage />} />
       </Routes>
     </>
   );
