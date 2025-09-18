@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext } from '../context/AuthContext';
 import { FiMapPin, FiMenu, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen';
+import TapePeelAnimation from '../components/TapePeelAnimation';
 
 const fullScreenCameraStyle = `
   #pwa-scanner-view { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
