@@ -31,15 +31,15 @@ const AppLayout = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-x-hidden">
-        {/* Mobile Header - Contains hamburger menu, visible only on small screens */}
-        <header className="lg:hidden p-4 flex items-center flex-shrink-0">
+        {/* Mobile Header - Conditionally styled for scan page */}
+        <header className={`lg:hidden flex items-center flex-shrink-0 ${isScanPage ? 'absolute top-0 left-0 z-30 p-4' : 'p-4'}`}>
           <button onClick={() => setIsMobileNavOpen(true)} className="p-2 text-white">
             <FiMenu size={24} />
           </button>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        {/* Page Content - Conditionally styled for scan page */}
+        <main className={`flex-1 ${isScanPage ? '' : 'p-4 sm:p-6 lg:p-8'}`}>
           <Outlet />
         </main>
       </div>
