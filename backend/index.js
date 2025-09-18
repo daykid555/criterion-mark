@@ -1496,9 +1496,6 @@ app.get('/api/admin/scans', authenticateToken, authorizeRole([Role.ADMIN]), asyn
                     batch: {
                         include: {
                             manufacturer: true // Include entire manufacturer object
-                        },
-                        select: { // Keep select for drugName
-                            drugName: true,
                         }
                     }
                 }
