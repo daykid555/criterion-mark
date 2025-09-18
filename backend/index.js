@@ -1390,14 +1390,14 @@ app.get('/api/admin/batches/:id', authenticateToken, authorizeRole([Role.ADMIN])
             where: { id: parseInt(id, 10) },
             include: {
                 qrCodes: { orderBy: { id: 'asc' } },
-                manufacturer: { select: { email: true, companyName: true } },
-                dvaApprover: { select: { email: true, companyName: true } },
-                adminApprover: { select: { email: true, companyName: true } },
-                rejector: { select: { email: true, companyName: true } },
-                printingStartedBy: { select: { email: true, companyName: true } },
-                printingCompletedBy: { select: { email: true, companyName: true } },
-                pickedUpBy: { select: { email: true, companyName: true } },
-                finalizedDeliveryBy: { select: { email: true, companyName: true } }
+                manufacturer: true,
+                dvaApprover: true,
+                adminApprover: true,
+                rejector: true,
+                printingStartedBy: true,
+                printingCompletedBy: true,
+                pickedUpBy: true,
+                finalizedDeliveryBy: true
             },
         });
         if (!batchDetails) {
@@ -1490,7 +1490,20 @@ app.get('/api/admin/history', authenticateToken, authorizeRole([Role.ADMIN]), as
 app.get('/api/admin/scans', authenticateToken, authorizeRole([Role.ADMIN]), asyncHandler(async (req, res) => {
     const allScans = await prisma.scanLog.findMany({
         where: { ipAddress: { not: null } },
-        include: { qrCode: { include: { batch: { select: { drugName: true, manufacturer: { select: { companyName: true } } } } } } },
+        include: {
+            qrCode: {
+                include: {
+                    batch: {
+                        include: {
+                            manufacturer: true // Include entire manufacturer object
+                        },
+                        select: { // Keep select for drugName
+                            drugName: true,
+                        }
+                    }
+                }
+            }
+        },
         orderBy: { scannedAt: 'desc' },
     });
     res.status(200).json(allScans);
