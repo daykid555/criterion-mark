@@ -8,7 +8,7 @@ import { FiMapPin, FiMenu, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen';
 import FootprintAnimation from '../components/FootprintAnimation';
 import PillLoader from '../components/PillLoader';
-
+// Added a comment to trigger re-compilation
 
 const fullScreenCameraStyle = `
   #pwa-scanner-view { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
