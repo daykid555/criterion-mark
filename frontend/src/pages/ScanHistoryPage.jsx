@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiLoader, FiAlertTriangle, FiPlayCircle, FiFileText, FiMessageSquare, FiCheckCircle, FiXCircle, FiClock } from 'react-icons/fi';
 import BackButton from '../components/BackButton';
+import PillLoader from '../components/PillLoader';
 
 const TextModal = ({ text, onClose }) => (
   <div onClick={onClose} className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer">
