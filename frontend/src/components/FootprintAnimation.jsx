@@ -1,4 +1,6 @@
+
 import React from 'react';
+import './FootprintAnimation.css';
 
 const FootprintAnimation = () => {
   return (
