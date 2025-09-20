@@ -47,7 +47,7 @@ import ScanHistoryPage from './pages/ScanHistoryPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
 import AdminReportManagementPage from './pages/AdminReportManagementPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx'; 
-import AdminCounterfeitContentPage from './pages/AdminCounterfeitContentPage.jsx';
+
 import DvaReportsPage from './pages/DvaReportsPage.jsx';
 
 const PublicLayout = () => ( <> <Navbar /> <main> <Outlet /> </main> </> );
@@ -131,7 +131,7 @@ function App() {
             
             {/* The root now redirects to the correct dashboard */}
             <Route index element={<Navigate to={getDashboardPath(user?.role)} replace />} />
-            <Route path="*" element={<Navigate to={getDashboardPath(user?.role)} replace />} />
+            <Route path="*" element={<Navigate to={isPwa ? '/' : '/login'} replace />} />
           </Route>
         ) : (
           <>
