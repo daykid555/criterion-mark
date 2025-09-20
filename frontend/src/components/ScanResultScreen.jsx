@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import PillLoader from './PillLoader';
 import { FiPlay, FiPause, FiFileText, FiAlertTriangle, FiCheckCircle, FiXCircle, FiLoader, FiArrowLeft, FiX } from 'react-icons/fi'; // Import FiArrowLeft, FiX
 import { useNavigate } from 'react-router-dom';
 import Modal from './Modal';

@@ -4,6 +4,7 @@ import apiClient from '../api';
 import Modal from 'react-modal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { FiPackage, FiXCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff, FiPlusCircle, FiX } from 'react-icons/fi';
+import PillLoader from '../components/PillLoader';
 
 // --- STYLES (FINAL - Restored Size & Layering Fix) ---
 const cleanCameraStyle = `

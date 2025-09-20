@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { FiSave, FiArrowLeft, FiLoader } from 'react-icons/fi';
+import PillLoader from '../components/PillLoader';
 
 function CreateHealthVideoPage() {
   const navigate = useNavigate();

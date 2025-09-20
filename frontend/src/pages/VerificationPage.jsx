@@ -6,6 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import NodeBackground from '../components/NodeBackground';
 import { ShieldCheckIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/solid';
+import PillLoader from '../components/PillLoader';
 
 const qrcodeRegionId = "qr-reader";
 

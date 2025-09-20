@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { FiLoader } from 'react-icons/fi';
+import PillLoader from '../components/PillLoader';
 
 function PharmacyHistoryPage() {
   const [history, setHistory] = useState([]);

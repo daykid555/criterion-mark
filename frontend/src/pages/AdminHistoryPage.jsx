@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom'; // STEP 1: Import Link
 import apiClient from '../api';
 import { FiSearch, FiLoader } from 'react-icons/fi';
+import PillLoader from '../components/PillLoader';
 
 // The BatchHistoryTable component is now updated to include the link
 const STATUS_STYLES = {

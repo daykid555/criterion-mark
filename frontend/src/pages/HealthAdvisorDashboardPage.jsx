@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { FiPlus, FiVideo, FiEdit, FiTrash2, FiLoader, FiAlertTriangle, FiCheckSquare } from 'react-icons/fi';
+import PillLoader from '../components/PillLoader';
 
 function HealthAdvisorDashboardPage() {
   const [content, setContent] = useState([]);

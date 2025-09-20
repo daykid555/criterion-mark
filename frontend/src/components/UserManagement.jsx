@@ -4,6 +4,7 @@ import apiClient from '../api';
 import CreateUserModal from './CreateUserModal';
 import toast from 'react-hot-toast';
 import { FiAlertCircle, FiX, FiSearch, FiLoader } from 'react-icons/fi';
+import PillLoader from './PillLoader';
 
 // Custom Modal for Confirmation (replacing window.confirm)
 const ConfirmationModal = ({ isOpen, onConfirm, onCancel, message }) => {
