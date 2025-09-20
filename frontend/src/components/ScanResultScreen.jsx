@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import PillLoader from './PillLoader';
+import LoadingSpinner from './LoadingSpinner';
 import { FiPlay, FiPause, FiFileText, FiAlertTriangle, FiCheckCircle, FiXCircle, FiLoader, FiArrowLeft, FiX } from 'react-icons/fi'; // Import FiArrowLeft, FiX
 import { useNavigate } from 'react-router-dom';
 import Modal from './Modal';
@@ -130,7 +130,7 @@ const ScanResultScreen = ({ scanResult, onScanAgain, cameraAutoStartEnabled, onC
       {/* Loading Spinner for Video/Image */}
       {(videoLoading || imageLoading) && (
         <div className="absolute inset-0 flex items-center justify-center z-0">
-          <PillLoader />
+          <LoadingSpinner />
         </div>
       )}
 

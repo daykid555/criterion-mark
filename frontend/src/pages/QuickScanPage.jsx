@@ -7,7 +7,7 @@ import { AuthContext } from '../context/AuthContext';
 import { FiMapPin, FiMenu, FiCheckCircle, FiXCircle } from 'react-icons/fi';
 import ScanResultScreen from '../components/ScanResultScreen';
 import FootprintAnimation from '../components/FootprintAnimation';
-import PillLoader from '../components/PillLoader';
+
 
 
 const fullScreenCameraStyle = `
@@ -182,7 +182,11 @@ function QuickScanPage() {
   if (phase === 'loading') {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black text-white">
-        <PillLoader />
+        <div className="flex items-center justify-center">
+          <script src="https://cdn.lordicon.com/lordicon.js"></script>
+          <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:250px;height:250px"></lord-icon>
+          {/* Icons by Lordicon.com */}
+        </div>
       </div>
     );
   }
@@ -259,7 +263,11 @@ function QuickScanPage() {
             </AnimatePresence>
             {isLoading && (
                 <motion.div className="absolute inset-0 z-30 bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                  <PillLoader />
+                  <div className="flex items-center justify-center">
+                    <script src="https://cdn.lordicon.com/lordicon.js"></script>
+                    <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:50px;height:50px"></lord-icon>
+                    {/* Icons by Lordicon.com */}
+                  </div>
                 </motion.div>
             )}
             <AnimatePresence>

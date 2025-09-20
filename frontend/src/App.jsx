@@ -110,7 +110,7 @@ function App() {
             <Route path="/admin/map" element={<AdminMapPage />} />
             <Route path="/admin/batches/:id" element={<AdminBatchDetailsPage />} />
             <Route path="/admin/reports" element={<AdminReportManagementPage />} />
-            <Route path="/admin/counterfeit-content" element={<AdminCounterfeitContentPage />} />
+            
             <Route path="/manufacturer/request-batch" element={<ManufacturerRequestBatchPage />} />
             <Route path="/manufacturer/batch-history" element={<ManufacturerBatchHistoryPage />} />
             <Route path="/manufacturer/assign-carton" element={<ManufacturerAssignPage />} />

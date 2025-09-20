@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom'; // STEP 1: Import Link
 import apiClient from '../api';
 import { FiSearch, FiLoader } from 'react-icons/fi';
-import PillLoader from '../components/PillLoader';
+
 
 // The BatchHistoryTable component is now updated to include the link
 const STATUS_STYLES = {
@@ -168,7 +168,11 @@ function AdminHistoryPage() {
             className="font-bold py-3 px-6 rounded-lg glass-button flex items-center justify-center disabled:opacity-50"
           >
             {isLoadingMore ? (
-              <PillLoader />
+              <div className="flex items-center justify-center">
+                <script src="https://cdn.lordicon.com/lordicon.js"></script>
+                <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:50px;height:50px"></lord-icon>
+                {/* Icons by Lordicon.com */}
+              </div>
             ) : (
               'Load More'
             )}

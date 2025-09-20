@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../api';
 import { FiLoader } from 'react-icons/fi';
-import PillLoader from '../components/PillLoader';
+
 
 function PharmacyHistoryPage() {
   const [history, setHistory] = useState([]);
@@ -27,7 +27,11 @@ function PharmacyHistoryPage() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <PillLoader />
+        <div className="flex items-center justify-center">
+          <script src="https://cdn.lordicon.com/lordicon.js"></script>
+          <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:250px;height:250px"></lord-icon>
+          {/* Icons by Lordicon.com */}
+        </div>
       </div>
     );
   }

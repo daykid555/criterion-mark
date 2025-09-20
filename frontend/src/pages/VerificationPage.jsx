@@ -6,7 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import NodeBackground from '../components/NodeBackground';
 import { ShieldCheckIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/solid';
-import PillLoader from '../components/PillLoader';
+
 
 const qrcodeRegionId = "qr-reader";
 
@@ -205,7 +205,11 @@ function VerificationPage() {
                                 )}
                                 {scanState === 'loading' && (
                                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60">
-                                        <PillLoader text="Verifying..." />
+                                        <div className="flex items-center justify-center">
+                                      <script src="https://cdn.lordicon.com/lordicon.js"></script>
+                                      <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:50px;height:50px"></lord-icon>
+                                      {/* Icons by Lordicon.com */}
+                                    </div>
                                     </div>
                                 )}
                             </div>

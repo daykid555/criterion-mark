@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import apiClient from '../api';
 import { FiCamera, FiCheck, FiShoppingBag, FiLoader, FiInfo, FiTrash2, FiXCircle, FiCameraOff, FiPackage } from 'react-icons/fi';
-import PillLoader from '../components/PillLoader';
+
 
 // --- STYLES (FINAL - Restored Size & Layering Fix) ---
 const cleanCameraStyle = `
@@ -197,7 +197,11 @@ function PharmacyStockPage() {
               </button>
               <button onClick={() => handleBatchAction('dispense')} disabled={scannedProducts.length === 0 || isLoading} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button bg-green-500/20 hover:bg-green-500/40 disabled:opacity-50">
                 {isLoading ? (
-                  <PillLoader text="Dispensing..." />
+                  <div className="flex items-center justify-center">
+                    <script src="https://cdn.lordicon.com/lordicon.js"></script>
+                    <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:50px;height:50px"></lord-icon>
+                    {/* Icons by Lordicon.com */}
+                  </div>
                 ) : (
                   <>
                     <FiShoppingBag/>

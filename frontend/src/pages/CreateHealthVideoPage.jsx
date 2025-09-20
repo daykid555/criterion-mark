@@ -6,7 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { FiSave, FiArrowLeft, FiLoader } from 'react-icons/fi';
-import PillLoader from '../components/PillLoader';
+
 
 function CreateHealthVideoPage() {
   const navigate = useNavigate();
@@ -116,7 +116,11 @@ function CreateHealthVideoPage() {
               className="font-bold py-3 px-8 rounded-lg glass-button flex items-center justify-center disabled:opacity-50"
             >
               {isSubmitting ? (
-                <PillLoader text="Saving..." />
+                <div className="flex items-center justify-center">
+                  <script src="https://cdn.lordicon.com/lordicon.js"></script>
+                  <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:50px;height:50px"></lord-icon>
+                  {/* Icons by Lordicon.com */}
+                </div>
               ) : (
                 <>
                   <FiSave className="mr-2" />

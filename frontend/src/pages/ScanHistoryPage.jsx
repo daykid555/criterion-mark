@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiLoader, FiAlertTriangle, FiPlayCircle, FiFileText, FiMessageSquare, FiCheckCircle, FiXCircle, FiClock } from 'react-icons/fi';
 import BackButton from '../components/BackButton';
-import PillLoader from '../components/PillLoader';
+
 
 const TextModal = ({ text, onClose }) => (
   <div onClick={onClose} className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-pointer">
@@ -107,7 +107,13 @@ function ScanHistoryPage() {
             
             <main className="space-y-4 pb-20">
                 {isLoading && (
-                     <div className="text-center p-8"><PillLoader /></div>
+                     <div className="text-center p-8">
+                       <div className="flex items-center justify-center">
+                         <script src="https://cdn.lordicon.com/lordicon.js"></script>
+                         <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:250px;height:250px"></lord-icon>
+                         {/* Icons by Lordicon.com */}
+                       </div>
+                     </div>
                 )}
                 {error && (
                      <div className="text-center p-8 text-red-300 flex flex-col items-center gap-4">

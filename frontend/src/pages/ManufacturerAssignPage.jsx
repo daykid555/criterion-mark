@@ -4,7 +4,7 @@ import apiClient from '../api';
 import Modal from 'react-modal';
 import { QRCodeCanvas } from 'qrcode.react';
 import { FiPackage, FiXCircle, FiLoader, FiTrash2, FiCamera, FiCameraOff, FiPlusCircle, FiX } from 'react-icons/fi';
-import PillLoader from '../components/PillLoader';
+
 
 // --- STYLES (FINAL - Restored Size & Layering Fix) ---
 const cleanCameraStyle = `
@@ -227,7 +227,11 @@ function ManufacturerAssignPage() {
             <div className="flex space-x-4 pt-2">
                <button onClick={handleGenerateMaster} disabled={isLoading || childCodes.size === 0} className="w-full flex items-center justify-center font-bold py-3 px-4 rounded-lg glass-button disabled:opacity-50">
                 {isLoading ? (
-                  <PillLoader text="Generating..." />
+                  <div className="flex items-center justify-center">
+                    <script src="https://cdn.lordicon.com/lordicon.js"></script>
+                    <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:50px;height:50px"></lord-icon>
+                    {/* Icons by Lordicon.com */}
+                  </div>
                 ) : (
                   <>
                     <FiPlusCircle/>

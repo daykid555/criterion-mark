@@ -4,7 +4,7 @@ import apiClient from '../api';
 import CreateUserModal from './CreateUserModal';
 import toast from 'react-hot-toast';
 import { FiAlertCircle, FiX, FiSearch, FiLoader } from 'react-icons/fi';
-import PillLoader from './PillLoader';
+
 
 // Custom Modal for Confirmation (replacing window.confirm)
 const ConfirmationModal = ({ isOpen, onConfirm, onCancel, message }) => {
@@ -274,7 +274,11 @@ function UserManagement() {
             className="font-bold py-3 px-6 rounded-lg glass-button flex items-center justify-center disabled:opacity-50"
           >
             {isLoadingMore ? (
-              <PillLoader />
+              <div className="flex items-center justify-center">
+                <script src="https://cdn.lordicon.com/lordicon.js"></script>
+                <lord-icon src="https://cdn.lordicon.com/ggnoyhfp.json" trigger="loop" state="loop-line" colors="primary:#000000,secondary:#c71f16" style="width:50px;height:50px"></lord-icon>
+                {/* Icons by Lordicon.com */}
+              </div>
             ) : (
               'Load More'
             )}
